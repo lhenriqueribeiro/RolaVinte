@@ -19,6 +19,8 @@ export function mensagemParaDTO(mensagem: Mensagem): MensagemDTO {
     rolagem: mensagem.rolagem,
     motivo: mensagem.motivo,
     criadoEm: mensagem.criadoEm.toISOString(),
+    destinatarioId: mensagem.destinatarioId,
+    destinatarioNome: mensagem.destinatarioNome,
   };
 }
 

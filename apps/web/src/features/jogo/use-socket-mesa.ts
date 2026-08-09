@@ -8,6 +8,30 @@ import type {
 } from '@rolavinte/shared';
 import { useSessao } from '@/features/auth/store-sessao';
 import { obterSocket } from '@/lib/socket';
+import { useConexao } from './store-conexao';
+
+/**
+ * Caches que o tempo real mantém vivos e que, por isso, ficam desatualizados
+ * durante uma queda: os eventos que os remendariam foram entregues a um socket
+ * que não estava lá (RV-112).
+ *
+ * `invalidateQueries` e não `setQueryData`: o cliente não tem como saber o que
+ * perdeu, então a única resposta correta é reperguntar ao servidor. A lista é
+ * exatamente a dos caches escritos pelos handlers abaixo — nem a mais (refetch
+ * inútil a cada reconexão), nem a menos (tela mentindo até o F5):
+ *
+ * - `['mensagens']` — falas e rolagens do intervalo;
+ * - `['cena']` — cena ativa e tokens (criados, movidos, removidos);
+ * - `['personagens']` — PV das fichas, que alimenta a barra de vida no token;
+ * - `['mesa']` — participação: um `mesa:participante-removido` perdido deixaria
+ *   na tela uma mesa da qual já não faço parte, que é exatamente o defeito
+ *   original do RV-021.
+ *
+ * `['combate']` está no card e não entra aqui porque essa query ainda não
+ * existe — a iniciativa é o RV-118. Quem a criar acrescenta a chave a esta
+ * lista e ao teste de invalidações exatas.
+ */
+const CACHES_RESSINCRONIZADOS = ['mensagens', 'cena', 'personagens', 'mesa'] as const;
 
 /**
  * Handler de um evento do servidor, com o payload vindo do contrato — nunca
@@ -25,6 +49,10 @@ type EventoDoServidor<E extends keyof EventosServidorParaCliente> = EventosServi
  * no servidor quebra a compilação deste arquivo. O que o tipo *não* garante é
  * que exista um ouvinte para cada evento publicado — disso cuida
  * `cobertura-eventos-ws.test.ts`.
+ *
+ * O hook é também a única fonte da store de conexão (RV-112): ele traduz os
+ * eventos de ciclo de vida do socket.io em `conectado`/`reconectando`/`offline`
+ * para a `PaginaMesa` mostrar a faixa de status e bloquear a escrita.
  */
 export function useSocketMesa(mesaId: string) {
   const queryClient = useQueryClient();
@@ -35,10 +63,35 @@ export function useSocketMesa(mesaId: string) {
       if (!resposta.ok) console.warn('Falha ao entrar na sala da mesa:', resposta.erro);
     });
 
-    function aoReconectar() {
+    // Estado da conexão no instante da montagem. Só os dois casos sem ambiguidade
+    // são sincronizados: um socket que *ainda* está abrindo (`connected` falso,
+    // `active` verdadeiro) não é uma queda, e anunciá-lo como tal faria a mesa
+    // abrir piscando "Reconectando…" a cada carga de página.
+    if (socket.connected) useConexao.getState().conectou();
+    else if (!socket.active) useConexao.getState().caiu(false);
+
+    /**
+     * Reentrada na sala + ressincronização. O `mesa:entrar` é obrigatório mesmo
+     * numa reconexão: o socket volta com outro id e sem sala nenhuma. E ele vem
+     * **antes** das invalidações de propósito — quem só invalidasse abriria uma
+     * segunda janela cega entre a resposta da API e a entrada na sala.
+     */
+    function aoConectar() {
+      useConexao.getState().conectou();
       socket.emit('mesa:entrar', mesaId, () => {});
-      void queryClient.invalidateQueries({ queryKey: ['mensagens', mesaId] });
-      void queryClient.invalidateQueries({ queryKey: ['cena', mesaId] });
+      for (const cache of CACHES_RESSINCRONIZADOS) {
+        void queryClient.invalidateQueries({ queryKey: [cache, mesaId] });
+      }
+    }
+
+    /**
+     * `socket.active` é o socket.io dizendo se ele mesmo vai tentar de novo: já
+     * considera o motivo da queda (`io server disconnect` não reconecta) e o
+     * esgotamento das tentativas. Reinterpretar a string de motivo aqui seria
+     * uma segunda leitura da mesma verdade, livre para divergir.
+     */
+    function aoCair() {
+      useConexao.getState().caiu(socket.active);
     }
 
     const novaMensagem: EventoDoServidor<'mensagem:nova'> = (mensagem) => {
@@ -122,7 +175,12 @@ export function useSocketMesa(mesaId: string) {
       void queryClient.invalidateQueries({ queryKey: ['mesas'] });
     };
 
-    socket.on('connect', aoReconectar);
+    socket.on('connect', aoConectar);
+    // `disconnect` é a queda propriamente dita; `connect_error` é cada tentativa
+    // frustrada de voltar (e a primeira falha de handshake). Os dois desembocam
+    // na mesma leitura porque a pergunta é uma só: ainda vai tentar?
+    socket.on('disconnect', aoCair);
+    socket.on('connect_error', aoCair);
     socket.on('mensagem:nova', novaMensagem);
     socket.on('token:criado', tokenCriado);
     socket.on('token:atualizado', tokenAtualizado);
@@ -133,7 +191,9 @@ export function useSocketMesa(mesaId: string) {
 
     return () => {
       socket.emit('mesa:sair', mesaId);
-      socket.off('connect', aoReconectar);
+      socket.off('connect', aoConectar);
+      socket.off('disconnect', aoCair);
+      socket.off('connect_error', aoCair);
       socket.off('mensagem:nova', novaMensagem);
       socket.off('token:criado', tokenCriado);
       socket.off('token:atualizado', tokenAtualizado);

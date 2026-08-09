@@ -288,7 +288,20 @@ Cenário: Jogador não cria tokens
 
 ### RV-047 — Apagar a arte do token do Storage ao excluir token ou cena
 
-**Épico:** E04 · **Depende de:** RV-041 · **Tamanho:** P · **Onda:** 2
+**Épico:** E04 · **Depende de:** RV-041 · **Tamanho:** P · **Onda:** 2 · **Status:** ✅ Concluído
+
+> **Decisões tomadas na entrega:** a política best-effort ganhou um ponto único,
+> [limpeza-armazenamento.ts](../../apps/api/src/aplicacao/jogo/limpeza-armazenamento.ts)
+> (`removerArquivosBestEffort`), com o *porquê* escrito lá: o registro já saiu do banco quando a
+> função roda, e no caso da cena a cascata já levou os tokens — desfazer por causa do Storage
+> trocaria um problema de custo por um de correção. Cada caminho é tentado isolado, para um arquivo
+> teimoso não bloquear a limpeza dos outros. `RemoverToken` publica `token:removido` **antes** de
+> limpar: o fato de domínio já aconteceu e o aviso à mesa não pode depender de uma chamada ao
+> Storage. Os dois casos de uso de upload (`DefinirImagemToken`, `DefinirImagemFundoCena`) continuam
+> com o `try/catch` inline — fora do escopo deste card, mas são os próximos candidatos ao helper.
+> **A armadilha 1 foi verificada por experimento:** mover a leitura dos caminhos para depois de
+> `cenas.remover` deixa o teste vermelho (`expected [] to deeply equal [...]`), porque o
+> `FakeCenaRepository` replica a cascata.
 
 **História**
 > Como **operador**, quero **que a arte de um token suma do armazenamento quando a peça deixa de existir**, para **não pagar por um bucket que só cresce e nunca é limpo**.

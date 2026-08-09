@@ -50,7 +50,7 @@ export function AcaoEncerrarMesa({ mesa, compacto = false }: Props) {
       }
       rotuloConfirmar="Encerrar mesa"
       processando={encerrar.isPending}
-      erro={encerrar.isError ? encerrar.error.message : null}
+      erro={encerrar.error}
       aoConfirmar={() => encerrar.mutate(mesa.id, { onSuccess: () => setConfirmando(false) })}
       aoCancelar={() => {
         encerrar.reset();

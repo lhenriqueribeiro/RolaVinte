@@ -1,5 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router';
 import { Botao } from '@/components/ui/Botao';
+import { Carregando, Erro } from '@/components/ui/Estado';
 import { useSessao } from '@/features/auth/store-sessao';
 import { useAceitarConvite, useConvitePublico } from './api';
 
@@ -23,14 +24,20 @@ export function PaginaConvite() {
       <div className="w-full max-w-md rounded-2xl border border-borda bg-painel p-8 text-center">
         <h1 className="font-titulo text-3xl text-ouro">🎲 RolaVinte</h1>
 
-        {convite.isPending && <p className="mt-6 text-texto-2">Verificando convite…</p>}
+        {convite.isPending && (
+          <Carregando rotulo="Verificando o convite…" className="mt-6 justify-center" />
+        )}
         {convite.isError && (
-          <div className="mt-6">
-            <p className="text-perigo">{convite.error.message}</p>
-            <Link to="/" className="mt-4 inline-block text-sm text-ouro hover:underline">
+          <Erro
+            erro={convite.error}
+            className="mt-6"
+            retentando={convite.isFetching}
+            aoRetentar={() => void convite.refetch()}
+          >
+            <Link to="/" className="text-sm text-ouro hover:underline">
               Ir para o início
             </Link>
-          </div>
+          </Erro>
         )}
 
         {convite.data && (
@@ -43,9 +50,7 @@ export function PaginaConvite() {
 
             {sessao.token ? (
               <div className="mt-8">
-                {aceitar.isError && (
-                  <p className="mb-3 text-sm text-perigo">{aceitar.error.message}</p>
-                )}
+                {aceitar.isError && <Erro erro={aceitar.error} className="mb-3" />}
                 <Botao onClick={aceitarConvite} disabled={aceitar.isPending} className="w-full">
                   {aceitar.isPending ? 'Entrando na mesa…' : 'Aceitar convite'}
                 </Botao>

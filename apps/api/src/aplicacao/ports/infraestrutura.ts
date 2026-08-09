@@ -58,6 +58,20 @@ export interface EventBus {
  */
 export interface PublicadorEventosMesa {
   mensagemNova(mesaId: string, mensagem: PayloadEventoServidor<'mensagem:nova'>): void;
+  /**
+   * Entrega direcionada de mensagem restrita — sussurro e rolagem oculta
+   * (RV-070/RV-071). Mesmo evento (`mensagem:nova`), outro alvo: só os sockets
+   * dos `usuarioIds` **naquela mesa**.
+   *
+   * É aqui que mora a privacidade. Publicar uma mensagem restrita por
+   * `mensagemNova` a entregaria à sala inteira, e nenhum filtro de cliente
+   * desfaria isso — o payload já teria saído do servidor.
+   */
+  mensagemPrivada(
+    mesaId: string,
+    usuarioIds: readonly string[],
+    mensagem: PayloadEventoServidor<'mensagem:nova'>,
+  ): void;
   tokenCriado(mesaId: string, token: PayloadEventoServidor<'token:criado'>): void;
   tokenAtualizado(mesaId: string, token: PayloadEventoServidor<'token:atualizado'>): void;
   tokenRemovido(mesaId: string, dados: PayloadEventoServidor<'token:removido'>): void;

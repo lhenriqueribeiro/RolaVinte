@@ -11,6 +11,11 @@
   --color-ouro-escuro: #c99a2e;
   --color-perigo: #e74c3c;
   --color-sucesso: #2ecc71;
+  /* Conversa privada: sussurro e rolagem oculta (RV-070, RV-071). Precisa não
+     se confundir com o ouro da rolagem pública nem com o vermelho do erro. A
+     cor acompanha o rótulo textual, nunca o substitui. */
+  --color-roxo: #8b7bd8;
+  --color-roxo-claro: #c4b8f5;
   --font-titulo: 'Georgia', 'Times New Roman', serif;
 }
 

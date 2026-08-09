@@ -32,8 +32,9 @@ class SocketFalso {
     return this;
   }
 
-  async join(sala: string): Promise<void> {
-    this.salas.add(sala);
+  /** Como o Socket.IO real: aceita uma sala ou várias de uma vez. */
+  async join(sala: string | string[]): Promise<void> {
+    for (const s of Array.isArray(sala) ? sala : [sala]) this.salas.add(s);
   }
 
   async leave(sala: string): Promise<void> {
@@ -146,7 +147,7 @@ describe('GatewayJogo — mesa:entrar recusa payload inválido antes de qualquer
 });
 
 describe('GatewayJogo — autorização de entrada na sala', () => {
-  it('entra na sala quando o usuário participa da mesa', async () => {
+  it('entra na sala da mesa e na sala pessoal dela quando o usuário participa', async () => {
     await gateway.semearMesaCom(USUARIO_ID);
     const socket = gateway.conectar();
     const { ack, respostas } = criarAck();
@@ -154,7 +155,22 @@ describe('GatewayJogo — autorização de entrada na sala', () => {
     await socket.receber('mesa:entrar', MESA_ID, ack);
 
     expect(respostas).toEqual([{ ok: true }]);
-    expect([...socket.salas]).toEqual([`mesa:${MESA_ID}`]);
+    // A sala pessoal (RV-070) é o destino de sussurro e rolagem oculta. Ela
+    // nasce colada à sala da mesa, depois da MESMA verificação de participação:
+    // não existe caminho para recebê-los sem estar autorizado na mesa.
+    expect([...socket.salas].sort()).toEqual(
+      [`mesa:${MESA_ID}`, `mesa:${MESA_ID}:usuario:${USUARIO_ID}`].sort(),
+    );
+  });
+
+  it('quem não participa não entra na sala pessoal da mesa', async () => {
+    await gateway.semearMesaCom(null);
+    const socket = gateway.conectar();
+    const { ack } = criarAck();
+
+    await socket.receber('mesa:entrar', MESA_ID, ack);
+
+    expect(socket.salas.has(`mesa:${MESA_ID}:usuario:${USUARIO_ID}`)).toBe(false);
   });
 
   it('recusa quem não participa, mesmo com uuid válido', async () => {
@@ -180,11 +196,12 @@ describe('GatewayJogo — autorização de entrada na sala', () => {
 });
 
 describe('GatewayJogo — mesa:sair', () => {
-  it('sai apenas da sala pedida', async () => {
+  it('sai da sala da mesa e também da pessoal — sair é parar de receber tudo', async () => {
     await gateway.semearMesaCom(USUARIO_ID);
     const socket = gateway.conectar();
     const { ack } = criarAck();
     await socket.receber('mesa:entrar', MESA_ID, ack);
+    expect(socket.salas.size).toBe(2);
 
     await socket.receber('mesa:sair', MESA_ID);
 
@@ -199,7 +216,9 @@ describe('GatewayJogo — mesa:sair', () => {
 
     await socket.receber('mesa:sair', { mesaId: MESA_ID });
 
-    expect([...socket.salas]).toEqual([`mesa:${MESA_ID}`]);
+    expect([...socket.salas].sort()).toEqual(
+      [`mesa:${MESA_ID}`, `mesa:${MESA_ID}:usuario:${USUARIO_ID}`].sort(),
+    );
   });
 });
 

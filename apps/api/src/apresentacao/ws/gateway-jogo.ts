@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SALA_MESA, type AckEntrarNaMesa } from '@rolavinte/shared';
+import { SALA_MESA, SALA_USUARIO_NA_MESA, type AckEntrarNaMesa } from '@rolavinte/shared';
 import type { ServicoToken } from '../../aplicacao/ports/infraestrutura';
 import type { VerificarParticipacao } from '../../aplicacao/jogo/verificar-participacao';
 import type { ServidorJogo, SocketJogo } from './servidor-socket';
@@ -42,13 +42,20 @@ export class GatewayJogo {
         const participa = await this.verificarParticipacao.executar(usuarioId, mesaId.data);
         if (!participa) return responder({ ok: false, erro: 'Você não participa desta mesa.' });
 
-        await socket.join(SALA_MESA(mesaId.data));
+        // A sala pessoal desta mesa é o destino de sussurro e rolagem oculta
+        // (RV-070/RV-071). Entra no mesmo instante da sala da mesa, depois da
+        // mesma verificação de participação: não existe caminho para receber
+        // mensagem privada de uma mesa da qual não se participa.
+        await socket.join([SALA_MESA(mesaId.data), SALA_USUARIO_NA_MESA(mesaId.data, usuarioId)]);
         responder({ ok: true });
       });
 
       socket.on('mesa:sair', (mesaIdBruto: unknown) => {
         const mesaId = mesaIdSchema.safeParse(mesaIdBruto);
-        if (mesaId.success) void socket.leave(SALA_MESA(mesaId.data));
+        if (!mesaId.success) return;
+        void socket.leave(SALA_MESA(mesaId.data));
+        // Sair da mesa é parar de receber tudo dela, inclusive o que era privado.
+        void socket.leave(SALA_USUARIO_NA_MESA(mesaId.data, socket.data.usuarioId));
       });
     });
   }

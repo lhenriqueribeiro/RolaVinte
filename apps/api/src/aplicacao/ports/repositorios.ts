@@ -45,6 +45,13 @@ export interface CenaRepository {
 
 export interface MensagemRepository {
   salvar(mensagem: Mensagem): Promise<void>;
-  /** Read model — mais recentes primeiro no banco, retornadas em ordem cronológica. */
-  listarDaMesa(mesaId: string, limite: number): Promise<MensagemDTO[]>;
+  /**
+   * Read model — mais recentes primeiro no banco, retornadas em ordem cronológica.
+   *
+   * `solicitanteId` **não** é conveniência: sussurro e rolagem oculta são
+   * excluídos já na consulta (RV-070/RV-071). Filtrar depois de trazer, ou no
+   * cliente, seria deixar o segredo sair do servidor — e o `limite` passaria a
+   * contar mensagens que o solicitante nem pode ver.
+   */
+  listarDaMesa(mesaId: string, solicitanteId: string, limite: number): Promise<MensagemDTO[]>;
 }

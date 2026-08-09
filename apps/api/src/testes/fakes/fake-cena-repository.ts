@@ -33,6 +33,11 @@ interface RegistroToken {
 export class FakeCenaRepository implements CenaRepository {
   private readonly cenas = new Map<string, RegistroCena>();
   private readonly tokens = new Map<string, RegistroToken>();
+  /**
+   * Espião do RV-036: a guarda de redução de grid só pode consultar os tokens
+   * quando algum lado do grid diminui — um ajuste de cor não paga uma query.
+   */
+  chamadasListarTokensDaCena = 0;
 
   async salvar(cena: Cena): Promise<void> {
     this.cenas.set(cena.id, {
@@ -111,6 +116,7 @@ export class FakeCenaRepository implements CenaRepository {
   }
 
   async listarTokensDaCena(cenaId: string): Promise<Token[]> {
+    this.chamadasListarTokensDaCena += 1;
     return [...this.tokens.values()]
       .filter((t) => t.cenaId === cenaId)
       .map((t) => Token.reconstituir({ ...t }));

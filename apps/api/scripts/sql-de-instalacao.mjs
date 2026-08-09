@@ -8,8 +8,12 @@
  * às migrations — duas fontes de verdade para o mesmo schema divergiriam na
  * primeira migration nova. Aqui a saída é sempre derivada dos arquivos reais.
  *
- *   npm run supabase:sql -w @rolavinte/api          # ver na tela
- *   npm run supabase:sql -w @rolavinte/api > tudo.sql
+ *   npm run supabase:sql -w @rolavinte/api                       # tudo
+ *   npm run supabase:sql -w @rolavinte/api -- --desde 0005_chat  # só a partir dela
+ *
+ * `--desde` existe para o banco já parcialmente preparado: migration aplicada é
+ * imutável, então reaplicar as anteriores é erro. O `supabase:verificar` imprime
+ * o comando exato com a primeira pendente já preenchida.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -18,9 +22,21 @@ import { fileURLToPath } from 'node:url';
 const RAIZ_API = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DIR_MIGRATIONS = join(RAIZ_API, 'supabase', 'migrations');
 
-const migrations = readdirSync(DIR_MIGRATIONS)
+const todas = readdirSync(DIR_MIGRATIONS)
   .filter((nome) => nome.endsWith('.sql'))
   .sort(); // a numeração NNNN_ garante a ordem correta
+
+const indiceDesde = process.argv.indexOf('--desde');
+const desde = indiceDesde === -1 ? null : process.argv[indiceDesde + 1]?.replace(/\.sql$/, '');
+
+if (desde !== null && !todas.some((nome) => nome.startsWith(desde))) {
+  process.stderr.write(`\n[sql] Migration "${desde}" não existe. Disponíveis:\n`);
+  process.stderr.write(todas.map((n) => `  - ${n}\n`).join(''));
+  process.exit(1);
+}
+
+const primeira = desde === null ? 0 : todas.findIndex((nome) => nome.startsWith(desde));
+const migrations = todas.slice(primeira);
 
 const partes = [
   ...migrations.map((nome) => ({
@@ -42,7 +58,9 @@ process.stdout.write(
   [
     '-- RolaVinte — SQL de instalação, gerado por scripts/sql-de-instalacao.mjs',
     '-- Cole no SQL Editor do Supabase e execute de uma vez.',
-    '-- As migrations são imutáveis depois de aplicadas: rode isto só em projeto novo.',
+    desde === null
+      ? '-- Todas as migrations. Migration aplicada é imutável: rode isto só em projeto novo.'
+      : `-- Somente a partir de ${desde}. O provisionamento de Storage é idempotente e vai junto.`,
     '',
     ...saida,
   ].join('\n'),

@@ -10,6 +10,11 @@ export const rolarDadosSchema = z.object({
   mesaId: z.string().uuid(),
   expressao: z.string().trim().min(1).max(200),
   motivo: z.string().trim().max(120).default(''),
+  /**
+   * Rolagem oculta do mestre (RV-071). Fica exposta na rota de propósito: a
+   * proteção é o 403 do caso de uso, não o comando estar escondido na UI.
+   */
+  oculta: z.boolean().default(false),
 });
 export type RolarDadosEntrada = z.infer<typeof rolarDadosSchema>;
 

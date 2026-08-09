@@ -3,6 +3,8 @@ import type { CenaDTO } from '@rolavinte/shared';
 import { Botao } from '@/components/ui/Botao';
 import { Campo } from '@/components/ui/Campo';
 import { DialogoConfirmacao } from '@/components/ui/Dialogo';
+import { Erro, Vazio } from '@/components/ui/Estado';
+import { ListaEsqueleto } from '@/components/ui/Esqueleto';
 import { useAtivarCena, useAtualizarCena, useCenas, useCriarCena, useRemoverCena } from './api';
 
 interface Props {
@@ -68,14 +70,17 @@ export function GerenciadorCenas({ mesaId, motivoBloqueio }: Props) {
     <section className="rounded-xl border border-borda bg-painel-2 p-3">
       <h3 className="mb-2 font-titulo text-sm text-ouro">🗺️ Cenas da mesa</h3>
 
-      {cenas.isPending && <p className="text-xs text-texto-2">Carregando cenas…</p>}
+      {cenas.isPending && <ListaEsqueleto itens={2} altura="h-16" rotulo="Carregando as cenas…" />}
       {cenas.isError && (
-        <p role="alert" className="text-xs text-perigo">
-          {cenas.error.message}
-        </p>
+        <Erro
+          erro={cenas.error}
+          compacto
+          retentando={cenas.isFetching}
+          aoRetentar={() => void cenas.refetch()}
+        />
       )}
-      {cenas.data?.length === 0 && (
-        <p className="text-xs text-texto-2">Nenhuma cena ainda. Crie a primeira abaixo.</p>
+      {cenas.isSuccess && cenas.data.length === 0 && (
+        <Vazio compacto icone="🗺️" titulo="Nenhuma cena ainda. Crie a primeira abaixo." />
       )}
 
       <ul className="flex flex-col gap-2">
@@ -172,9 +177,7 @@ export function GerenciadorCenas({ mesaId, motivoBloqueio }: Props) {
 
       {/* A falha de exclusão fica no próprio diálogo, para não aparecer duas vezes. */}
       {(ativar.isError || atualizar.isError) && (
-        <p role="alert" className="mt-2 text-xs text-perigo">
-          {(ativar.error ?? atualizar.error)?.message}
-        </p>
+        <Erro erro={ativar.error ?? atualizar.error} compacto className="mt-2" />
       )}
 
       <form
@@ -210,11 +213,7 @@ export function GerenciadorCenas({ mesaId, motivoBloqueio }: Props) {
             onChange={(e) => setAltura(Number(e.target.value))}
           />
         </div>
-        {criar.isError && (
-          <p role="alert" className="text-xs text-perigo">
-            {criar.error.message}
-          </p>
-        )}
+        {criar.isError && <Erro erro={criar.error} compacto />}
         <Botao type="submit" disabled={bloqueado || criar.isPending}>
           Criar cena
         </Botao>
@@ -233,7 +232,7 @@ export function GerenciadorCenas({ mesaId, motivoBloqueio }: Props) {
         }
         rotuloConfirmar="Excluir cena"
         processando={remover.isPending}
-        erro={remover.isError ? remover.error.message : null}
+        erro={remover.error}
         aoConfirmar={confirmarExclusao}
         aoCancelar={() => setCenaParaExcluir(null)}
       />

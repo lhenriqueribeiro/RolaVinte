@@ -5,8 +5,22 @@ import type { ServicoRolagemDados } from '../../dominio/jogo/servico-rolagem';
 import { ErroDominio } from '../../dominio/compartilhado/erro-dominio';
 import { falha, ok, type Result } from '../../dominio/compartilhado/resultado';
 import { mensagemParaDTO } from '../mapeadores';
+import { publicarMensagem } from './publicar-mensagem';
 import type { MensagemRepository, MesaRepository, UsuarioRepository } from '../ports/repositorios';
 import type { GeradorId, PublicadorEventosMesa, Relogio } from '../ports/infraestrutura';
+
+/** Motivo da recusa quando um jogador tenta rolar oculto (RV-071). */
+export const ROLAGEM_OCULTA_SO_DO_MESTRE = 'Apenas o mestre pode fazer rolagens ocultas.';
+
+export interface EntradaRolagem {
+  expressao: string;
+  motivo: string;
+  /**
+   * Rolagem secreta do mestre (RV-071): o resultado só volta para quem rolou, e
+   * os jogadores não recebem nem aviso de que houve rolagem.
+   */
+  oculta?: boolean;
+}
 
 export class RolarDados {
   constructor(
@@ -22,11 +36,18 @@ export class RolarDados {
   async executar(
     usuarioId: string,
     mesaId: string,
-    entrada: { expressao: string; motivo: string },
+    entrada: EntradaRolagem,
   ): Promise<Result<MensagemDTO>> {
+    const oculta = entrada.oculta === true;
+
     const mesa = await this.mesas.buscarPorId(mesaId);
     if (!mesa) return falha(ErroDominio.naoEncontrado('Mesa não encontrada.'));
-    const permitido = mesa.autorizarEscritaDeParticipante(usuarioId);
+    // Rolagem oculta é privilégio do mestre e reusa a guarda do agregado — que
+    // já cobre participação e mesa encerrada juntas. A recusa acontece aqui, no
+    // servidor: esconder o comando na interface não protege nada (F4).
+    const permitido = oculta
+      ? mesa.autorizarEscritaDoMestre(usuarioId, ROLAGEM_OCULTA_SO_DO_MESTRE)
+      : mesa.autorizarEscritaDeParticipante(usuarioId);
     if (!permitido.ok) return falha(permitido.erro);
 
     const autor = await this.usuarios.buscarPorId(usuarioId);
@@ -36,7 +57,7 @@ export class RolarDados {
     if (!expressao.ok) return falha(expressao.erro);
 
     const resultado = this.servicoRolagem.rolar(expressao.valor);
-    const mensagem = Mensagem.criarRolagem({
+    const dados = {
       id: this.geradorId.gerar(),
       mesaId,
       autorId: usuarioId,
@@ -44,11 +65,13 @@ export class RolarDados {
       rolagem: resultado,
       motivo: entrada.motivo,
       agora: this.relogio.agora(),
-    });
+    };
+    const mensagem = oculta ? Mensagem.criarRolagemOculta(dados) : Mensagem.criarRolagem(dados);
 
     await this.mensagens.salvar(mensagem);
     const dto = mensagemParaDTO(mensagem);
-    this.publicador.mensagemNova(mesaId, dto);
+    // Quem escolhe o alvo do broadcast é o tipo da mensagem, num ponto só.
+    publicarMensagem(this.publicador, mensagem, dto);
     return ok(dto);
   }
 }

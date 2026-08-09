@@ -12,18 +12,26 @@ import { EVENTOS_SERVIDOR_PARA_CLIENTE } from '@rolavinte/shared';
 import { criarQueryClientDeTeste, criarWrapperQuery } from '@/testes/utilitarios';
 import { SocketFalso } from '@/testes/socket-falso';
 import { useSessao } from '@/features/auth/store-sessao';
+import { useConexao } from './store-conexao';
 import { useSocketMesa } from './use-socket-mesa';
 
 const MESA_ID = 'mesa-1';
 const CENA_ID = 'cena-1';
 
 /**
- * Um ouvinte por evento do contrato, mais o `connect` do próprio socket.io.
- * Derivado da fonte de verdade de propósito: um número fixo aqui viraria uma
- * falha enigmática no dia em que alguém acrescentasse um evento — quem denuncia
- * evento sem assinante, com nome e tudo, é `cobertura-eventos-ws.test.ts`.
+ * Eventos do ciclo de vida do próprio socket.io — não são do contrato de
+ * domínio. `connect` reentra na sala e ressincroniza; `disconnect` e
+ * `connect_error` alimentam a store de conexão (RV-112).
  */
-const OUVINTES_ESPERADOS = EVENTOS_SERVIDOR_PARA_CLIENTE.length + 1;
+const EVENTOS_CICLO_DE_VIDA = ['connect', 'disconnect', 'connect_error'] as const;
+
+/**
+ * Um ouvinte por evento do contrato, mais os do ciclo de vida. Derivado da fonte
+ * de verdade de propósito: um número fixo aqui viraria uma falha enigmática no
+ * dia em que alguém acrescentasse um evento — quem denuncia evento sem
+ * assinante, com nome e tudo, é `cobertura-eventos-ws.test.ts`.
+ */
+const OUVINTES_ESPERADOS = EVENTOS_SERVIDOR_PARA_CLIENTE.length + EVENTOS_CICLO_DE_VIDA.length;
 
 const contexto = vi.hoisted(() => ({ socket: null as unknown as SocketFalso }));
 
@@ -43,6 +51,8 @@ function mensagem(id: string, conteudo = 'olá'): MensagemDTO {
     rolagem: null,
     motivo: null,
     criadoEm: '2026-08-09T12:00:00.000Z',
+    destinatarioId: null,
+    destinatarioNome: null,
   };
 }
 
@@ -109,7 +119,7 @@ describe('useSocketMesa — ciclo de vida da sala', () => {
 
     expect(contexto.socket.totalOuvintes).toBe(OUVINTES_ESPERADOS);
     expect([...contexto.socket.eventosOuvidos].sort()).toEqual(
-      [...EVENTOS_SERVIDOR_PARA_CLIENTE, 'connect'].sort(),
+      [...EVENTOS_SERVIDOR_PARA_CLIENTE, ...EVENTOS_CICLO_DE_VIDA].sort(),
     );
 
     unmount();
@@ -151,19 +161,180 @@ describe('useSocketMesa — ciclo de vida da sala', () => {
   });
 });
 
-describe('useSocketMesa — reconexão', () => {
-  it('reemite mesa:entrar e invalida exatamente mensagens e cena da mesa', () => {
+describe('useSocketMesa — reconexão e ressincronização (RV-112)', () => {
+  /**
+   * A lista é escrita à mão de propósito, e não importada de
+   * `CACHES_RESSINCRONIZADOS`: um teste que deriva a resposta do código sob
+   * teste concorda com qualquer alteração, inclusive com a errada. Mexer na
+   * ressincronização tem de doer aqui.
+   */
+  const RESSINCRONIZACAO_ESPERADA = [
+    ['mensagens', MESA_ID],
+    ['cena', MESA_ID],
+    ['personagens', MESA_ID],
+    ['mesa', MESA_ID],
+  ];
+
+  it('reentra na sala e ressincroniza exatamente os caches do tempo real', () => {
+    const queryClient = criarQueryClientDeTeste();
+    const invalidar = vi.spyOn(queryClient, 'invalidateQueries');
+    montar(queryClient);
+
+    contexto.socket.disparar('disconnect', 'transport close');
+    contexto.socket.disparar('connect');
+
+    // Sem reentrar na sala, o socket volta com outro id e sem sala nenhuma:
+    // reconectado no papel, surdo na prática.
+    expect(contexto.socket.emissoesDe('mesa:entrar')).toHaveLength(2);
+    expect(invalidar.mock.calls.map(([filtro]) => filtro?.queryKey)).toEqual(
+      RESSINCRONIZACAO_ESPERADA,
+    );
+  });
+
+  it('reentra na sala ANTES de ressincronizar (senão sobra uma segunda janela cega)', () => {
+    const queryClient = criarQueryClientDeTeste();
+    const entradasJaEmitidas: number[] = [];
+    vi.spyOn(queryClient, 'invalidateQueries').mockImplementation(() => {
+      entradasJaEmitidas.push(contexto.socket.emissoesDe('mesa:entrar').length);
+      return Promise.resolve();
+    });
+    montar(queryClient);
+
+    contexto.socket.disparar('connect');
+
+    // Duas entradas já emitidas quando a primeira invalidação acontece: a da
+    // montagem e a da volta. Invalidar primeiro abriria uma janela entre a
+    // resposta da API e a entrada na sala — tudo que acontecesse nela se
+    // perderia de novo, e a ressincronização teria trocado uma cegueira por outra.
+    expect(entradasJaEmitidas[0]).toBe(2);
+  });
+
+  it('uma queda que não volta não invalida nada — refetch offline só falharia', () => {
+    const queryClient = criarQueryClientDeTeste();
+    const invalidar = vi.spyOn(queryClient, 'invalidateQueries');
+    montar(queryClient);
+
+    contexto.socket.disparar('disconnect', 'transport close');
+    contexto.socket.disparar('connect_error', new Error('rede fora'));
+    contexto.socket.disparar('connect_error', new Error('rede fora'));
+
+    expect(invalidar).not.toHaveBeenCalled();
+    expect(contexto.socket.emissoesDe('mesa:entrar')).toHaveLength(1);
+  });
+
+  it('dez quedas seguidas ressincronizam uma vez por volta, não por tentativa', () => {
+    const queryClient = criarQueryClientDeTeste();
+    const invalidar = vi.spyOn(queryClient, 'invalidateQueries');
+    montar(queryClient);
+
+    for (let i = 0; i < 10; i += 1) {
+      contexto.socket.disparar('disconnect', 'transport close');
+      contexto.socket.disparar('connect_error', new Error('rede fora'));
+      contexto.socket.disparar('connect_error', new Error('rede fora'));
+      contexto.socket.disparar('connect');
+    }
+
+    // Dez voltas × quatro caches. As tentativas frustradas no meio do caminho
+    // não somam requisição nenhuma — o espaçamento entre elas é do backoff do
+    // socket.io (`OPCOES_RECONEXAO`, em lib/socket.ts).
+    expect(invalidar).toHaveBeenCalledTimes(10 * RESSINCRONIZACAO_ESPERADA.length);
+  });
+
+  it('não ressincroniza caches de outra mesa', () => {
     const queryClient = criarQueryClientDeTeste();
     const invalidar = vi.spyOn(queryClient, 'invalidateQueries');
     montar(queryClient);
 
     contexto.socket.disparar('connect');
 
-    expect(contexto.socket.emissoesDe('mesa:entrar')).toHaveLength(2);
-    expect(invalidar.mock.calls.map(([filtro]) => filtro?.queryKey)).toEqual([
-      ['mensagens', MESA_ID],
-      ['cena', MESA_ID],
-    ]);
+    const mesas = invalidar.mock.calls.map(([filtro]) => filtro?.queryKey?.[1]);
+    expect(new Set(mesas)).toEqual(new Set([MESA_ID]));
+  });
+});
+
+describe('useSocketMesa — estado da conexão para a interface (RV-112)', () => {
+  beforeEach(() => {
+    useConexao.setState({ estado: 'conectado' });
+  });
+
+  it('queda com reconexão em curso vira "reconectando"', () => {
+    montar(criarQueryClientDeTeste());
+    contexto.socket.active = true;
+
+    contexto.socket.disparar('disconnect', 'transport close');
+
+    expect(useConexao.getState().estado).toBe('reconectando');
+  });
+
+  it('queda sem reconexão automática vira "offline"', () => {
+    montar(criarQueryClientDeTeste());
+    // `io server disconnect` e falha de handshake deixam `active` falso: o
+    // socket.io não vai tentar de novo, e mandar o jogador esperar seria mentira.
+    contexto.socket.active = false;
+
+    contexto.socket.disparar('disconnect', 'io server disconnect');
+
+    expect(useConexao.getState().estado).toBe('offline');
+  });
+
+  it('tentativa frustrada mantém "reconectando"; desistência vira "offline"', () => {
+    montar(criarQueryClientDeTeste());
+
+    contexto.socket.active = true;
+    contexto.socket.disparar('connect_error', new Error('rede fora'));
+    expect(useConexao.getState().estado).toBe('reconectando');
+
+    contexto.socket.active = false;
+    contexto.socket.disparar('connect_error', new Error('sessão inválida'));
+    expect(useConexao.getState().estado).toBe('offline');
+  });
+
+  it('a volta da conexão limpa o estado de queda', () => {
+    montar(criarQueryClientDeTeste());
+    contexto.socket.disparar('disconnect', 'transport close');
+
+    contexto.socket.disparar('connect');
+
+    expect(useConexao.getState().estado).toBe('conectado');
+  });
+
+  it('montar com o socket já conectado anuncia "conectado"', () => {
+    useConexao.setState({ estado: 'offline' });
+    contexto.socket.connected = true;
+
+    montar(criarQueryClientDeTeste());
+
+    expect(useConexao.getState().estado).toBe('conectado');
+  });
+
+  it('montar com socket ainda abrindo não acusa queda (nada de alarme falso)', () => {
+    // `connected` falso com `active` verdadeiro é a conexão inicial em curso —
+    // abrir a mesa piscando "Reconectando…" a cada carga seria ruído.
+    contexto.socket.connected = false;
+    contexto.socket.active = true;
+
+    montar(criarQueryClientDeTeste());
+
+    expect(useConexao.getState().estado).toBe('conectado');
+  });
+
+  it('montar com socket morto anuncia "offline" na hora', () => {
+    contexto.socket.connected = false;
+    contexto.socket.active = false;
+
+    montar(criarQueryClientDeTeste());
+
+    expect(useConexao.getState().estado).toBe('offline');
+  });
+
+  it('depois do unmount, uma queda não mexe mais no estado (ouvinte removido)', () => {
+    const { unmount } = montar(criarQueryClientDeTeste());
+    unmount();
+    contexto.socket.active = false;
+
+    contexto.socket.disparar('disconnect', 'io server disconnect');
+
+    expect(useConexao.getState().estado).toBe('conectado');
   });
 });
 

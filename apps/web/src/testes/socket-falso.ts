@@ -17,6 +17,15 @@ export class SocketFalso {
   readonly ouvintes = new Map<string, Ouvinte[]>();
   readonly emitidos: Emissao[] = [];
 
+  /**
+   * Os dois sinais de estado que o socket.io-client expõe e que o RV-112 lê:
+   * `connected` (o socket está de pé agora) e `active` (o socket.io ainda vai
+   * tentar reconectar sozinho — falso em `io server disconnect`, em falha de
+   * handshake e quando as tentativas se esgotam).
+   */
+  connected = true;
+  active = true;
+
   on(evento: string, ouvinte: Ouvinte): this {
     this.ouvintes.set(evento, [...(this.ouvintes.get(evento) ?? []), ouvinte]);
     return this;

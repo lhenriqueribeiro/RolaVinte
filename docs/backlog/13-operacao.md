@@ -45,10 +45,23 @@ Cenário: Rastreabilidade
 
 ### RV-132 — Deploy de API e web
 
-**Épico:** E13 · **Depende de:** RV-002, RV-130 · **Tamanho:** G · **Onda:** 3
+**Épico:** E13 · **Depende de:** RV-002 · **Tamanho:** G · **Onda:** 1 — *promovido da Onda 3 na curadoria da v0.5.0*
 
 **História**
 > Como **mantenedor**, quero **publicar a plataforma com um comando**, para **que o grupo jogue de qualquer lugar**.
+
+> **Por que subiu para a Onda 1.** A métrica de pronto do produto é "um grupo de 5 pessoas completa uma
+> sessão de 3h". Hoje a plataforma só existe em `localhost:5173`: **os outros quatro não têm como
+> chegar nela**. Enquanto isso durar, todo card da Onda 1 melhora uma sessão que ninguém consegue
+> começar. Duas consequências práticas medidas no fecho da v0.5.0:
+> **(a)** `RESEND_API_KEY` está vazia em `apps/api/.env`, então **todo convite cai no stdout da API** —
+> quem não é o operador do processo nunca recebe o link;
+> **(b)** o `ConviteDTO` ([dtos.ts](../../packages/shared/src/tipos/dtos.ts)) expõe `id`, `email`,
+> `status` e `criadoEm`, e **não** o token, então nem por contorno o mestre copia o link do painel. O
+> caminho de entrada no grupo depende inteiramente de email real.
+> **Dependência reduzida:** o card dependia de RV-130 (observabilidade). Para publicar não é preciso o
+> pacote inteiro — leve só `GET /api/pronto` do RV-130 junto, e deixe métricas e decorators de log para
+> a Onda 3. RV-130 continua devendo o resto.
 
 **Contexto técnico**
 - A API é _stateful_ para sockets: se escalar para mais de uma instância, o Socket.IO precisa de adapter compartilhado. **Decisão inicial:** uma instância só, com o adapter documentado como pré-requisito de escala.
@@ -80,11 +93,20 @@ Cenário: CORS restrito
 Cenário: Falta de variável derruba cedo
   Quando eu subir o container sem JWT_SEGREDO
   Então o processo encerra imediatamente com mensagem clara
+
+Cenário: O convite chega de verdade
+  Dado o ambiente publicado com RESEND_API_KEY e EMAIL_REMETENTE de um domínio verificado
+  Quando o mestre convidar um endereço que não é o dele
+  Então o email chega na caixa de entrada com o link apontando para o domínio publicado
+  E o convidado aceita e entra na mesa sem que ninguém leia o log da API
 ```
 
 **DoD específico**
 - [ ] Nenhum segredo na imagem ou no repositório.
 - [ ] Escala horizontal documentada (adapter Redis do Socket.IO) mesmo que não implementada.
+- [ ] Um convite real entregue a um endereço de terceiro, com data e ambiente registrados — o caminho
+      de entrada no grupo nunca foi exercitado fora do `ServicoEmailConsole`.
+- [ ] `GET /api/pronto` respondendo (fatia mínima do RV-130 trazida junto).
 
 ---
 
@@ -242,7 +264,18 @@ Cenário: Exclusão exige confirmação
 **Contexto técnico**
 - Os fakes de RV-003 são **generosos por construção**: `FakeMesaRepository.salvar` regrava o agregado inteiro, então "remover participante" passa nele mesmo que o adapter real esqueça o `delete`. Foi exatamente esse o risco levantado no RV-021 — e a única forma de fechá-lo foi olhar as operações que saem para o PostgREST.
 - O padrão já existe e funciona: [mesa-repository.supabase.test.ts](../../apps/api/src/infra/supabase/mesa-repository.supabase.test.ts) usa um `SupabaseClient` falso que registra tabela, verbo, linhas e filtros, e prova coisas que nenhum fake provaria (ordem `upsert` → `delete`, filtro `usuario_id=not.in.(...)`, convite revogado por upsert e não por delete).
-- **Os outros quatro adapters continuam sem nenhum teste**: `cena-repository.supabase.ts`, `mensagem-repository.supabase.ts`, `personagem-repository.supabase.ts` e `usuario-repository.supabase.ts` em [infra/supabase/](../../apps/api/src/infra/supabase/). Divergência concreta à espreita: `FakeCenaRepository.removerToken` apaga do `Map`, enquanto o adapter real depende do `delete` e do `on delete cascade` da migration.
+- **Faltam três adapters e meio**: `cena-repository.supabase.ts`, `personagem-repository.supabase.ts`, `usuario-repository.supabase.ts` e o `salvar` de `mensagem-repository.supabase.ts` em [infra/supabase/](../../apps/api/src/infra/supabase/). Divergência concreta à espreita: `FakeCenaRepository.removerToken` apaga do `Map`, enquanto o adapter real depende do `delete` e do `on delete cascade` da migration.
+- **Atualização da v0.5.0:** a **leitura** de mensagens ganhou teste
+  ([mensagem-repository.supabase.test.ts](../../apps/api/src/infra/supabase/mensagem-repository.supabase.test.ts))
+  porque a privacidade de sussurro e rolagem oculta em produção depende da string do `.or()`, e nenhum
+  teste de rota a exercitava — o fake filtra com `mensagemVisivelPara`, que é fiel à **regra** e não
+  prova a **consulta**. Foi medido: trocar o filtro por `[...TIPOS_MENSAGEM_PUBLICOS, 'sussurro']`
+  deixa o teste do adapter vermelho e os **15** testes de `rotas-chat.test.ts` verdes. Use esse arquivo
+  como molde para os demais.
+- **Peso novo no adapter de cenas:** a limpeza do [RV-047](04-tokens.md#rv-047--apagar-a-arte-do-token-do-storage-ao-excluir-token-ou-cena)
+  depende de `listarTokensDaCena` devolver `imagem_caminho` **antes** da cascata. O `FakeCenaRepository`
+  replica a cascata e por isso o experimento fica vermelho nele — mas se `COLUNAS_TOKEN` perder a
+  coluna no adapter real, o sintoma é silencioso: o bucket volta a crescer e nada acusa.
 - Nada mais no backlog cobre isso: RV-009 pega **coluna inexistente** (tipos), não comportamento; RV-133 (E2E) roda com `PERSISTENCIA=memoria` (RV-006), ou seja, **nem o E2E encosta nos adapters Supabase**.
 - **Armadilha:** não transforme isto em teste de banco. Nada de container Postgres no CI ([ci.yml](../../.github/workflows/ci.yml) não tem e não pode ter credencial). O duplo do cliente é o contrato: se ele precisar simular SQL, o teste está grande demais.
 
@@ -339,7 +372,24 @@ Cenário: Borda — mesma casa, vários jogadores
 
 ### RV-138 — Aplicar as migrations pendentes e provisionar o Storage
 
-**Épico:** E13 · **Depende de:** RV-032, RV-041 · **Tamanho:** M · **Onda:** 1
+**Épico:** E13 · **Depende de:** RV-032, RV-041 · **Tamanho:** M · **Onda:** 1 · **Status:** ✅ Concluído
+
+> **Decisões tomadas na entrega.** As migrations `0002`, `0003` e `0004` foram aplicadas e os buckets
+> `mapas` e `tokens` provisionados no projeto **`yewjuijqqenmckhxrnrc`**. Conferido pelo curador em
+> 2026-08-09 com `npm run supabase:verificar -w @rolavinte/api`: 8 tabelas ✓ e 2 buckets ✓.
+> **O registro do que foi aplicado virou ferramenta, não documento.** Em vez do
+> `apps/api/supabase/README.md` que o Escopo previa — que desatualiza na migration seguinte —, a
+> entrega criou dois scripts: `npm run supabase:sql` ([sql-de-instalacao.mjs](../../apps/api/scripts/sql-de-instalacao.mjs)),
+> que concatena **os arquivos reais** de `supabase/migrations/` mais `configurar-storage.sql`, e
+> `npm run supabase:verificar` ([verificar-supabase.mjs](../../apps/api/scripts/verificar-supabase.mjs)),
+> que confere tabela a tabela **citando a migration que satisfaz cada verificação**, para que uma
+> aplicação parcial seja diagnosticada em vez de adivinhada.
+> **A partida recusa a chave publicável** com a explicação em PT-BR, porque com RLS em deny-all a API
+> subiria feliz e devolveria todas as consultas vazias — falha silenciosa trocada por falha na largada.
+> **⚠️ A ferramenta de verificação nasceu com uma lista escrita à mão** e por isso não conhece a
+> `0005_chat.sql`, criada na mesma fase: o ambiente passa na verificação **e o chat inteiro falha**.
+> Isso é [RV-139](#rv-139--o-verificador-de-ambiente-precisa-conhecer-toda-migration-do-repositório) —
+> este card fechou o que prometeu, mas a promessa envelheceu em uma fase.
 
 **História**
 > Como **mantenedor**, quero **o banco e o Storage de um ambiente real batendo com o código entregue**, para **que cenas, mapas e artes de token funcionem fora dos testes com fake**.
@@ -391,3 +441,93 @@ Cenário: Borda — schema desatualizado falha de forma legível
 - [ ] Buckets `mapas` e `tokens` existentes, com leitura pública e escrita só por service role, e o caminho de criação documentado.
 - [ ] Um mapa e uma arte de token realmente enviados, visíveis após recarregar e removidos ao trocar o arquivo.
 - [ ] Toda divergência encontrada virou migration nova e, quando possível, teste offline.
+
+---
+
+### RV-139 — O verificador de ambiente precisa conhecer toda migration do repositório
+
+**Épico:** E13 · **Depende de:** RV-138 · **Tamanho:** P · **Onda:** 1
+
+**História**
+> Como **mantenedor**, quero **que `supabase:verificar` só diga "ambiente pronto" quando todas as migrations do repositório estiverem aplicadas**, para **não descobrir schema faltando pelo chat morrendo na cara de cinco pessoas**.
+
+**Contexto técnico**
+- **Defeito confirmado no fecho da v0.5.0, com o comando na mão.**
+  `npm run supabase:verificar -w @rolavinte/api` contra `yewjuijqqenmckhxrnrc` imprime
+  **"Ambiente pronto: schema e Storage conferem."**, e uma consulta direta a
+  `mensagens.destinatario_id` no mesmo projeto responde
+  `column mensagens.destinatario_id does not exist`. A migration
+  [`0005_chat.sql`](../../apps/api/supabase/migrations/0005_chat.sql) **não está aplicada** e o
+  verificador não sabe disso.
+- **A consequência é maior do que "sussurro não funciona".**
+  [mensagem-repository.supabase.ts](../../apps/api/src/infra/supabase/mensagem-repository.supabase.ts)
+  lista `destinatario_id, destinatario_nome` na constante `COLUNAS` de **todo** `listarDaMesa`, e
+  [mensagem.mapper.ts](../../apps/api/src/infra/supabase/mensagem.mapper.ts) grava as duas colunas em
+  **todo** `insert`. Sem a `0005`, o histórico não abre e nenhuma mensagem é enviada: **o chat inteiro
+  está fora do ar** contra o banco real, para fala comum inclusive. O `tipo` também precisa do CHECK
+  novo — `sussurro` e `rolagem-oculta` são recusados pelo constraint da `0001`.
+- **A causa é a forma da guarda, não o esquecimento.** A lista `VERIFICACOES` em
+  [verificar-supabase.mjs](../../apps/api/scripts/verificar-supabase.mjs) é escrita à mão, migration por
+  migration, enquanto o irmão dele (`sql-de-instalacao.mjs`) **lê o diretório** e por isso não
+  desatualiza. Uma guarda que precisa ser lembrada é a classe F1 da
+  [taxonomia](../agentes/taxonomia-de-falhas.md): defesa que não defende. Corrigir só a lista deixa a
+  próxima migration na mesma armadilha.
+- **Decisão a registrar:** o verificador passa a **derivar do diretório**. Caminho mais simples que
+  funciona: varrer `supabase/migrations/*.sql`, extrair os pares tabela→coluna dos `create table` e
+  `add column if not exists`, e consultar `select('<colunas>').limit(0)` por tabela — mantendo o
+  formato atual de saída, que cita a migration de cada verificação. Se a extração por parsing ficar
+  frágil, a alternativa aceitável é manter a lista à mão **e** um teste offline que falhe quando
+  existir um arquivo em `migrations/` sem nenhuma verificação que o cite. O que **não** é aceitável é
+  a lista à mão sozinha: foi exatamente ela que falhou.
+- **Armadilha 1:** `select(...).limit(0)` acusa coluna ausente, mas **não** acusa `check constraint`
+  desatualizado — `mensagens.tipo` aceitando `sussurro` é o exemplo vivo. Uma verificação de constraint
+  precisa de um `insert` de sonda em transação revertida ou de consulta ao catálogo; escolha uma e
+  escreva o limite do que o script cobre na saída dele, para ninguém confundir "verde" com "tudo
+  conferido".
+- **Armadilha 2:** o script roda com `--env-file-if-exists=.env` e **service role**. Não o faça
+  escrever nada fora de uma sonda explicitamente revertida, e nunca em tabela de produção sem `rollback`.
+- **Armadilha 3:** aplicar a `0005` num projeto que já tem parte do schema é executar **só** aquele
+  arquivo. Migration aplicada é imutável — divergência encontrada vira `0006`, não edição da `0005`.
+
+**Escopo**
+- Aplicação da `0005_chat.sql` no ambiente `yewjuijqqenmckhxrnrc` (e em qualquer outro em uso)
+- `apps/api/scripts/verificar-supabase.mjs`: checklist derivada de `supabase/migrations/`
+- `apps/api/scripts/*.test.mjs` ou `apps/api/src/testes/`: teste offline de que migration sem
+  verificação correspondente derruba a suíte
+- `README.md`: passo de verificação depois de cada migration nova
+
+**Critérios de aceite**
+```gherkin
+Cenário: Caminho feliz — ambiente completo é aprovado
+  Dado um projeto com todas as migrations do repositório aplicadas
+  Quando eu rodar "npm run supabase:verificar -w @rolavinte/api"
+  Então a saída lista uma verificação por migration, incluindo a mais recente
+  E termina com sucesso
+
+Cenário: Migration faltando é denunciada pelo nome
+  Dado um projeto sem a migration 0005 aplicada
+  Quando eu rodar o verificador
+  Então ele falha nomeando "0005" e a coluna ausente
+  E o processo sai com código diferente de zero
+
+Cenário: Guarda que não pode ser esquecida
+  Dado uma migration nova em supabase/migrations/ sem verificação correspondente
+  Quando eu rodar "npm run test"
+  Então a suíte falha apontando o arquivo de migration não coberto
+
+Cenário: Borda — sem credencial, a falha é legível
+  Dado um ambiente sem SUPABASE_URL
+  Quando eu rodar o verificador
+  Então recebo a orientação em PT-BR de preencher o .env, sem stack trace cru
+```
+
+**Testes obrigatórios**
+- Offline, sem rede: migration sem verificação correspondente derruba `npm run test`. Prove que o teste
+  sabe reprovar — crie um arquivo de migration temporário e veja o vermelho antes de confiar nele.
+- A verificação contra o banco real continua manual; registre no PR o ambiente, a data e a saída.
+
+**DoD específico**
+- [ ] `0005_chat.sql` aplicada, com chat funcionando ponta a ponta contra o banco real: fala, rolagem,
+      sussurro entre duas contas e `/oculto` do mestre invisível ao jogador.
+- [ ] A checklist do verificador não depende de alguém lembrar de editá-la.
+- [ ] O que o script **não** cobre (check constraints, policies de Storage) está escrito na saída dele.

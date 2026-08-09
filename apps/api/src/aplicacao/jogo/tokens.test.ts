@@ -25,6 +25,7 @@ import { CriarToken } from './criar-token';
 import { MoverToken } from './mover-token';
 import { APENAS_MESTRE_EDITA_TOKEN, AtualizarToken } from './atualizar-token';
 import { APENAS_MESTRE_DEFINE_ARTE_TOKEN, DefinirImagemToken } from './definir-imagem-token';
+import { RemoverToken } from './remover-token';
 
 const AGORA = new Date('2026-08-09T12:00:00.000Z');
 const MESA_ID = '00000000-0000-4000-9000-000000000001';
@@ -85,6 +86,7 @@ interface Cenario {
   moverToken: MoverToken;
   atualizarToken: AtualizarToken;
   definirImagem: DefinirImagemToken;
+  removerToken: RemoverToken;
   cenaId: string;
   outraCenaId: string;
 }
@@ -146,6 +148,9 @@ async function montarCenario(): Promise<Cenario> {
     moverToken: new MoverToken(cenas, mesas, personagens, publicador),
     atualizarToken: new AtualizarToken(cenas, mesas, publicador),
     definirImagem: new DefinirImagemToken(cenas, mesas, armazenamento, geradorId, publicador),
+    // Mesmo armazenamento do upload: neste arquivo `armazenamento` É o bucket
+    // de tokens, como o `armazenamentoTokens` do composition root (RV-047).
+    removerToken: new RemoverToken(cenas, mesas, publicador, armazenamento),
     cenaId: primeira.valor.id,
     outraCenaId: segunda.valor.id,
   };
@@ -459,6 +464,112 @@ describe('DefinirImagemToken (RV-041)', () => {
     if (r.ok) return;
     expect(r.erro.tipo).toBe('conflito');
     expect(c.armazenamento.salvos).toHaveLength(0);
+  });
+});
+
+describe('RemoverToken — a arte some do Storage junto com a peça (RV-047)', () => {
+  const png = () => new Uint8Array([137, 80, 78, 71]);
+
+  /** Cria o token e sobe uma arte, devolvendo o caminho gravado no bucket. */
+  async function tokenComArte(nome = 'Chefe Goblin'): Promise<{ id: string; caminho: string }> {
+    const token = await criarToken(nome);
+    const r = await c.definirImagem.executar('mestre', token.id, {
+      tipo: 'image/png',
+      conteudo: png(),
+    });
+    if (!r.ok) throw new Error(r.erro.mensagem);
+    const caminho = c.armazenamento.salvos.at(-1)?.caminho ?? '';
+    c.publicador.limpar();
+    return { id: token.id, caminho };
+  }
+
+  it('apaga o arquivo da arte e avisa a mesa', async () => {
+    const { id, caminho } = await tokenComArte();
+
+    const r = await c.removerToken.executar('mestre', id);
+
+    expect(r.ok).toBe(true);
+    expect(await c.cenas.buscarTokenPorId(id)).toBeNull();
+    expect(c.armazenamento.caminhosRemovidos).toEqual([caminho]);
+    expect(c.armazenamento.contem(caminho)).toBe(false);
+    expect(c.armazenamento.salvos).toHaveLength(0);
+    expect(c.publicador.doTipo('token:removido').map((e) => e.dados.tokenId)).toEqual([id]);
+  });
+
+  it('token sem arte não chama o armazenamento nenhuma vez', async () => {
+    const token = await criarToken('Gob1');
+
+    const r = await c.removerToken.executar('mestre', token.id);
+
+    expect(r.ok).toBe(true);
+    expect(c.armazenamento.caminhosRemovidos).toEqual([]);
+  });
+
+  it('remove só a arte da peça excluída, não a das vizinhas', async () => {
+    const alvo = await tokenComArte('Chefe Goblin');
+    const vizinho = await tokenComArte('Goblin Arqueiro');
+
+    const r = await c.removerToken.executar('mestre', alvo.id);
+
+    expect(r.ok).toBe(true);
+    expect(c.armazenamento.caminhosRemovidos).toEqual([alvo.caminho]);
+    expect(c.armazenamento.contem(vizinho.caminho)).toBe(true);
+  });
+
+  it('Storage indisponível não impede a exclusão nem o broadcast', async () => {
+    const { id } = await tokenComArte();
+    c.armazenamento.falharAoRemover = true;
+
+    const r = await c.removerToken.executar('mestre', id);
+
+    // Best-effort: o registro já saiu do banco, e o arquivo teimoso é lixo,
+    // não motivo para desfazer uma exclusão pedida pelo mestre.
+    expect(r.ok).toBe(true);
+    expect(await c.cenas.buscarTokenPorId(id)).toBeNull();
+    expect(c.publicador.doTipo('token:removido')).toHaveLength(1);
+  });
+
+  it('jogador dono do personagem vinculado não remove — 403 e nada sai do Storage', async () => {
+    const token = await criarToken('Thorin', { personagemId: PERSONAGEM_BRUNO });
+    const arte = await c.definirImagem.executar('mestre', token.id, {
+      tipo: 'image/png',
+      conteudo: png(),
+    });
+    if (!arte.ok) throw new Error(arte.erro.mensagem);
+    const caminho = c.armazenamento.salvos[0]?.caminho ?? '';
+    c.publicador.limpar();
+
+    const r = await c.removerToken.executar('bruno', token.id);
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.erro.tipo).toBe('nao-autorizado');
+    expect(r.erro.mensagem).toBe('Apenas o mestre remove tokens.');
+    expect(await c.cenas.buscarTokenPorId(token.id)).not.toBeNull();
+    expect(c.armazenamento.caminhosRemovidos).toEqual([]);
+    expect(c.armazenamento.contem(caminho)).toBe(true);
+    expect(c.publicador.publicados).toHaveLength(0);
+  });
+
+  it('mesa encerrada bloqueia a remoção e preserva o arquivo', async () => {
+    const { id, caminho } = await tokenComArte();
+    await encerrarMesa();
+
+    const r = await c.removerToken.executar('mestre', id);
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.erro.tipo).toBe('conflito');
+    expect(c.armazenamento.contem(caminho)).toBe(true);
+  });
+
+  it('token inexistente devolve nao-encontrado sem tocar no armazenamento', async () => {
+    const r = await c.removerToken.executar('mestre', 'token-fantasma');
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.erro.tipo).toBe('nao-encontrado');
+    expect(c.armazenamento.caminhosRemovidos).toEqual([]);
   });
 });
 

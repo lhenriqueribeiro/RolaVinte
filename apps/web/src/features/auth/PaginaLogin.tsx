@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { Botao } from '@/components/ui/Botao';
 import { Campo } from '@/components/ui/Campo';
+import { Erro } from '@/components/ui/Estado';
 import { useLogin } from './api';
 import { useSessao } from './store-sessao';
 
@@ -45,7 +46,7 @@ export function PaginaLogin() {
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
           />
-          {login.isError && <p className="text-sm text-perigo">{login.error.message}</p>}
+          {login.isError && <Erro erro={login.error} />}
           <Botao type="submit" disabled={login.isPending}>
             {login.isPending ? 'Entrando…' : 'Entrar'}
           </Botao>

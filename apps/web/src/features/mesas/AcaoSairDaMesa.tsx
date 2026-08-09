@@ -47,7 +47,7 @@ export function AcaoSairDaMesa({ mesa }: Props) {
         }
         rotuloConfirmar="Sair da mesa"
         processando={sair.isPending}
-        erro={sair.isError ? sair.error.message : null}
+        erro={sair.error}
         aoConfirmar={() => sair.mutate(mesa.id, { onSuccess: () => setConfirmando(false) })}
         aoCancelar={() => {
           sair.reset();

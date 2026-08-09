@@ -1,4 +1,4 @@
-import { SALA_MESA, type PayloadEventoServidor } from '@rolavinte/shared';
+import { SALA_MESA, SALA_USUARIO_NA_MESA, type PayloadEventoServidor } from '@rolavinte/shared';
 import type { PublicadorEventosMesa } from '../../aplicacao/ports/infraestrutura';
 import type { ServidorJogo } from './servidor-socket';
 
@@ -12,6 +12,24 @@ export class PublicadorSocket implements PublicadorEventosMesa {
 
   mensagemNova(mesaId: string, mensagem: PayloadEventoServidor<'mensagem:nova'>): void {
     this.io.to(SALA_MESA(mesaId)).emit('mensagem:nova', mensagem);
+  }
+
+  /**
+   * Sussurro e rolagem oculta (RV-070/RV-071): mesmo evento, salas pessoais.
+   *
+   * `to([...])` com várias salas entrega **uma vez** por socket, mesmo que ele
+   * esteja em duas delas — é o caso do sussurro para si mesmo. Lista vazia
+   * jamais vira `to([])`: no Socket.IO isso é "broadcast para todo mundo", o
+   * oposto exato do que este método existe para fazer.
+   */
+  mensagemPrivada(
+    mesaId: string,
+    usuarioIds: readonly string[],
+    mensagem: PayloadEventoServidor<'mensagem:nova'>,
+  ): void {
+    if (usuarioIds.length === 0) return;
+    const salas = usuarioIds.map((usuarioId) => SALA_USUARIO_NA_MESA(mesaId, usuarioId));
+    this.io.to(salas).emit('mensagem:nova', mensagem);
   }
 
   tokenCriado(mesaId: string, token: PayloadEventoServidor<'token:criado'>): void {

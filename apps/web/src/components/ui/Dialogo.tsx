@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { Botao } from './Botao';
+import { Erro } from './Estado';
 
 const SELETOR_FOCAVEL = [
   'a[href]',
@@ -119,7 +120,12 @@ interface PropsConfirmacao {
   rotuloConfirmar: string;
   rotuloCancelar?: string;
   processando?: boolean;
-  erro?: string | null;
+  /**
+   * O que a mutação rejeitou — o objeto, não a mensagem já extraída. Assim o
+   * texto sai de um lugar só (`mensagemDeErro`) e a página não precisa saber
+   * que `error.message` existe.
+   */
+  erro?: unknown;
   aoConfirmar: () => void;
   aoCancelar: () => void;
 }
@@ -156,11 +162,7 @@ export function DialogoConfirmacao({
         </>
       }
     >
-      {erro && (
-        <p role="alert" className="mt-3 text-sm text-perigo">
-          {erro}
-        </p>
-      )}
+      {erro != null && <Erro erro={erro} compacto className="mt-3" />}
     </Dialogo>
   );
 }

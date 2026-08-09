@@ -3,5 +3,7 @@ export * from './schemas/auth';
 export * from './schemas/mesas';
 export * from './schemas/personagens';
 export * from './schemas/jogo';
+export * from './chat/comandos';
+export * from './chat/visibilidade';
 export * from './tipos/dtos';
 export * from './tipos/eventos-ws';

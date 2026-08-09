@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, type RenderResult } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import type { ReactElement, ReactNode } from 'react';
+import { ProvedorNotificacoes } from '@/components/ui/Notificacao';
 
 /**
  * QueryClient isolado por teste: sem retry (falha da API vira erro na hora, e
@@ -26,7 +27,11 @@ export function renderizarComProvedores(
   function Provedores({ children }: { children: ReactNode }) {
     return (
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[opcoes.rota ?? '/']}>{children}</MemoryRouter>
+        {/* Mesmos provedores de `app/providers.tsx`: sem o de notificações,
+            todo componente que chamasse `useNotificar` quebraria só no teste. */}
+        <ProvedorNotificacoes>
+          <MemoryRouter initialEntries={[opcoes.rota ?? '/']}>{children}</MemoryRouter>
+        </ProvedorNotificacoes>
       </QueryClientProvider>
     );
   }

@@ -341,6 +341,84 @@ describe('POST /api/tokens/:tokenId/imagem (RV-041)', () => {
   });
 });
 
+describe('DELETE /api/tokens/:tokenId (RV-047)', () => {
+  const png = () => Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+  async function tokenComArte(
+    mestre: SessaoDeTeste,
+    cenaId: string,
+  ): Promise<{ token: TokenDTO; caminho: string }> {
+    const token = await criarToken(mestre, cenaId, { nome: 'Chefe Goblin' });
+    const upload = multipart(png(), 'image/png');
+    const resposta = await contexto.app.inject({
+      method: 'POST',
+      url: `/api/tokens/${token.id}/imagem`,
+      headers: { ...mestre.cabecalhos, ...upload.headers },
+      payload: upload.payload,
+    });
+    expect(resposta.statusCode).toBe(200);
+    const caminho = contexto.fakes.armazenamentoTokens.salvos.at(-1)?.caminho ?? '';
+    expect(caminho).not.toBe('');
+    return { token, caminho };
+  }
+
+  it('devolve 204 e apaga a arte do bucket de tokens', async () => {
+    const mestre = await contexto.autenticarComo();
+    const mesa = await criarMesa(mestre);
+    const cena = await criarCena(mestre, mesa.id);
+    const { token, caminho } = await tokenComArte(mestre, cena.id);
+
+    const resposta = await contexto.app.inject({
+      method: 'DELETE',
+      url: `/api/tokens/${token.id}`,
+      headers: mestre.cabecalhos,
+    });
+
+    expect(resposta.statusCode).toBe(204);
+    expect(await contexto.fakes.cenas.buscarTokenPorId(token.id)).toBeNull();
+    expect(contexto.fakes.armazenamentoTokens.contem(caminho)).toBe(false);
+    expect(contexto.fakes.armazenamentoTokens.caminhosRemovidos).toEqual([caminho]);
+    // O bucket de mapas não é tocado pela exclusão de uma peça.
+    expect(contexto.fakes.armazenamento.caminhosRemovidos).toEqual([]);
+  });
+
+  it('devolve 403 ao jogador e mantém o arquivo no bucket', async () => {
+    const mestre = await contexto.autenticarComo();
+    const jogador = await contexto.autenticarComo();
+    const mesa = await criarMesa(mestre);
+    await adicionarJogador(mestre, mesa.id, jogador);
+    const cena = await criarCena(mestre, mesa.id);
+    const { token, caminho } = await tokenComArte(mestre, cena.id);
+
+    const resposta = await contexto.app.inject({
+      method: 'DELETE',
+      url: `/api/tokens/${token.id}`,
+      headers: jogador.cabecalhos,
+    });
+
+    expect(resposta.statusCode).toBe(403);
+    expect(await contexto.fakes.cenas.buscarTokenPorId(token.id)).not.toBeNull();
+    expect(contexto.fakes.armazenamentoTokens.contem(caminho)).toBe(true);
+  });
+
+  it('Storage indisponível não vira erro na rota — a exclusão fecha em 204', async () => {
+    const mestre = await contexto.autenticarComo();
+    const mesa = await criarMesa(mestre);
+    const cena = await criarCena(mestre, mesa.id);
+    const { token } = await tokenComArte(mestre, cena.id);
+    contexto.fakes.armazenamentoTokens.falharAoRemover = true;
+
+    const resposta = await contexto.app.inject({
+      method: 'DELETE',
+      url: `/api/tokens/${token.id}`,
+      headers: mestre.cabecalhos,
+    });
+
+    expect(resposta.statusCode).toBe(204);
+    expect(await contexto.fakes.cenas.buscarTokenPorId(token.id)).toBeNull();
+  });
+});
+
 describe('PATCH /api/personagens/:id publica personagem:atualizado (RV-042)', () => {
   it('o dano na ficha vira evento para a mesa, sem tocar no token', async () => {
     const mestre = await contexto.autenticarComo();

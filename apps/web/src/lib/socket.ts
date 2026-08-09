@@ -12,6 +12,29 @@ import { useSessao } from '@/features/auth/store-sessao';
  */
 export type SocketJogo = Socket<EventosServidorParaCliente, EventosClienteParaServidor>;
 
+/**
+ * Política de reconexão (RV-112).
+ *
+ * Quem lê estas opções é o `Backoff` do próprio socket.io-client: o atraso
+ * dobra a cada tentativa a partir de `reconnectionDelay` e **para de crescer**
+ * em `reconnectionDelayMax`. Dez quedas seguidas viram 0,5s, 1s, 2s, 4s, 8s,
+ * 10s, 10s… — nunca uma tentativa por frame.
+ *
+ * `randomizationFactor` espalha as tentativas: sem ele, um servidor que
+ * reiniciou receberia todas as mesas de volta no mesmo instante.
+ *
+ * `reconnectionAttempts` fica no padrão (infinito) de propósito. Desistir
+ * transformaria uma queda longa de rede num estado do qual só o F5 tira o
+ * jogador — e o estado `offline` da store existe justamente para os casos em
+ * que o socket.io **decide** que não vai tentar (`socket.active === false`).
+ */
+export const OPCOES_RECONEXAO = {
+  reconnection: true,
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 10_000,
+  randomizationFactor: 0.5,
+} as const;
+
 let socket: SocketJogo | null = null;
 
 export function obterSocket(): SocketJogo {
@@ -25,6 +48,7 @@ export function obterSocket(): SocketJogo {
       auth: { token },
       transports: ['websocket'],
       autoConnect: true,
+      ...OPCOES_RECONEXAO,
     });
   }
   return socket;

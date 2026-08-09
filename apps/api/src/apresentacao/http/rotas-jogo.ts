@@ -5,6 +5,7 @@ import {
   atualizarTokenSchema,
   CAMPO_IMAGEM_FUNDO,
   CAMPO_IMAGEM_TOKEN,
+  comandoChatSchema,
   criarCenaSchema,
   criarTokenSchema,
   enviarMensagemSchema,
@@ -16,6 +17,7 @@ import {
 import type { EnviarMensagem } from '../../aplicacao/jogo/enviar-mensagem';
 import type { RolarDados } from '../../aplicacao/jogo/rolar-dados';
 import type { ListarMensagens } from '../../aplicacao/jogo/listar-mensagens';
+import type { ProcessarComandoChat } from '../../aplicacao/jogo/processar-comando-chat';
 import type { CriarCena } from '../../aplicacao/jogo/criar-cena';
 import type { ListarCenas } from '../../aplicacao/jogo/listar-cenas';
 import type { AtualizarCena } from '../../aplicacao/jogo/atualizar-cena';
@@ -35,6 +37,7 @@ interface Deps {
   enviarMensagem: EnviarMensagem;
   rolarDados: RolarDados;
   listarMensagens: ListarMensagens;
+  processarComandoChat: ProcessarComandoChat;
   criarCena: CriarCena;
   listarCenas: ListarCenas;
   atualizarCena: AtualizarCena;
@@ -110,7 +113,31 @@ export function registrarRotasJogo(app: FastifyInstance, deps: Deps): void {
       await deps.rolarDados.executar(request.usuarioId, mesaId, {
         expressao: entrada.expressao,
         motivo: entrada.motivo,
+        // `oculta` é do cliente e não é confiável: quem decide se pode é o caso
+        // de uso, com a guarda do mestre no agregado `Mesa` (RV-071).
+        oculta: entrada.oculta,
       }),
+      201,
+    );
+  });
+
+  /**
+   * Linha digitada no chat (RV-074). Uma rota só para todos os comandos: o
+   * servidor reinterpreta o texto cru com o parser de `@rolavinte/shared` e
+   * despacha pelo registry. Comando novo não acrescenta rota nem `if` aqui.
+   *
+   * As rotas `/mensagens` e `/rolagens` continuam existindo como as operações
+   * diretas que sempre foram — o que muda é que a caixa de texto do chat passa
+   * a falar com esta.
+   */
+  app.post('/mesas/:mesaId/chat', { preHandler: deps.autenticar }, async (request, reply) => {
+    const { mesaId } = request.params as { mesaId: string };
+    const corpo = request.body as Record<string, unknown> | null;
+    const entrada = validarEntrada(comandoChatSchema, { ...corpo, mesaId }, reply);
+    if (!entrada) return;
+    return responderResultado(
+      reply,
+      await deps.processarComandoChat.executar(request.usuarioId, mesaId, entrada.texto),
       201,
     );
   });

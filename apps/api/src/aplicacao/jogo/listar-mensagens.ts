@@ -5,6 +5,15 @@ import type { MensagemRepository, MesaRepository } from '../ports/repositorios';
 
 const LIMITE_PADRAO = 100;
 
+/**
+ * Histórico do chat. Leitura, então mesa encerrada continua consultável
+ * (`ehParticipante`, coerente com o RV-023).
+ *
+ * A privacidade de sussurro e rolagem oculta (RV-070/RV-071) é do repositório:
+ * `solicitanteId` desce até a consulta e as mensagens restritas de terceiros
+ * nunca entram no resultado. Não há filtro depois daqui — se houvesse, o dado
+ * já teria sido carregado e um erro de mapeamento o entregaria.
+ */
 export class ListarMensagens {
   constructor(
     private readonly mensagens: MensagemRepository,
@@ -17,6 +26,6 @@ export class ListarMensagens {
     if (!mesa.ehParticipante(usuarioId)) {
       return falha(ErroDominio.naoAutorizado('Você não participa desta mesa.'));
     }
-    return ok(await this.mensagens.listarDaMesa(mesaId, LIMITE_PADRAO));
+    return ok(await this.mensagens.listarDaMesa(mesaId, usuarioId, LIMITE_PADRAO));
   }
 }

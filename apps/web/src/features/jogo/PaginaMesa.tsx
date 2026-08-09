@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useMesa } from '@/features/mesas/api';
 import { formatarData } from '@/features/mesas/formatos';
+import { Carregando, Erro } from '@/components/ui/Estado';
 import { useSessao } from '@/features/auth/store-sessao';
 import { usePersonagens } from '@/features/personagens/api';
 import { PainelPersonagens } from '@/features/personagens/PainelPersonagens';
 import { useCenaAtiva } from './api';
+import { motivoDeConexao, rotuloDeConexao, useConexao } from './store-conexao';
 import { useSocketMesa } from './use-socket-mesa';
 import { Tabletop } from './Tabletop';
 import { Chat } from './Chat';
@@ -20,24 +22,27 @@ export function PaginaMesa() {
   const cenaAtiva = useCenaAtiva(mesaId);
   const personagens = usePersonagens(mesaId);
   const [aba, setAba] = useState<Aba>('chat');
+  // Seletor fino: a página só depende do *estado* da conexão, e nada mais da
+  // store — um campo a mais aqui rerenderizaria o tabletop inteiro a cada
+  // tentativa de reconexão.
+  const estadoConexao = useConexao((s) => s.estado);
   useSocketMesa(mesaId);
 
   if (mesa.isPending) {
     return (
-      <main className="flex min-h-full items-center justify-center text-texto-2">
-        Abrindo a mesa…
+      <main className="flex min-h-full items-center justify-center">
+        <Carregando rotulo="Abrindo a mesa…" />
       </main>
     );
   }
   if (mesa.isError) {
     return (
-      <main className="flex min-h-full flex-col items-center justify-center gap-4">
-        <p role="alert" className="text-perigo">
-          {mesa.error.message}
-        </p>
-        <Link to="/" className="text-ouro hover:underline">
-          Voltar ao início
-        </Link>
+      <main className="flex min-h-full flex-col items-center justify-center gap-4 p-4">
+        <Erro erro={mesa.error} retentando={mesa.isFetching} aoRetentar={() => void mesa.refetch()}>
+          <Link to="/" className="text-sm text-ouro hover:underline">
+            Voltar ao início
+          </Link>
+        </Erro>
       </main>
     );
   }
@@ -48,10 +53,27 @@ export function PaginaMesa() {
   // RV-023: mesa encerrada abre em modo somente leitura. O motivo acompanha
   // cada controle desabilitado — não basta apagar os botões.
   const encerradaEm = mesa.data.encerradaEm;
-  const motivoBloqueio =
+  const motivoEncerrada =
     encerradaEm !== null
       ? `Esta mesa foi encerrada em ${formatarData(encerradaEm)} e está em modo somente leitura.`
       : null;
+
+  /**
+   * RV-112: enquanto o tempo real está fora do ar, a escrita fica bloqueada —
+   * pelo mesmo canal por onde o encerramento já bloqueava. Cada controle da
+   * mesa (chat, tabletop, fichas, painel do mestre) já sabe desabilitar-se
+   * **mostrando o motivo** quando recebe `motivoBloqueio`; nenhum deles precisa
+   * conhecer o socket, e nenhum texto novo de "desabilitado sem explicação"
+   * entra na tela.
+   *
+   * O encerramento tem precedência: ele é definitivo, e voltar a conexão não o
+   * desfaz. A faixa de status abaixo é independente do motivo escolhido, então
+   * numa mesa encerrada **e** desconectada o usuário continua vendo as duas
+   * informações.
+   */
+  const motivoConexao = motivoDeConexao(estadoConexao);
+  const rotuloConexao = rotuloDeConexao(estadoConexao);
+  const motivoBloqueio = motivoEncerrada ?? motivoConexao;
 
   const abas: { id: Aba; rotulo: string }[] = [
     { id: 'chat', rotulo: '💬 Chat' },
@@ -66,7 +88,7 @@ export function PaginaMesa() {
           ← Mesas
         </Link>
         <h1 className="font-titulo truncate text-lg text-ouro">{mesa.data.nome}</h1>
-        {motivoBloqueio && (
+        {motivoEncerrada && (
           <span className="shrink-0 rounded-full border border-borda px-2 py-0.5 text-xs text-texto-2">
             🔒 Encerrada
           </span>
@@ -77,21 +99,42 @@ export function PaginaMesa() {
         </span>
       </header>
 
-      {motivoBloqueio && (
+      {motivoEncerrada && (
         <p
           role="status"
           className="shrink-0 border-b border-borda bg-painel-2 px-4 py-2 text-xs text-texto-2"
         >
-          {motivoBloqueio} Você continua lendo o histórico do chat, as fichas e o mapa, mas não é
+          {motivoEncerrada} Você continua lendo o histórico do chat, as fichas e o mapa, mas não é
           possível enviar mensagens, rolar dados, mover tokens nem alterar a mesa.
+        </p>
+      )}
+
+      {/* Faixa de conexão (RV-112). `role="status"` para o leitor de tela
+          anunciar a queda sem roubar o foco de quem está digitando, e o estado
+          vai em texto + emoji — nunca só em cor. */}
+      {rotuloConexao && motivoConexao && (
+        <p
+          role="status"
+          className="shrink-0 border-b border-ouro/40 bg-painel-2 px-4 py-2 text-xs text-texto-2"
+        >
+          <strong className="text-ouro">{rotuloConexao}</strong> {motivoConexao}
         </p>
       )}
 
       <div className="flex min-h-0 flex-1">
         <section className="min-w-0 flex-1 bg-fundo" aria-label="Tabletop">
           {cenaAtiva.isPending && (
-            <div className="flex h-full items-center justify-center text-texto-2">
-              Carregando cena…
+            <div className="flex h-full items-center justify-center">
+              <Carregando rotulo="Carregando a cena…" />
+            </div>
+          )}
+          {cenaAtiva.isError && (
+            <div className="flex h-full items-center justify-center p-4">
+              <Erro
+                erro={cenaAtiva.error}
+                retentando={cenaAtiva.isFetching}
+                aoRetentar={() => void cenaAtiva.refetch()}
+              />
             </div>
           )}
           {cenaAtiva.data &&

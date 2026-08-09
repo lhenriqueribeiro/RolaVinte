@@ -21,6 +21,14 @@ export interface EventosClienteParaServidor {
 }
 
 export interface EventosServidorParaCliente {
+  /**
+   * Mensagem nova do chat. Serve tanto o broadcast da sala quanto a entrega
+   * **direcionada** de sussurro e rolagem oculta (RV-070/RV-071): o payload é o
+   * mesmo `MensagemDTO` e o cliente faz a mesma coisa com ele — anexar ao
+   * histórico. O que muda é o alvo do `emit`, e é aí que mora a privacidade;
+   * um nome de evento diferente daria a falsa impressão de que o segredo está
+   * no nome, quando ele está na sala para a qual o servidor emite.
+   */
   'mensagem:nova': (mensagem: MensagemDTO) => void;
   'token:criado': (token: TokenDTO) => void;
   'token:atualizado': (token: TokenDTO) => void;
@@ -97,3 +105,17 @@ export type EventosClienteParaServidorBruto = {
 };
 
 export const SALA_MESA = (mesaId: string) => `mesa:${mesaId}`;
+
+/**
+ * Sala pessoal **dentro** de uma mesa (RV-070) — destino de sussurro e rolagem
+ * oculta.
+ *
+ * O card falava em `usuario:{id}`, uma sala pessoal global. Ela entrega demais:
+ * quem está com duas mesas abertas receberia, na aba errada, um sussurro da
+ * outra mesa (o cliente grava em `['mensagens', mesaId]` da aba montada). Uma
+ * sala por par mesa+usuário é a interseção exata "este usuário, nesta mesa" —
+ * o socket entra nela no mesmo ponto em que entra na sala da mesa, logo depois
+ * da verificação de participação, e sai junto.
+ */
+export const SALA_USUARIO_NA_MESA = (mesaId: string, usuarioId: string) =>
+  `mesa:${mesaId}:usuario:${usuarioId}`;

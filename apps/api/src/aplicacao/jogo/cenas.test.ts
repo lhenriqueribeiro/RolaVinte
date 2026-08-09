@@ -19,7 +19,7 @@ import {
   GeradorIdSequencial,
 } from '../../testes/fakes';
 import { AtivarCena } from './ativar-cena';
-import { AtualizarCena } from './atualizar-cena';
+import { AtualizarCena, mensagemTokensForaDoGrid } from './atualizar-cena';
 import { CriarCena } from './criar-cena';
 import { DefinirImagemFundoCena } from './definir-imagem-fundo-cena';
 import { APENAS_MESTRE_LISTA_CENAS, ListarCenas } from './listar-cenas';
@@ -41,6 +41,8 @@ interface Cenario {
   usuarios: FakeUsuarioRepository;
   publicador: FakePublicadorEventosMesa;
   armazenamento: FakeArmazenamentoArquivos;
+  /** Bucket das artes de token (RV-047) — separado do de mapas, como no main.ts. */
+  armazenamentoTokens: FakeArmazenamentoArquivos;
   geradorId: GeradorIdSequencial;
   criarCena: CriarCena;
   listarCenas: ListarCenas;
@@ -57,6 +59,7 @@ async function montarCenario(): Promise<Cenario> {
   const cenas = new FakeCenaRepository();
   const publicador = new FakePublicadorEventosMesa();
   const armazenamento = new FakeArmazenamentoArquivos();
+  const armazenamentoTokens = new FakeArmazenamentoArquivos();
   const geradorId = new GeradorIdSequencial();
 
   for (const [id, nome] of [
@@ -76,11 +79,12 @@ async function montarCenario(): Promise<Cenario> {
     usuarios,
     publicador,
     armazenamento,
+    armazenamentoTokens,
     geradorId,
     criarCena: new CriarCena(cenas, mesas, geradorId, publicador),
     listarCenas: new ListarCenas(cenas, mesas),
     atualizarCena: new AtualizarCena(cenas, mesas, publicador),
-    removerCena: new RemoverCena(cenas, mesas, armazenamento),
+    removerCena: new RemoverCena(cenas, mesas, armazenamento, armazenamentoTokens),
     ativarCena: new AtivarCena(cenas, mesas, publicador),
     definirFundo: new DefinirImagemFundoCena(cenas, mesas, armazenamento, geradorId, publicador),
   };
@@ -233,6 +237,148 @@ describe('AtualizarCena', () => {
     if (r.ok) return;
     expect(r.erro.tipo).toBe('conflito');
     expect(r.erro.mensagem).toBe('Esta mesa foi encerrada.');
+  });
+});
+
+describe('AtualizarCena — encolher o grid não abandona tokens (RV-036)', () => {
+  /** Cena nasce 25x15 pelos defaults do contrato. */
+  async function cenaComTokens(...posicoes: readonly { x: number; y: number }[]) {
+    const cena = await criar('Cripta');
+    let indice = 0;
+    for (const posicao of posicoes) {
+      indice += 1;
+      await c.cenas.salvarToken(
+        Token.reconstituir({
+          id: `token-${indice}`,
+          cenaId: cena.id,
+          nome: `Goblin ${indice}`,
+          cor: '#e74c3c',
+          x: posicao.x,
+          y: posicao.y,
+          personagemId: null,
+          imagemUrl: null,
+          imagemCaminho: null,
+        }),
+      );
+    }
+    c.publicador.limpar();
+    c.cenas.chamadasListarTokensDaCena = 0;
+    return cena;
+  }
+
+  it('recusa com conflito e não persiste nada quando uma peça ficaria fora', async () => {
+    const cena = await cenaComTokens({ x: 20, y: 5 });
+
+    const r = await c.atualizarCena.executar('mestre', cena.id, {
+      nome: 'Cripta Apertada',
+      larguraGrid: 10,
+    });
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.erro.tipo).toBe('conflito');
+    expect(r.erro.mensagem).toBe(mensagemTokensForaDoGrid(1));
+    // Nem a cena nem o token mudaram: a API não move peça que ninguém mandou mover.
+    const persistida = await c.cenas.buscarPorId(cena.id);
+    expect([persistida?.larguraGrid, persistida?.alturaGrid, persistida?.nome]).toEqual([
+      25,
+      15,
+      'Cripta',
+    ]);
+    const token = await c.cenas.buscarTokenPorId('token-1');
+    expect([token?.x, token?.y]).toEqual([20, 5]);
+    expect(c.publicador.publicados).toHaveLength(0);
+  });
+
+  it('a mensagem diz quantas peças estão no caminho', async () => {
+    const cena = await cenaComTokens({ x: 20, y: 5 }, { x: 2, y: 12 }, { x: 24, y: 14 });
+
+    const r = await c.atualizarCena.executar('mestre', cena.id, {
+      larguraGrid: 10,
+      alturaGrid: 10,
+    });
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.erro.mensagem).toBe(mensagemTokensForaDoGrid(3));
+    expect(r.erro.mensagem).toContain('3 peças');
+  });
+
+  it('permite encolher quando a área removida está vazia', async () => {
+    const cena = await cenaComTokens({ x: 0, y: 0 }, { x: 9, y: 9 });
+
+    const r = await c.atualizarCena.executar('mestre', cena.id, {
+      larguraGrid: 10,
+      alturaGrid: 10,
+    });
+
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect([r.valor.larguraGrid, r.valor.alturaGrid]).toEqual([10, 10]);
+    // Nenhum token foi tocado pelo redimensionamento.
+    const token = await c.cenas.buscarTokenPorId('token-2');
+    expect([token?.x, token?.y]).toEqual([9, 9]);
+  });
+
+  it('aumentar o grid nunca é barrado e nem consulta os tokens', async () => {
+    const cena = await cenaComTokens({ x: 24, y: 14 });
+
+    const r = await c.atualizarCena.executar('mestre', cena.id, {
+      larguraGrid: 100,
+      alturaGrid: 100,
+    });
+
+    expect(r.ok).toBe(true);
+    expect(c.cenas.chamadasListarTokensDaCena).toBe(0);
+  });
+
+  it('PATCH que não mexe em largura nem altura não lê os tokens', async () => {
+    const cena = await cenaComTokens({ x: 20, y: 5 });
+
+    const r = await c.atualizarCena.executar('mestre', cena.id, {
+      corGrid: '#ff0000',
+      gridVisivel: false,
+    });
+
+    expect(r.ok).toBe(true);
+    expect(c.cenas.chamadasListarTokensDaCena).toBe(0);
+  });
+
+  it('repetir o mesmo tamanho não é redução e passa mesmo com peça na borda', async () => {
+    const cena = await cenaComTokens({ x: 24, y: 14 });
+
+    const r = await c.atualizarCena.executar('mestre', cena.id, {
+      larguraGrid: 25,
+      alturaGrid: 15,
+    });
+
+    expect(r.ok).toBe(true);
+    expect(c.cenas.chamadasListarTokensDaCena).toBe(0);
+  });
+
+  it('encolher um mapa sem nenhuma peça é permitido', async () => {
+    const cena = await cenaComTokens();
+
+    const r = await c.atualizarCena.executar('mestre', cena.id, {
+      larguraGrid: 5,
+      alturaGrid: 5,
+    });
+
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect([r.valor.larguraGrid, r.valor.alturaGrid]).toEqual([5, 5]);
+  });
+
+  it('o jogador não redimensiona — 403 antes de qualquer leitura de tokens', async () => {
+    const cena = await cenaComTokens({ x: 20, y: 5 });
+
+    const r = await c.atualizarCena.executar('bruno', cena.id, { larguraGrid: 10 });
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.erro.tipo).toBe('nao-autorizado');
+    expect(c.cenas.chamadasListarTokensDaCena).toBe(0);
+    expect((await c.cenas.buscarPorId(cena.id))?.larguraGrid).toBe(25);
   });
 });
 
@@ -394,6 +540,106 @@ describe('RemoverCena', () => {
     if (r.ok) return;
     expect(r.erro.tipo).toBe('nao-autorizado');
     expect(r.erro.mensagem).toBe('Apenas o mestre remove cenas.');
+  });
+});
+
+describe('RemoverCena — as artes dos tokens somem do Storage (RV-047)', () => {
+  /**
+   * A cascata de FK apaga a linha do token, mas não alcança o bucket: sem esta
+   * limpeza, toda arte enviada pelo RV-041 fica órfã para sempre.
+   */
+  async function tokenComArte(
+    cenaId: string,
+    id: string,
+    caminho: string | null,
+  ): Promise<string | null> {
+    if (caminho) {
+      await c.armazenamentoTokens.salvar(caminho, new Uint8Array([1, 2, 3]), 'image/png');
+    }
+    await c.cenas.salvarToken(
+      Token.reconstituir({
+        id,
+        cenaId,
+        nome: id,
+        cor: '#e74c3c',
+        x: 0,
+        y: 0,
+        personagemId: null,
+        imagemUrl: caminho ? `https://storage.teste.local/tokens/${caminho}` : null,
+        imagemCaminho: caminho,
+      }),
+    );
+    return caminho;
+  }
+
+  /** Taverna inativa com 3 tokens (2 com arte) e mapa; Cripta ativa com 1 token com arte. */
+  async function duasCenas() {
+    const taverna = await criar('Taverna');
+    await c.definirFundo.executar('mestre', taverna.id, {
+      tipo: 'image/png',
+      conteudo: new Uint8Array([1, 2, 3]),
+    });
+    const mapa = c.armazenamento.salvos[0]?.caminho ?? '';
+    const arte1 = await tokenComArte(taverna.id, 'taverna-1', `tokens/taverna-1/a.png`);
+    const arte2 = await tokenComArte(taverna.id, 'taverna-2', `tokens/taverna-2/b.webp`);
+    await tokenComArte(taverna.id, 'taverna-3', null);
+
+    const cripta = await criar('Cripta');
+    const arteDaAtiva = await tokenComArte(cripta.id, 'cripta-1', `tokens/cripta-1/c.png`);
+
+    return { taverna, mapa, arte1, arte2, arteDaAtiva };
+  }
+
+  it('apaga o mapa no bucket de mapas e as artes no bucket de tokens', async () => {
+    const { taverna, mapa, arte1, arte2, arteDaAtiva } = await duasCenas();
+
+    const r = await c.removerCena.executar('mestre', taverna.id);
+
+    expect(r.ok).toBe(true);
+    expect(c.armazenamento.caminhosRemovidos).toEqual([mapa]);
+    expect([...c.armazenamentoTokens.caminhosRemovidos].sort()).toEqual([arte1, arte2].sort());
+    // A arte da cena que continua ativa não foi tocada.
+    expect(c.armazenamentoTokens.contem(arteDaAtiva ?? '')).toBe(true);
+    expect(c.armazenamentoTokens.salvos.map((a) => a.caminho)).toEqual([arteDaAtiva]);
+  });
+
+  it('não tenta apagar arte de token sem imagem', async () => {
+    const taverna = await criar('Taverna');
+    await tokenComArte(taverna.id, 'taverna-1', null);
+    await tokenComArte(taverna.id, 'taverna-2', null);
+    await criar('Cripta');
+
+    const r = await c.removerCena.executar('mestre', taverna.id);
+
+    expect(r.ok).toBe(true);
+    expect(c.armazenamentoTokens.caminhosRemovidos).toEqual([]);
+  });
+
+  it('Storage indisponível não impede a exclusão da cena', async () => {
+    const { taverna } = await duasCenas();
+    c.armazenamento.falharAoRemover = true;
+    c.armazenamentoTokens.falharAoRemover = true;
+
+    const r = await c.removerCena.executar('mestre', taverna.id);
+
+    expect(r.ok).toBe(true);
+    expect(await c.cenas.buscarPorId(taverna.id)).toBeNull();
+  });
+
+  it('exclusão recusada não apaga arquivo nenhum', async () => {
+    const { arte1, arte2 } = await duasCenas();
+    const cripta = await c.cenas.buscarAtivaDaMesa(MESA_ID);
+
+    // A cena ativa é recusada com 409 — nada pode sair do Storage.
+    const r = await c.removerCena.executar('mestre', cripta?.id ?? '');
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.erro.mensagem).toBe(CENA_ATIVA_NAO_EXCLUI);
+    expect(c.armazenamento.caminhosRemovidos).toEqual([]);
+    expect(c.armazenamentoTokens.caminhosRemovidos).toEqual([]);
+    expect(c.armazenamentoTokens.contem(arte1 ?? '')).toBe(true);
+    expect(c.armazenamentoTokens.contem(arte2 ?? '')).toBe(true);
   });
 });
 

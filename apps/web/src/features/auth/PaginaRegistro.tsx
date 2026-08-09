@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, Navigate } from 'react-router';
 import { Botao } from '@/components/ui/Botao';
 import { Campo } from '@/components/ui/Campo';
+import { Erro } from '@/components/ui/Estado';
 import { useRegistrar } from './api';
 import { useSessao } from './store-sessao';
 
@@ -50,7 +51,7 @@ export function PaginaRegistro() {
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
           />
-          {registrar.isError && <p className="text-sm text-perigo">{registrar.error.message}</p>}
+          {registrar.isError && <Erro erro={registrar.error} />}
           <Botao type="submit" disabled={registrar.isPending}>
             {registrar.isPending ? 'Criando conta…' : 'Criar conta'}
           </Botao>

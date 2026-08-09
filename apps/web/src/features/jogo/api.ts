@@ -17,6 +17,17 @@ export function useCenaAtiva(mesaId: string) {
   });
 }
 
+/**
+ * Histórico do chat — hoje as últimas 100 mensagens, de uma vez.
+ *
+ * Continua `useQuery` e não `useInfiniteQuery` porque
+ * `GET /mesas/:mesaId/mensagens` ainda não aceita cursor: a rota ignora
+ * querystring e devolve sempre a mesma página. Um `useInfiniteQuery` mandando
+ * `antesDe` receberia as mesmas 100 mensagens a cada "próxima página" e as
+ * duplicaria na tela. O RV-073 fica pela metade até a rota ganhar
+ * `?antesDe=<iso>&limite=<n>`; a metade que não dependia disso — não saltar a
+ * rolagem e avisar de mensagem nova — está no `Chat`.
+ */
 export function useMensagens(mesaId: string) {
   return useQuery({
     queryKey: ['mensagens', mesaId],
@@ -24,12 +35,22 @@ export function useMensagens(mesaId: string) {
   });
 }
 
-export function useEnviarMensagem(mesaId: string) {
+/**
+ * Toda linha digitada no chat sai por aqui (RV-074): texto cru, sem tipo.
+ *
+ * O servidor reinterpreta com o mesmo parser de `@rolavinte/shared` e despacha
+ * pelo registry — fala, rolagem, sussurro e rolagem oculta chegam pela mesma
+ * porta. Não existe mais um `useEnviarMensagem` ao lado: dois caminhos para
+ * mandar uma fala eram duas gramáticas para manter em sincronia, que é
+ * exatamente o que o RV-074 veio apagar. A resposta chega ao autor pelo
+ * `mensagem:nova` do socket, então não há `setQueryData` aqui.
+ */
+export function useEnviarComandoChat(mesaId: string) {
   return useMutation({
-    mutationFn: (conteudo: string) =>
-      requisitar<MensagemDTO>(`/mesas/${mesaId}/mensagens`, {
+    mutationFn: (texto: string) =>
+      requisitar<MensagemDTO>(`/mesas/${mesaId}/chat`, {
         metodo: 'POST',
-        corpo: { conteudo },
+        corpo: { texto },
       }),
   });
 }

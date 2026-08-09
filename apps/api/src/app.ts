@@ -31,6 +31,7 @@ import type { AtualizarPersonagem } from './aplicacao/personagens/atualizar-pers
 import type { EnviarMensagem } from './aplicacao/jogo/enviar-mensagem';
 import type { RolarDados } from './aplicacao/jogo/rolar-dados';
 import type { ListarMensagens } from './aplicacao/jogo/listar-mensagens';
+import type { ProcessarComandoChat } from './aplicacao/jogo/processar-comando-chat';
 import type { CriarCena } from './aplicacao/jogo/criar-cena';
 import type { ListarCenas } from './aplicacao/jogo/listar-cenas';
 import type { AtualizarCena } from './aplicacao/jogo/atualizar-cena';
@@ -75,6 +76,7 @@ export interface CasosDeUsoHttp {
   enviarMensagem: EnviarMensagem;
   rolarDados: RolarDados;
   listarMensagens: ListarMensagens;
+  processarComandoChat: ProcessarComandoChat;
   criarCena: CriarCena;
   listarCenas: ListarCenas;
   atualizarCena: AtualizarCena;

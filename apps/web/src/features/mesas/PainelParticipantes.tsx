@@ -71,7 +71,7 @@ export function PainelParticipantes({ mesaId, jogadores, souMestre, motivoBloque
         }
         rotuloConfirmar="Remover da mesa"
         processando={remover.isPending}
-        erro={remover.isError ? remover.error.message : null}
+        erro={remover.error}
         aoConfirmar={confirmarRemocao}
         aoCancelar={() => {
           remover.reset();

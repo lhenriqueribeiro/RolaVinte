@@ -72,7 +72,7 @@ Duas regras do processo que valem para qualquer contribuição, humana ou não: 
 
 ## Backlog
 
-O roteiro do produto vive em [docs/backlog/](docs/backlog/README.md): 14 épicos, 89 cards (21 concluídos) com história, critérios de aceite em Gherkin, testes obrigatórios e DoD. Antes de implementar uma feature, procure o card correspondente — ele traz as decisões já tomadas e as armadilhas mapeadas. Card novo segue o [modelo](docs/backlog/_modelo-card.md).
+O roteiro do produto vive em [docs/backlog/](docs/backlog/README.md): 15 épicos, 98 cards (21 concluídos) com história, critérios de aceite em Gherkin, testes obrigatórios e DoD. Antes de implementar uma feature, procure o card correspondente — ele traz as decisões já tomadas e as armadilhas mapeadas. Card novo segue o [modelo](docs/backlog/_modelo-card.md).
 
 ## Fluxos principais (visão de 10 segundos)
 

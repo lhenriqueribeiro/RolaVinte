@@ -3,6 +3,9 @@ import { Link } from 'react-router';
 import { SISTEMAS_RPG, type MesaDTO, type SistemaRpg } from '@rolavinte/shared';
 import { Botao } from '@/components/ui/Botao';
 import { Campo, CampoArea } from '@/components/ui/Campo';
+import { Erro, Vazio } from '@/components/ui/Estado';
+import { ListaEsqueleto } from '@/components/ui/Esqueleto';
+import { useNotificar } from '@/components/ui/Notificacao';
 import { useSessao } from '@/features/auth/store-sessao';
 import { useCriarMesa, useMesas } from './api';
 import { AcaoEncerrarMesa } from './AcaoEncerrarMesa';
@@ -68,6 +71,7 @@ export function PaginaDashboard() {
   const sair = useSessao((s) => s.sair);
   const mesas = useMesas();
   const criarMesa = useCriarMesa();
+  const notificar = useNotificar();
   const [criando, setCriando] = useState(false);
   const [nome, setNome] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -78,10 +82,11 @@ export function PaginaDashboard() {
     criarMesa.mutate(
       { nome, descricao, sistema },
       {
-        onSuccess: () => {
+        onSuccess: (mesa) => {
           setCriando(false);
           setNome('');
           setDescricao('');
+          notificar.sucesso(`Mesa "${mesa.nome}" criada.`);
         },
       },
     );
@@ -143,7 +148,7 @@ export function PaginaDashboard() {
               ))}
             </select>
           </div>
-          {criarMesa.isError && <p className="text-sm text-perigo">{criarMesa.error.message}</p>}
+          {criarMesa.isError && <Erro erro={criarMesa.error} compacto />}
           <div className="flex gap-2">
             <Botao type="submit" disabled={criarMesa.isPending}>
               {criarMesa.isPending ? 'Criando…' : 'Criar mesa'}
@@ -155,17 +160,27 @@ export function PaginaDashboard() {
         </form>
       )}
 
-      {mesas.isPending && <p className="text-texto-2">Carregando mesas…</p>}
+      {mesas.isPending && (
+        <ListaEsqueleto
+          itens={4}
+          altura="h-40"
+          rotulo="Carregando suas mesas…"
+          className="grid gap-4 sm:grid-cols-2"
+        />
+      )}
       {mesas.isError && (
-        <p role="alert" className="text-perigo">
-          {mesas.error.message}
-        </p>
+        <Erro
+          erro={mesas.error}
+          retentando={mesas.isFetching}
+          aoRetentar={() => void mesas.refetch()}
+        />
       )}
       {semNenhuma && !criando && (
-        <div className="rounded-2xl border border-dashed border-borda p-12 text-center text-texto-2">
-          <p className="mb-2 text-4xl">🐉</p>
-          <p>Você ainda não tem mesas. Crie a primeira e convide seu grupo!</p>
-        </div>
+        <Vazio
+          icone="🐉"
+          titulo="Você ainda não tem mesas."
+          descricao="Crie a primeira e convide seu grupo!"
+        />
       )}
 
       {ativas.length > 0 && (

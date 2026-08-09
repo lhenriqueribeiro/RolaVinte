@@ -8,6 +8,7 @@ import {
 } from '@rolavinte/shared';
 import { Botao } from '@/components/ui/Botao';
 import { Campo, CampoArea } from '@/components/ui/Campo';
+import { Erro } from '@/components/ui/Estado';
 import { useAtualizarPersonagem } from './api';
 import { useRolarDados } from '@/features/jogo/api';
 
@@ -177,7 +178,7 @@ export function FichaPersonagem({
           />
         </div>
 
-        {atualizar.isError && <p className="mt-3 text-sm text-perigo">{atualizar.error.message}</p>}
+        {atualizar.isError && <Erro erro={atualizar.error} className="mt-3" />}
 
         {motivoBloqueio && (
           <p className="mt-4 rounded-lg border border-borda bg-painel-2 p-3 text-xs text-texto-2">

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { CenaDTO, MesaDetalheDTO, PersonagemDTO } from '@rolavinte/shared';
 import { Botao } from '@/components/ui/Botao';
 import { Campo } from '@/components/ui/Campo';
+import { Erro } from '@/components/ui/Estado';
 import { AcaoEncerrarMesa } from '@/features/mesas/AcaoEncerrarMesa';
 import { FormularioEditarMesa } from '@/features/mesas/FormularioEditarMesa';
 import { PainelConvites } from '@/features/mesas/PainelConvites';
@@ -119,11 +120,7 @@ export function PainelMestre({ mesa, cena, personagens, motivoBloqueio }: Props)
             <p className="text-[11px] text-texto-2">
               Token vinculado pode ser movido pelo dono do personagem; sem vínculo, só pelo mestre.
             </p>
-            {criarToken.isError && (
-              <p role="alert" className="text-xs text-perigo">
-                {criarToken.error.message}
-              </p>
-            )}
+            {criarToken.isError && <Erro erro={criarToken.error} compacto />}
             <Botao type="submit" disabled={bloqueado || criarToken.isPending}>
               Adicionar à cena
             </Botao>

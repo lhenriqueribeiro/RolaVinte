@@ -2,6 +2,7 @@ import { useId, useRef, useState } from 'react';
 import type { CenaDTO } from '@rolavinte/shared';
 import { TAMANHO_CELULA_MAX, TAMANHO_CELULA_MIN, TIPOS_IMAGEM_FUNDO } from '@rolavinte/shared';
 import { Botao } from '@/components/ui/Botao';
+import { Erro } from '@/components/ui/Estado';
 import { useAtualizarCena, useDefinirFundoCena } from './api';
 
 interface Props {
@@ -82,11 +83,7 @@ export function PropriedadesCena({ mesaId, cena, motivoBloqueio }: Props) {
         <p className="text-[10px] text-texto-2">
           PNG, JPEG ou WebP, até 8 MB. Subir outro mapa substitui o atual.
         </p>
-        {enviarFundo.isError && (
-          <p role="alert" className="text-xs text-perigo">
-            {enviarFundo.error.message}
-          </p>
-        )}
+        {enviarFundo.isError && <Erro erro={enviarFundo.error} compacto />}
       </div>
 
       <div className="mt-3 flex flex-col gap-2 border-t border-borda pt-3">
@@ -151,11 +148,7 @@ export function PropriedadesCena({ mesaId, cena, motivoBloqueio }: Props) {
           />
         </div>
 
-        {atualizar.isError && (
-          <p role="alert" className="text-xs text-perigo">
-            {atualizar.error.message}
-          </p>
-        )}
+        {atualizar.isError && <Erro erro={atualizar.error} compacto />}
         {motivoBloqueio && <p className="text-[11px] text-texto-2">{motivoBloqueio}</p>}
       </div>
     </section>

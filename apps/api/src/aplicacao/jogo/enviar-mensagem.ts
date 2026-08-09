@@ -3,6 +3,7 @@ import { Mensagem } from '../../dominio/jogo/mensagem';
 import { ErroDominio } from '../../dominio/compartilhado/erro-dominio';
 import { falha, ok, type Result } from '../../dominio/compartilhado/resultado';
 import { mensagemParaDTO } from '../mapeadores';
+import { publicarMensagem } from './publicar-mensagem';
 import type { MensagemRepository, MesaRepository, UsuarioRepository } from '../ports/repositorios';
 import type { GeradorId, PublicadorEventosMesa, Relogio } from '../ports/infraestrutura';
 
@@ -41,7 +42,7 @@ export class EnviarMensagem {
 
     await this.mensagens.salvar(mensagem.valor);
     const dto = mensagemParaDTO(mensagem.valor);
-    this.publicador.mensagemNova(mesaId, dto);
+    publicarMensagem(this.publicador, mensagem.valor, dto);
     return ok(dto);
   }
 }

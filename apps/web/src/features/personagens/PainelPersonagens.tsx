@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import type { PersonagemDTO } from '@rolavinte/shared';
 import { Botao } from '@/components/ui/Botao';
 import { Campo } from '@/components/ui/Campo';
+import { Erro, Vazio } from '@/components/ui/Estado';
+import { ListaEsqueleto } from '@/components/ui/Esqueleto';
 import { useSessao } from '@/features/auth/store-sessao';
 import { useCriarPersonagem, usePersonagens } from './api';
 import { FichaPersonagem } from './FichaPersonagem';
@@ -93,7 +95,7 @@ export function PainelPersonagens({ mesaId, souMestre, motivoBloqueio = null }: 
             value={pvMax}
             onChange={(e) => setPvMax(Number(e.target.value))}
           />
-          {criar.isError && <p className="text-xs text-perigo">{criar.error.message}</p>}
+          {criar.isError && <Erro erro={criar.error} compacto />}
           <div className="flex gap-2">
             <Botao type="submit" disabled={criar.isPending}>
               Criar
@@ -105,9 +107,19 @@ export function PainelPersonagens({ mesaId, souMestre, motivoBloqueio = null }: 
         </form>
       )}
 
-      {personagens.isPending && <p className="text-sm text-texto-2">Carregando personagens…</p>}
-      {personagens.data?.length === 0 && !criando && (
-        <p className="text-sm text-texto-2">Nenhum personagem ainda. Crie o primeiro!</p>
+      {personagens.isPending && (
+        <ListaEsqueleto itens={3} altura="h-20" rotulo="Carregando os personagens…" />
+      )}
+      {personagens.isError && (
+        <Erro
+          erro={personagens.error}
+          compacto
+          retentando={personagens.isFetching}
+          aoRetentar={() => void personagens.refetch()}
+        />
+      )}
+      {personagens.isSuccess && personagens.data.length === 0 && !criando && (
+        <Vazio compacto icone="🧙" titulo="Nenhum personagem ainda. Crie o primeiro!" />
       )}
 
       <ul className="flex flex-col gap-2">

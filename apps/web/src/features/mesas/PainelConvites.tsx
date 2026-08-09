@@ -3,6 +3,9 @@ import type { ConviteDTO } from '@rolavinte/shared';
 import { Botao } from '@/components/ui/Botao';
 import { Campo } from '@/components/ui/Campo';
 import { DialogoConfirmacao } from '@/components/ui/Dialogo';
+import { Erro, Vazio } from '@/components/ui/Estado';
+import { ListaEsqueleto } from '@/components/ui/Esqueleto';
+import { useNotificar } from '@/components/ui/Notificacao';
 import { useConvidarJogador, useConvites, useRevogarConvite } from './api';
 import { formatarDataHora, ROTULO_STATUS_CONVITE } from './formatos';
 
@@ -38,8 +41,8 @@ export function PainelConvites({ mesaId, motivoBloqueio }: Props) {
   const convidar = useConvidarJogador(mesaId);
   const revogar = useRevogarConvite(mesaId);
   const [email, setEmail] = useState('');
-  const [enviadoPara, setEnviadoPara] = useState<string | null>(null);
   const [aRevogar, setARevogar] = useState<ConviteDTO | null>(null);
+  const notificar = useNotificar();
 
   const bloqueado = motivoBloqueio !== null;
 
@@ -47,7 +50,10 @@ export function PainelConvites({ mesaId, motivoBloqueio }: Props) {
     evento.preventDefault();
     convidar.mutate(email, {
       onSuccess: (convite) => {
-        setEnviadoPara(convite.email);
+        // Antes esta confirmação ficava para sempre embaixo do campo, e o
+        // segundo convite a deixava desatualizada. Toast (RV-122): aparece,
+        // é anunciado por `aria-live` e some.
+        notificar.sucesso(`Convite enviado para ${convite.email}.`);
         setEmail('');
       },
     });
@@ -74,16 +80,7 @@ export function PainelConvites({ mesaId, motivoBloqueio }: Props) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        {convidar.isError && (
-          <p role="alert" className="text-xs text-perigo">
-            {convidar.error.message}
-          </p>
-        )}
-        {enviadoPara && (
-          <p role="status" className="text-xs text-sucesso">
-            Convite enviado para {enviadoPara}.
-          </p>
-        )}
+        {convidar.isError && <Erro erro={convidar.error} compacto />}
         <Botao type="submit" disabled={bloqueado || convidar.isPending}>
           {convidar.isPending ? 'Enviando…' : 'Enviar convite'}
         </Botao>
@@ -94,14 +91,19 @@ export function PainelConvites({ mesaId, motivoBloqueio }: Props) {
         <h4 className="mb-1.5 text-xs font-semibold text-texto-2">
           Convites pendentes ({pendentes.length})
         </h4>
-        {convites.isPending && <p className="text-xs text-texto-2">Carregando convites…</p>}
+        {convites.isPending && (
+          <ListaEsqueleto itens={2} altura="h-14" rotulo="Carregando os convites…" />
+        )}
         {convites.isError && (
-          <p role="alert" className="text-xs text-perigo">
-            {convites.error.message}
-          </p>
+          <Erro
+            erro={convites.error}
+            compacto
+            retentando={convites.isFetching}
+            aoRetentar={() => void convites.refetch()}
+          />
         )}
         {convites.isSuccess && pendentes.length === 0 && (
-          <p className="text-xs text-texto-2">Nenhum convite aguardando resposta.</p>
+          <Vazio compacto icone="📨" titulo="Nenhum convite aguardando resposta." />
         )}
         <ul className="flex flex-col gap-2">
           {pendentes.map((convite) => (
@@ -162,7 +164,7 @@ export function PainelConvites({ mesaId, motivoBloqueio }: Props) {
         }
         rotuloConfirmar="Revogar convite"
         processando={revogar.isPending}
-        erro={revogar.isError ? revogar.error.message : null}
+        erro={revogar.error}
         aoConfirmar={confirmarRevogacao}
         aoCancelar={() => {
           revogar.reset();

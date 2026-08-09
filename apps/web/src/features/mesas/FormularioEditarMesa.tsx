@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { SISTEMAS_RPG, type MesaDTO, type SistemaRpg } from '@rolavinte/shared';
 import { Botao } from '@/components/ui/Botao';
 import { Campo, CampoArea } from '@/components/ui/Campo';
+import { Erro } from '@/components/ui/Estado';
+import { useNotificar } from '@/components/ui/Notificacao';
 import { useAtualizarMesa } from './api';
 import { NOME_SISTEMA } from './formatos';
 
@@ -20,22 +22,30 @@ export function FormularioEditarMesa({ mesa, motivoBloqueio }: Props) {
   const [nome, setNome] = useState(mesa.nome);
   const [descricao, setDescricao] = useState(mesa.descricao);
   const [sistema, setSistema] = useState<SistemaRpg>(mesa.sistema);
-  const [salvo, setSalvo] = useState(false);
+  const notificar = useNotificar();
 
   const bloqueado = motivoBloqueio !== null;
   const alterado = nome !== mesa.nome || descricao !== mesa.descricao || sistema !== mesa.sistema;
 
   function submeter(evento: FormEvent) {
     evento.preventDefault();
-    setSalvo(false);
-    atualizar.mutate({ nome, descricao, sistema }, { onSuccess: () => setSalvo(true) });
+    atualizar.mutate(
+      { nome, descricao, sistema },
+      {
+        // Antes um `role="status"` fixo, que continuava dizendo "salvas" muito
+        // depois do salvamento. Toast (RV-122): confirma, é anunciado e some.
+        onSuccess: () =>
+          notificar.sucesso(
+            'Alterações salvas. Os demais participantes veem os novos dados ao reabrir a mesa.',
+          ),
+      },
+    );
   }
 
   function descartar() {
     setNome(mesa.nome);
     setDescricao(mesa.descricao);
     setSistema(mesa.sistema);
-    setSalvo(false);
     atualizar.reset();
   }
 
@@ -50,20 +60,14 @@ export function FormularioEditarMesa({ mesa, motivoBloqueio }: Props) {
           maxLength={80}
           disabled={bloqueado}
           value={nome}
-          onChange={(e) => {
-            setNome(e.target.value);
-            setSalvo(false);
-          }}
+          onChange={(e) => setNome(e.target.value)}
         />
         <CampoArea
           rotulo="Descrição"
           maxLength={500}
           disabled={bloqueado}
           value={descricao}
-          onChange={(e) => {
-            setDescricao(e.target.value);
-            setSalvo(false);
-          }}
+          onChange={(e) => setDescricao(e.target.value)}
         />
         <div className="flex flex-col gap-1.5">
           <label htmlFor={`sistema-${mesa.id}`} className="text-sm text-texto-2">
@@ -74,10 +78,7 @@ export function FormularioEditarMesa({ mesa, motivoBloqueio }: Props) {
             className="rounded-lg border border-borda bg-fundo px-3 py-2 text-sm text-texto disabled:opacity-50"
             disabled={bloqueado}
             value={sistema}
-            onChange={(e) => {
-              setSistema(e.target.value as SistemaRpg);
-              setSalvo(false);
-            }}
+            onChange={(e) => setSistema(e.target.value as SistemaRpg)}
           >
             {SISTEMAS_RPG.map((s) => (
               <option key={s} value={s}>
@@ -87,16 +88,7 @@ export function FormularioEditarMesa({ mesa, motivoBloqueio }: Props) {
           </select>
         </div>
 
-        {atualizar.isError && (
-          <p role="alert" className="text-xs text-perigo">
-            {atualizar.error.message}
-          </p>
-        )}
-        {salvo && !alterado && (
-          <p role="status" className="text-xs text-sucesso">
-            Alterações salvas. Os demais participantes veem os novos dados ao reabrir a mesa.
-          </p>
-        )}
+        {atualizar.isError && <Erro erro={atualizar.error} compacto />}
 
         <div className="flex flex-wrap gap-2">
           <Botao type="submit" disabled={bloqueado || !alterado || atualizar.isPending}>

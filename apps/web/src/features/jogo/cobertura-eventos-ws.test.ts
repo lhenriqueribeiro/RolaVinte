@@ -18,6 +18,25 @@ import { useSocketMesa } from './use-socket-mesa';
  * servidor→cliente exportada como valor por `@rolavinte/shared` e exige um
  * ouvinte registrado por `useSocketMesa` para cada um. Acrescentar um evento ao
  * contrato sem assiná-lo aqui deixa a suíte vermelha **nomeando o evento**.
+ *
+ * O lado inverso — evento declarado que ninguém emite — é medido na api, por
+ * `apps/api/src/testes/cobertura-publicador-ws.test.ts` (RV-116).
+ *
+ * ## Onde os eventos da mesa são assinados (decisão do RV-116)
+ *
+ * **Todo evento de `EventosServidorParaCliente` é assinado em `use-socket-mesa`
+ * e só nele.** Este teste monta um hook, um socket falso, e compara o contrato
+ * com os ouvintes daquele socket: um evento assinado em outro hook (um
+ * `use-socket-personagens`, digamos) seria acusado como órfão estando tratado —
+ * falso positivo, que é o pior defeito possível num teste cuja função é
+ * denunciar.
+ *
+ * A regra não é arbitrária: a sala é uma só (`mesa:{id}`), o socket é um só e o
+ * hook já está montado durante toda a vida da `PaginaMesa`. Espalhar `socket.on`
+ * por outros hooks multiplica pontos de registro sem entregar nada.
+ *
+ * Se algum dia isso mudar, a saída é montar **todos** os hooks de socket aqui
+ * antes de comparar — nunca afrouxar a comparação.
  */
 
 const MESA_ID = 'mesa-1';

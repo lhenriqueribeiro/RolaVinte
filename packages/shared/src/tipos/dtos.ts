@@ -113,7 +113,11 @@ export interface CenaComTokensDTO {
   tokens: TokenDTO[];
 }
 
-export type TipoMensagem = 'fala' | 'rolagem' | 'sistema';
+/**
+ * `sussurro` e `rolagem-oculta` são **restritos**: quem pode vê-los está em
+ * `chat/visibilidade.ts`, num `Record` que recusa tipo novo sem decisão.
+ */
+export type TipoMensagem = 'fala' | 'rolagem' | 'sistema' | 'sussurro' | 'rolagem-oculta';
 
 export interface MensagemDTO {
   id: string;
@@ -125,4 +129,13 @@ export interface MensagemDTO {
   rolagem: ResultadoRolagem | null;
   motivo: string | null;
   criadoEm: string;
+  /**
+   * Destinatário do sussurro (RV-070); `null` em qualquer outro tipo. O nome vem
+   * denormalizado junto, como `autorNome`, para o rótulo "sussurro para <nome>"
+   * não depender de uma segunda consulta no cliente.
+   *
+   * Este DTO só chega a quem pode vê-lo: o filtro é do servidor, não da UI.
+   */
+  destinatarioId: string | null;
+  destinatarioNome: string | null;
 }

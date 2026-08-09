@@ -6,7 +6,26 @@ Hoje o chat tem fala e rolagem, e o parser de comando é um regex dentro do comp
 
 ### RV-074 — Registry de comandos de chat
 
-**Épico:** E07 · **Depende de:** — · **Tamanho:** M · **Onda:** 1 · **Faça este primeiro do épico**
+**Épico:** E07 · **Depende de:** — · **Tamanho:** M · **Onda:** 1 · **Faça este primeiro do épico** · **Status:** ✅ Concluído
+
+> **Decisões tomadas na entrega.** O parser vive em
+> [packages/shared/src/chat/comandos.ts](../../packages/shared/src/chat/comandos.ts) e o servidor
+> **reinterpreta o texto cru**: o cliente manda `{ texto }` para a rota nova
+> `POST /mesas/:mesaId/chat` e nunca um tipo já classificado — se pudesse mandar
+> `{ tipo: 'rolagem-oculta' }`, estaria escolhendo o próprio caminho de autorização. O front chama
+> `interpretarComando` só para decidir entre **avisar aqui** e **postar**, e a dica sob o campo sai de
+> `listarUsosDeComandos()`, então comando novo aparece na UI sem editar componente.
+> **O union tem uma variante a mais do que o card previa:** além de `desconhecido` existe
+> `incompleto` (`/r` sem expressão, aspas não fechadas); as duas carregam `aviso` e o type guard
+> `comandoEhAviso` cobre as duas. O texto do 400 da API **é** o `aviso` do parser, para a tela mostrar
+> sem traduzir.
+> **Prova do DoD, medida:** acrescentar `/eu` custa 3 arquivos e nenhum `switch` — a `DefinicaoComando`
+> no shared e o manipulador nos **dois** composition roots ([main.ts](../../apps/api/src/main.ts) e
+> [testes/harness.ts](../../apps/api/src/testes/harness.ts)), que é um `Record<TipoComandoExecutavel, …>`
+> e por isso **não compila** enquanto o dono não existir. `Chat.tsx`, `ProcessarComandoChat`, a rota e o
+> publicador não mudam. Se o comando exigir um **tipo de mensagem** novo, somam-se `tipos/dtos.ts`, o
+> `Record` de [chat/visibilidade.ts](../../packages/shared/src/chat/visibilidade.ts) (que força a decisão
+> público/privado, falhando fechado) e uma migration para o `check constraint` de `mensagens.tipo`.
 
 **História**
 > Como **mantenedor**, quero **um ponto único de extensão para comandos de chat**, para **que `/sussurro`, `/eu` e `/oculto` entrem por adição, sem inchar um `if` no componente**.
@@ -50,18 +69,43 @@ Cenário: Texto comum não vira comando
 
 ### RV-070 — Sussurro
 
-**Épico:** E07 · **Depende de:** RV-074 · **Tamanho:** G · **Onda:** 1
+**Épico:** E07 · **Depende de:** RV-074 · **Tamanho:** G · **Onda:** 1 · **Status:** ✅ Concluído
+
+> **Decisões tomadas na entrega.** **Nenhum evento WS novo nasceu**: o sussurro chega pelo
+> `mensagem:nova` que o front já assina, com o mesmo `MensagemDTO`; o que muda é a **sala para a qual o
+> servidor emite**. A razão está escrita em
+> [eventos-ws.ts](../../packages/shared/src/tipos/eventos-ws.ts) — o cliente faz exatamente a mesma
+> coisa com os dois (anexar ao histórico), e um nome de evento separado sugeriria que o segredo mora no
+> nome quando ele mora no alvo do `emit`. Efeito prático: o ouvinte existente já funciona e o teste de
+> cobertura de eventos não fica vermelho.
+> **O filtro de privacidade é da consulta, não do cliente:** `listarDaMesa` aplica
+> `or(tipo.in.(fala,rolagem,sistema), autor_id.eq.<eu>, destinatario_id.eq.<eu>)` **antes** do `limit`
+> (se fosse depois, o solicitante receberia menos de 100 mensagens porque parte do bolo seria segredo
+> alheio). `MensagemChat.tsx` **não** filtra nada de propósito: esconder na renderização apagaria a
+> evidência de um vazamento do servidor.
+> **Destinatário aceita `@Nome` e `"Nome Com Espaço"`** — o card só mostrava `@Nome`, e um parser de
+> token único sussurraria para "Ana" em vez de "Ana Maria", em silêncio e para a pessoa errada. Pelo
+> mesmo motivo, dois participantes homônimos devolvem **409** explícito em vez de o servidor escolher um.
+> **A migration `0005_chat.sql` leva um CHECK que o card não pedia:** só sussurro tem destinatário, e
+> todo sussurro tem um. Sem ele, uma `fala` com `destinatario_id` preenchido passaria pelo filtro de
+> visibilidade de um terceiro sem ser restrita.
+> **No adapter, o id do solicitante é validado como UUID antes de entrar na string do `or()`** e o
+> caso contrário lança exceção (estado impossível, não `Result`): um id com vírgula ou parêntese
+> reescreveria a expressão inteira e derrubaria o filtro.
+> **⚠️ A migration `0005` não estava aplicada no ambiente real no fecho da fase** — ver
+> [RV-139](13-operacao.md#rv-139--o-verificador-de-ambiente-precisa-conhecer-toda-migration-do-repositório).
 
 **História**
 > Como **jogador**, quero **falar em particular com o mestre ou outro jogador**, para **combinar uma ação secreta sem sair da mesa**.
 
 **Contexto técnico**
-- Segurança: sussurro **não pode** ser transmitido a quem não é destinatário. Entregue por socket direcionado (sala pessoal `usuario:{id}`), nunca com filtro no cliente. `ListarMensagens` também precisa filtrar.
+- Segurança: sussurro **não pode** ser transmitido a quem não é destinatário. Entregue por socket direcionado (sala pessoal), nunca com filtro no cliente. `ListarMensagens` também precisa filtrar.
+- A sala pessoal é **por mesa** (`mesa:{mesaId}:usuario:{usuarioId}`), decidido na implementação: uma sala `usuario:{id}` global entregaria o sussurro de uma mesa a uma aba aberta em outra, e o cliente grava a mensagem em `['mensagens', mesaId]` da aba montada. Com a sala por par mesa+usuário, o socket entra nela no mesmo ponto em que entra na sala da mesa, logo após a verificação de participação.
 
 **Escopo**
 - Migration: `mensagens.destinatario_id uuid references usuarios(id)`; `tipo` aceita `'sussurro'`
 - `Mensagem.criarSussurro(...)`; `MensagemRepository.listarDaMesa` filtra por visibilidade do solicitante
-- `PublicadorEventosMesa.mensagemPrivada(usuarioIds, mensagem)`; `GatewayJogo` faz cada socket entrar em `usuario:{id}`
+- `PublicadorEventosMesa.mensagemPrivada(mesaId, usuarioIds, mensagem)`; `GatewayJogo` faz cada socket entrar na sala pessoal daquela mesa
 - Comando `/sussurro @Nome mensagem` (aceitar `/s`)
 
 **Critérios de aceite**
@@ -92,7 +136,23 @@ Cenário: Visual distinto
 
 ### RV-071 — Rolagem oculta do mestre
 
-**Épico:** E07 · **Depende de:** RV-070 · **Tamanho:** M · **Onda:** 1
+**Épico:** E07 · **Depende de:** RV-070 · **Tamanho:** M · **Onda:** 1 · **Status:** ✅ Concluído
+
+> **Decisões tomadas na entrega.** A guarda é do agregado: `RolarDados` reusa
+> `mesa.autorizarEscritaDoMestre`, então o **403 vale nos dois caminhos** — `/oculto 1d20` pela rota
+> `/chat` e `POST /mesas/:mesaId/rolagens` com `oculta: true`. O campo `oculta` continua **exposto** no
+> `rolarDadosSchema` de propósito: a defesa é o 403, não o campo escondido.
+> **A checagem no cliente é cortesia e só age quando o papel é conhecido**
+> (`mesa.isSuccess && !souMestre`): sem isso, o mestre que digitasse `/oculto` antes de `['mesa', id]`
+> responder seria acusado de não ser mestre — a mentira inversa. O comentário no código diz que quem
+> barra é o agregado.
+> **Rótulo textual, nunca só cor:** a mensagem aparece como "Rolagem oculta — só você vê este
+> resultado". A frase é literalmente verdadeira e não é chute: pelo `Record` de visibilidade a rolagem
+> oculta é restrita e não tem destinatário (o CHECK da `0005` garante que só sussurro tem), então quem
+> a vê é sempre e só o autor.
+> **A asserção de privacidade olha o corpo bruto da resposta do terceiro**
+> (`expect(resposta.body).not.toContain(...)`), não o tipo da mensagem — um teste que compara tipos
+> passaria com o texto vazando dentro de outro campo.
 
 **História**
 > Como **mestre**, quero **rolar dados sem os jogadores verem o resultado**, para **fazer testes secretos de percepção sem entregar o jogo**.
@@ -127,7 +187,15 @@ Cenário: Jogador não usa o comando
 
 ### RV-073 — Histórico paginado
 
-**Épico:** E07 · **Depende de:** — · **Tamanho:** M · **Onda:** 1
+**Épico:** E07 · **Depende de:** — · **Tamanho:** M · **Onda:** 1 · **Status:** 🚧 Parcial — interface entregue, backend pendente
+
+> **Por que continua aberto.** Verificado no código no fecho da v0.5.0:
+> [rotas-jogo.ts](../../apps/api/src/apresentacao/http/rotas-jogo.ts) não lê querystring nenhuma,
+> `ListarMensagens.executar(usuarioId, mesaId)` não recebe cursor e `listarDaMesa` usa um
+> `LIMITE_PADRAO = 100` fixo. Não há risco de duplicar ou pular registro entre páginas porque **não há
+> páginas**: numa campanha com mais de 100 mensagens o jogador simplesmente nunca alcança o histórico
+> anterior, e a tela não avisa que existe algo acima. O que falta está detalhado no Contexto técnico
+> abaixo; **o card só fecha quando o cursor existir na rota, na port e no `ORDER BY`.**
 
 **História**
 > Como **jogador**, quero **rolar o chat para trás e carregar mensagens antigas**, para **consultar o que aconteceu em sessões passadas**.
@@ -135,6 +203,21 @@ Cenário: Jogador não usa o comando
 **Contexto técnico**
 - Hoje `ListarMensagens` traz as últimas 100 e o front carrega tudo de uma vez.
 - Use cursor por `criado_em` + `id` (estável, sem `offset`).
+- **Estado em v0.5.0: metade entregue.** A parte de interface que não dependia do
+  cursor está feita — o chat só desce sozinho quando o leitor já está no fim, e quem
+  está lendo o histórico recebe o aviso "N novas mensagens" em vez de um salto
+  (`features/jogo/rolagem-chat.ts` mais os testes de `Chat.rolagem.test.tsx`). O que
+  falta é **inteiramente backend**: `GET /mesas/:mesaId/mensagens` ignora querystring
+  e devolve sempre a mesma página, então `useInfiniteQuery` mandando `antesDe`
+  receberia as mesmas mensagens de novo e as duplicaria na tela. Enquanto a rota não
+  aceitar `?antesDe=<iso>&limite=<n>`, `useMensagens` continua `useQuery` de
+  propósito. Ao fechar o backend, o que resta na interface é o `useInfiniteQuery` e a
+  compensação de `scrollTop` ao prepender uma página
+  (`scrollTopAntes + (alturaDepois - alturaAntes)`), deliberadamente **não** escrita
+  agora para não parecer que a paginação existe.
+- O desempate do cursor precisa entrar junto no `ORDER BY` do adapter **e** no
+  `FakeMensagemRepository`: hoje os dois ordenam só por `criado_em` e invertem
+  mensagens do mesmo instante (registrado na entrega do RV-070).
 
 **Escopo**
 - `MensagemRepository.listarDaMesa(mesaId, { limite, antesDe })`
@@ -202,8 +285,16 @@ Cenário: Personagem de outro jogador
 **História**
 > Como **jogador distraído**, quero **ser avisado quando me chamam**, para **não perder a minha vez**.
 
+**Contexto técnico**
+- Herdado do RV-073: o aviso "N novas mensagens" **não distingue** uma mensagem privada de uma fala
+  pública — quem está lendo o histórico vê "1 nova mensagem" mesmo quando a nova é um sussurro
+  endereçado a ele, justamente a que não se quer perder. A informação já está no payload
+  (`mensagem.tipo` e `destinatarioId`), então não há contrato novo a criar; este card, que já vai
+  decidir o que merece som e badge, é quem deve resolver a distinção.
+
 **Escopo**
 - Parser de `@nome` no `packages/shared` (reaproveita RV-074)
+- Aviso de não lidas distinguindo menção e mensagem privada da fala comum
 - Front: destaque da menção, som opcional, badge na aba de chat, `document.title` piscando quando a aba está em segundo plano
 - Preferência persistida em `localStorage` (som ligado/desligado)
 

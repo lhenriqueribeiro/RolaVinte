@@ -2,6 +2,7 @@ import { useId, useRef, useState, type FormEvent } from 'react';
 import type { TokenDTO } from '@rolavinte/shared';
 import { TIPOS_IMAGEM_TOKEN } from '@rolavinte/shared';
 import { Botao } from '@/components/ui/Botao';
+import { Erro } from '@/components/ui/Estado';
 import { useAtualizarToken, useDefinirImagemToken } from './api';
 
 interface Props {
@@ -109,11 +110,7 @@ export function PainelTokenSelecionado({ mesaId, token, motivoBloqueio, aoFechar
           </Botao>
         </div>
 
-        {atualizar.isError && (
-          <p role="alert" className="text-xs text-perigo">
-            {atualizar.error.message}
-          </p>
-        )}
+        {atualizar.isError && <Erro erro={atualizar.error} compacto />}
       </form>
 
       <div className="mt-3 flex flex-col gap-1 border-t border-borda pt-2">
@@ -137,11 +134,7 @@ export function PainelTokenSelecionado({ mesaId, token, motivoBloqueio, aoFechar
           {enviarArte.isPending ? 'Enviando…' : 'Enviar arte'}
         </Botao>
         <p className="text-[10px] text-texto-2">PNG, JPEG ou WebP, até 8 MB.</p>
-        {enviarArte.isError && (
-          <p role="alert" className="text-xs text-perigo">
-            {enviarArte.error.message}
-          </p>
-        )}
+        {enviarArte.isError && <Erro erro={enviarArte.error} compacto />}
       </div>
 
       {motivoBloqueio && <p className="mt-2 text-[11px] text-texto-2">{motivoBloqueio}</p>}

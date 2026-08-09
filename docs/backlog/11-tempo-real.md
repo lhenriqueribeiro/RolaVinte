@@ -82,7 +82,30 @@ Cenário: Borda — evento de outra mesa é ignorado
 
 ### RV-116 — Provar que todo evento do contrato tem publicador no servidor
 
-**Épico:** E11 · **Depende de:** RV-115 · **Tamanho:** P · **Onda:** 2
+**Épico:** E11 · **Depende de:** RV-115 · **Tamanho:** P · **Onda:** 2 · **Status:** ✅ Concluído
+
+> **Como ficou.** O teste é [apps/api/src/testes/cobertura-publicador-ws.test.ts](../../apps/api/src/testes/cobertura-publicador-ws.test.ts)
+> — em `src/testes/`, e não em `apresentacao/ws/` como o Escopo abaixo previa, porque é ali que
+> moram os testes transversais do repositório (fronteiras de arquitetura, endurecimento HTTP) e
+> porque foi a área de posse exclusiva atribuída na fase. Nenhum mapa novo foi para
+> `aplicacao/ports/infraestrutura.ts`: o `Record<NomeEventoServidorParaCliente, (p) => void>` vive no
+> próprio teste, com cada entrada **executando** o adapter real `PublicadorSocket` contra um `io`
+> falso — assim a asserção é sobre o nome que sai no fio, não sobre o nome do método.
+>
+> **O experimento (obrigatório para teste protetor).** Um evento `combate:turno-alterado` foi
+> declarado no contrato sem publicador: `npm run test` ficou vermelho em duas asserções, ambas
+> nomeando o evento ("…que ninguém emite: combate:turno-alterado" e "Publicar
+> \"combate:turno-alterado\" … colocou no fio nada"), e `npm run check` **também** quebrou
+> (`Property '"combate:turno-alterado"' is missing … in type 'Record<keyof
+> EventosServidorParaCliente, …>'`). Diferença relevante em relação ao RV-115, onde o experimento
+> revelou `check` verde com evento órfão: aqui as duas portas fecham.
+>
+> **Decisão registrada (a que o card pedia por escrito):** todo evento servidor→cliente é assinado em
+> `use-socket-mesa` **e só nele** — a regra e o porquê estão no topo de
+> [cobertura-eventos-ws.test.ts](../../apps/web/src/features/jogo/cobertura-eventos-ws.test.ts).
+>
+> **Ainda descoberto, de propósito:** método de publicação que existe e que nenhum caso de uso chama.
+> O contrato tem publicador, mas ninguém puxa o gatilho.
 
 **História**
 > Como **mantenedor**, quero **que um evento declarado e nunca emitido seja denunciado por teste**, para **fechar o lado do contrato de eventos que o RV-115 deixou aberto**.
@@ -95,7 +118,7 @@ Cenário: Borda — evento de outra mesa é ignorado
 - **Armadilha:** o teste não pode virar leitura de código-fonte por regex. Compare **símbolos** (nomes de método da port × nomes de evento do contrato), como o do front faz com os ouvintes registrados num socket falso.
 
 **Escopo**
-- `apps/api/src/apresentacao/ws/cobertura-publicador-ws.test.ts` (novo)
+- `apps/api/src/testes/cobertura-publicador-ws.test.ts` (novo — caminho corrigido na entrega; ver a nota acima)
 - `apps/api/src/aplicacao/ports/infraestrutura.ts`: se necessário, um mapa `evento → método` explícito para o teste comparar sem adivinhar nome
 - `apps/web/src/features/jogo/cobertura-eventos-ws.test.ts`: comentário com a decisão sobre o escopo dos hooks
 
@@ -131,7 +154,31 @@ Cenário: Borda — publicador com método sobrando
 
 ### RV-112 — Reconexão resiliente e ressincronização
 
-**Épico:** E11 · **Depende de:** — · **Tamanho:** G · **Onda:** 1 · **Primeiro card de produto do épico** (depois do RV-115)
+**Épico:** E11 · **Depende de:** — · **Tamanho:** G · **Onda:** 1 · **Primeiro card de produto do épico** (depois do RV-115) · **Status:** ✅ Concluído
+
+> **Como ficou.** `store-conexao.ts` guarda `{ estado }` e nada mais; quem o alimenta é
+> `use-socket-mesa`, traduzindo `connect` / `disconnect` / `connect_error`. A distinção entre
+> `reconectando` e `offline` vem de **`socket.active`** — o próprio socket.io dizendo se vai tentar de
+> novo (já considera `io server disconnect`, falha de handshake e esgotamento de tentativas) — em vez
+> de uma segunda interpretação da string de motivo aqui.
+>
+> **Bloqueio de escrita sem componente novo:** o motivo de conexão entra pela mesma prop
+> `motivoBloqueio` que o encerramento de mesa (RV-023) já usava, então chat, tabletop, fichas e
+> painel do mestre desabilitam os controles **com o motivo ao lado** sem que nenhum deles conheça o
+> socket. O encerramento tem precedência sobre a conexão (é definitivo); a faixa de status é
+> independente, então uma mesa encerrada **e** caída mostra as duas informações.
+>
+> **Correção do Escopo:** a ressincronização refaz `['mensagens']`, `['cena']`, `['personagens']` e
+> `['mesa', mesaId]`. `['combate', mesaId]` **não** entrou porque essa query ainda não existe (é o
+> RV-118); `['mesa']` entrou no lugar porque um `mesa:participante-removido` perdido durante a queda
+> deixaria na tela uma mesa da qual o jogador já não participa — o defeito original do RV-021. Quem
+> criar a query de combate acrescenta a chave em `CACHES_RESSINCRONIZADOS` e na lista escrita à mão
+> do teste de invalidações exatas.
+>
+> **Backoff:** `OPCOES_RECONEXAO` em `lib/socket.ts` (0,5s inicial, teto de 10s, jitter 0,5). Quem lê
+> essas opções é o `Backoff` do socket.io-client (`manager.js` → `contrib/backo2.js#duration()`,
+> `min(ms * 2^tentativa, max)`) — verificado no fonte da dependência para o teste não medir uma
+> reimplementação da fórmula.
 
 **História**
 > Como **jogador com internet instável**, quero **voltar ao estado correto depois de uma queda**, para **não precisar recarregar a página no meio do combate**.
@@ -142,7 +189,7 @@ Cenário: Borda — publicador com método sobrando
 **Escopo**
 - `apps/web/src/features/jogo/store-conexao.ts`: `{ estado: 'conectado'|'reconectando'|'offline' }`
 - Faixa de status na `PaginaMesa` ("Reconectando…"), ações de escrita desabilitadas enquanto offline
-- Ressincronização: ao reconectar, refazer `['mensagens', mesaId]`, `['cena', mesaId]`, `['personagens', mesaId]` e `['combate', mesaId]`
+- Ressincronização: ao reconectar, refazer `['mensagens', mesaId]`, `['cena', mesaId]`, `['personagens', mesaId]` e `['combate', mesaId]` (entregue com `['mesa', mesaId]` no lugar de `['combate']`, que ainda não existe — ver a nota acima)
 - Backoff exponencial com teto (socket.io: `reconnectionDelayMax`)
 
 **Critérios de aceite**
@@ -218,11 +265,22 @@ Cenário: Queda abrupta
 > Como **operador**, quero **que sockets percam o acesso quando a sessão ou a participação termina**, para **que a autorização não fique congelada no momento do handshake**.
 
 **Contexto técnico**
-- Hoje o token é verificado uma única vez no handshake ([gateway-jogo.ts](../../apps/api/src/apresentacao/ws/gateway-jogo.ts)). Com access token de 15 min (RV-010), a sessão pode expirar com o socket aberto.
+- Hoje o token é verificado uma única vez no handshake ([gateway-jogo.ts](../../apps/api/src/apresentacao/ws/gateway-jogo.ts)). Com access token de 15 min (RV-010), a sessão pode expirar com o socket aberto. (Hoje o `JwtServicoToken` emite token de **7 dias**, então o problema ainda não morde numa sessão de 3h — ele nasce com o RV-010.)
+- **Duas salas ficam para trás quando o acesso termina, achado na v0.5.0:**
+  (a) [publicador-socket.ts](../../apps/api/src/apresentacao/ws/publicador-socket.ts) tira o socket do
+  removido de `SALA_MESA(mesaId)` mas **não** de `SALA_USUARIO_NA_MESA(mesaId, usuarioId)`, a sala de
+  sussurro e rolagem oculta do RV-070 — é a única sala do sistema que sobrevive à perda de acesso. Hoje
+  é inofensivo porque `EnviarSussurro` resolve o destinatário contra `mesas.listarJogadores`, mas a
+  próxima entrega que emitir algo direcionado sem revalidar participação vaza para o removido. Uma
+  linha ao lado do `socket.leave(sala)` fecha.
+  (b) `desconectarSocket()` em [lib/socket.ts](../../apps/web/src/lib/socket.ts) **não tem chamador em
+  produção** — o logout não o chama, então o socket da sessão anterior sobrevive à troca de conta até o
+  próximo `obterSocket()` notar o token diferente.
 
 **Escopo**
 - Revalidação periódica do token (a cada 5 min) com desconexão em caso de expiração/revogação
-- Evento `mesa:participante-removido` (RV-021) força `socket.leave` do removido
+- Evento `mesa:participante-removido` (RV-021) força `socket.leave` do removido, **incluindo a sala pessoal da mesa**
+- Logout no front chamando `desconectarSocket()`
 - Mensagem em PT-BR no cliente explicando a desconexão
 
 **Critérios de aceite**
@@ -235,6 +293,7 @@ Cenário: Sessão revogada derruba o socket
 Cenário: Removido da mesa perde a sala na hora
   Quando o mestre me remover
   Então saio da sala imediatamente e paro de receber eventos daquela mesa
+  E também saio da sala pessoal daquela mesa, onde chegam sussurros
 
 Cenário: Sessão válida não é interrompida
   Dado que uso a mesa por 3 horas com renovação de token funcionando

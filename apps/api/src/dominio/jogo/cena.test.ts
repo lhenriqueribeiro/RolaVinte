@@ -154,3 +154,85 @@ describe('Cena.contemPosicao', () => {
     expect(cena.contemPosicao(-1, 0)).toBe(false);
   });
 });
+
+describe('Cena.reduziriaGrid (RV-036)', () => {
+  const cena = () => cenaValida({ larguraGrid: 40, alturaGrid: 30 });
+
+  it.each([
+    ['largura menor', { larguraGrid: 20 }],
+    ['altura menor', { alturaGrid: 10 }],
+    ['os dois lados menores', { larguraGrid: 20, alturaGrid: 10 }],
+    ['um lado cresce e o outro encolhe', { larguraGrid: 100, alturaGrid: 10 }],
+  ])('reconhece redução quando %s', (_titulo, pedidas) => {
+    expect(cena().reduziriaGrid(pedidas)).toBe(true);
+  });
+
+  it.each([
+    ['PATCH sem dimensão nenhuma', {}],
+    ['mesmo tamanho', { larguraGrid: 40, alturaGrid: 30 }],
+    ['aumento nos dois lados', { larguraGrid: 60, alturaGrid: 50 }],
+  ])('não vê redução em %s', (_titulo, pedidas) => {
+    expect(cena().reduziriaGrid(pedidas)).toBe(false);
+  });
+});
+
+describe('Cena.posicoesForaDoGrid (RV-036)', () => {
+  const cena = () => cenaValida({ larguraGrid: 40, alturaGrid: 30 });
+
+  it('acusa as peças que ficariam fora quando o grid encolhe', () => {
+    const tokens = [
+      { id: 'dentro', x: 19, y: 19 },
+      { id: 'fora-x', x: 35, y: 10 },
+      { id: 'fora-y', x: 2, y: 25 },
+    ];
+
+    const fora = cena().posicoesForaDoGrid({ larguraGrid: 20, alturaGrid: 20 }, tokens);
+
+    // Devolve as próprias peças, não só a contagem: quem chama decide o que dizer.
+    expect(fora.map((t) => t.id)).toEqual(['fora-x', 'fora-y']);
+  });
+
+  it('não acusa ninguém quando o mapa está vazio', () => {
+    expect(cena().posicoesForaDoGrid({ larguraGrid: 5, alturaGrid: 5 }, [])).toEqual([]);
+  });
+
+  it('não acusa ninguém quando todas as peças cabem no novo tamanho', () => {
+    const tokens = [
+      { x: 0, y: 0 },
+      { x: 19, y: 19 },
+    ];
+
+    expect(cena().posicoesForaDoGrid({ larguraGrid: 20, alturaGrid: 20 }, tokens)).toEqual([]);
+  });
+
+  it('usa a mesma régua de contemPosicao: a última célula cabe, a seguinte não', () => {
+    const tokens = [
+      { id: 'ultima', x: 19, y: 19 },
+      { id: 'seguinte', x: 20, y: 19 },
+    ];
+
+    const fora = cena().posicoesForaDoGrid({ larguraGrid: 20, alturaGrid: 20 }, tokens);
+
+    expect(fora.map((t) => t.id)).toEqual(['seguinte']);
+  });
+
+  it('mede contra as dimensões atuais quando o PATCH informa só um lado', () => {
+    const tokens = [{ id: 'alto', x: 2, y: 29 }];
+
+    // Altura ausente = 30, que ainda comporta y=29; só a largura encolhe.
+    expect(cena().posicoesForaDoGrid({ larguraGrid: 20 }, tokens)).toEqual([]);
+    expect(
+      cena()
+        .posicoesForaDoGrid({ alturaGrid: 20 }, tokens)
+        .map((t) => t.id),
+    ).toEqual(['alto']);
+  });
+
+  it('não muda o estado da cena — a pergunta é hipotética', () => {
+    const alvo = cena();
+
+    alvo.posicoesForaDoGrid({ larguraGrid: 5, alturaGrid: 5 }, [{ x: 30, y: 20 }]);
+
+    expect([alvo.larguraGrid, alvo.alturaGrid]).toEqual([40, 30]);
+  });
+});

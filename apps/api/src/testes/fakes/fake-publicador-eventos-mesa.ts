@@ -8,6 +8,18 @@ import type { PublicadorEventosMesa } from '../../aplicacao/ports/infraestrutura
  */
 export type EventoPublicado =
   | { nome: 'mensagem:nova'; mesaId: string; dados: PayloadEventoServidor<'mensagem:nova'> }
+  | {
+      /**
+       * Entrega direcionada de sussurro/rolagem oculta (RV-070/RV-071).
+       * Registrada com nome próprio **no fake**, embora o evento no fio seja o
+       * mesmo `mensagem:nova`: é o que permite a um teste afirmar que a sala da
+       * mesa não recebeu nada e que os alvos são exatamente estes.
+       */
+      nome: 'mensagem:privada';
+      mesaId: string;
+      usuarioIds: readonly string[];
+      dados: PayloadEventoServidor<'mensagem:nova'>;
+    }
   | { nome: 'token:criado'; mesaId: string; dados: PayloadEventoServidor<'token:criado'> }
   | { nome: 'token:atualizado'; mesaId: string; dados: PayloadEventoServidor<'token:atualizado'> }
   | { nome: 'token:removido'; mesaId: string; dados: PayloadEventoServidor<'token:removido'> }
@@ -29,6 +41,19 @@ export class FakePublicadorEventosMesa implements PublicadorEventosMesa {
 
   mensagemNova(mesaId: string, mensagem: PayloadEventoServidor<'mensagem:nova'>): void {
     this.registros.push({ nome: 'mensagem:nova', mesaId, dados: mensagem });
+  }
+
+  mensagemPrivada(
+    mesaId: string,
+    usuarioIds: readonly string[],
+    mensagem: PayloadEventoServidor<'mensagem:nova'>,
+  ): void {
+    this.registros.push({
+      nome: 'mensagem:privada',
+      mesaId,
+      usuarioIds: [...usuarioIds],
+      dados: mensagem,
+    });
   }
 
   tokenCriado(mesaId: string, token: PayloadEventoServidor<'token:criado'>): void {

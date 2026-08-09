@@ -298,7 +298,26 @@ Cenário: A régua dos outros aparece
 
 ### RV-036 — Encolher o grid não pode abandonar tokens fora do mapa
 
-**Épico:** E03 · **Depende de:** RV-030, RV-033 · **Tamanho:** P · **Onda:** 2
+**Épico:** E03 · **Depende de:** RV-030, RV-033 · **Tamanho:** P · **Onda:** 2 · **Status:** ✅ Concluído (backend)
+
+> **Decisões tomadas na entrega:** valeu a política do card — **recusar com `conflito`**, nunca
+> reposicionar. A mensagem (`mensagemTokensForaDoGrid`, exportada de
+> [atualizar-cena.ts](../../apps/api/src/aplicacao/jogo/atualizar-cena.ts)) diz o número de peças e
+> tem singular e plural.
+> **Divergência consciente do "a validação vive no caso de uso, não no agregado":** a *régua* ficou
+> em `Cena` (`reduziriaGrid` e `posicoesForaDoGrid`, ambos puros e sem estado), e a *orquestração* —
+> buscar os tokens e montar o erro — no caso de uso. O motivo: "estar dentro do mapa" já era regra do
+> agregado (`contemPosicao`), e duplicá-la no caso de uso criaria duas definições para divergir;
+> agora as duas passam por um único `dentroDoGrid` privado. O card estava certo sobre a cena **não
+> guardar** os tokens, e ela continua não guardando — a lista chega por parâmetro. Um experimento com
+> off-by-one em `dentroDoGrid` deixa `contemPosicao` e `posicoesForaDoGrid` vermelhos juntos, que é
+> exatamente o acoplamento desejado.
+> **A armadilha da query extra tem espião:** `FakeCenaRepository.chamadasListarTokensDaCena` conta as
+> leituras, e três testes exigem zero quando o PATCH não encolhe (aumento, mesmo tamanho, só
+> cor/visibilidade). Trocar a guarda por `if (true)` deixa os três vermelhos.
+> **A UI de redimensionamento continua não existindo** — o defeito seguia latente na API e foi
+> fechado lá. Quando `PropriedadesCena.tsx` expuser largura/altura, o 409 já vem pronto para um
+> `role="alert"`.
 
 **História**
 > Como **mestre que redimensiona a cena depois de subir o mapa**, quero **ser avisado quando o novo tamanho deixar peças de fora**, para **não perder tokens numa área que o mapa não tem mais**.

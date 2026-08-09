@@ -15,6 +15,18 @@ export interface DadosEditaveisCena {
   corGrid: string;
 }
 
+/**
+ * Dimensões pedidas num PATCH parcial: campo ausente significa "mantém o que
+ * está" (RV-036), a mesma semântica de `atualizar`.
+ */
+export type DimensoesGridPedidas = Partial<Pick<DadosEditaveisCena, 'larguraGrid' | 'alturaGrid'>>;
+
+/** Coordenada de célula — o que a cena precisa saber de um token para julgá-lo. */
+export interface PosicaoNoGrid {
+  x: number;
+  y: number;
+}
+
 interface PropsCena extends DadosEditaveisCena {
   mesaId: string;
   ativa: boolean;
@@ -183,6 +195,48 @@ export class Cena extends Entidade {
   }
 
   contemPosicao(x: number, y: number): boolean {
-    return x >= 0 && y >= 0 && x < this.props.larguraGrid && y < this.props.alturaGrid;
+    return Cena.dentroDoGrid(x, y, this.props.larguraGrid, this.props.alturaGrid);
+  }
+
+  /** Única definição de "estar no mapa" — `contemPosicao` e o RV-036 usam esta. */
+  private static dentroDoGrid(x: number, y: number, largura: number, altura: number): boolean {
+    return x >= 0 && y >= 0 && x < largura && y < altura;
+  }
+
+  private dimensoesResultantes(pedidas: DimensoesGridPedidas): { largura: number; altura: number } {
+    return {
+      largura: pedidas.larguraGrid ?? this.props.larguraGrid,
+      altura: pedidas.alturaGrid ?? this.props.alturaGrid,
+    };
+  }
+
+  /**
+   * As dimensões pedidas encolhem algum lado do grid? (RV-036)
+   *
+   * Existe para o caso de uso **não** consultar os tokens quando o PATCH não
+   * pode abandonar ninguém: aumentar o grid, ou só trocar cor/visibilidade, não
+   * tira nenhuma peça do mapa. Sem esta pergunta, ajustar a cor do grid viraria
+   * uma query de tokens por tecla digitada no formulário.
+   */
+  reduziriaGrid(pedidas: DimensoesGridPedidas): boolean {
+    const { largura, altura } = this.dimensoesResultantes(pedidas);
+    return largura < this.props.larguraGrid || altura < this.props.alturaGrid;
+  }
+
+  /**
+   * Quais das posições informadas ficariam fora do mapa se o grid passasse a
+   * ter as dimensões pedidas (RV-036).
+   *
+   * A cena não guarda os tokens — a lista vem do repositório —, mas a régua de
+   * "dentro do mapa" é dela, e é a mesma de `contemPosicao`. Devolver as
+   * posições (e não só a contagem) mantém a decisão do que dizer ao mestre com
+   * quem monta a mensagem.
+   */
+  posicoesForaDoGrid<P extends PosicaoNoGrid>(
+    pedidas: DimensoesGridPedidas,
+    posicoes: readonly P[],
+  ): P[] {
+    const { largura, altura } = this.dimensoesResultantes(pedidas);
+    return posicoes.filter((posicao) => !Cena.dentroDoGrid(posicao.x, posicao.y, largura, altura));
   }
 }

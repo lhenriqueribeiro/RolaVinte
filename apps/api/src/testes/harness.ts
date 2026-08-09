@@ -26,6 +26,9 @@ import { AtualizarPersonagem } from '../aplicacao/personagens/atualizar-personag
 import { EnviarMensagem } from '../aplicacao/jogo/enviar-mensagem';
 import { RolarDados } from '../aplicacao/jogo/rolar-dados';
 import { ListarMensagens } from '../aplicacao/jogo/listar-mensagens';
+import { EnviarSussurro } from '../aplicacao/jogo/enviar-sussurro';
+import { RegistroComandosChat } from '../aplicacao/jogo/comandos-chat';
+import { ProcessarComandoChat } from '../aplicacao/jogo/processar-comando-chat';
 import { CriarCena } from '../aplicacao/jogo/criar-cena';
 import { ListarCenas } from '../aplicacao/jogo/listar-cenas';
 import { AtualizarCena } from '../aplicacao/jogo/atualizar-cena';
@@ -162,6 +165,51 @@ export function criarAppDeTeste(opcoes: OpcoesAppDeTeste = {}): AppDeTeste {
     await email.enviar({ para: dados.emailConvidado, assunto: corpo.assunto, html: corpo.html });
   });
 
+  // Registry de comandos de chat (RV-074) — mesma montagem do `main.ts`: os
+  // casos de uso do chat vêm antes porque o registry os compõe, e o `Record` de
+  // manipuladores recusa comando sem dono nos dois composition roots.
+  const enviarMensagem = new EnviarMensagem(
+    mensagens,
+    mesas,
+    usuarios,
+    geradorId,
+    relogio,
+    publicador,
+  );
+  const rolarDados = new RolarDados(
+    mensagens,
+    mesas,
+    usuarios,
+    servicoRolagem,
+    geradorId,
+    relogio,
+    publicador,
+  );
+  const enviarSussurro = new EnviarSussurro(
+    mensagens,
+    mesas,
+    usuarios,
+    geradorId,
+    relogio,
+    publicador,
+  );
+  const registroComandos = new RegistroComandosChat({
+    fala: (ctx, comando) => enviarMensagem.executar(ctx.usuarioId, ctx.mesaId, comando.conteudo),
+    rolagem: (ctx, comando) =>
+      rolarDados.executar(ctx.usuarioId, ctx.mesaId, {
+        expressao: comando.expressao,
+        motivo: comando.motivo,
+      }),
+    'rolagem-oculta': (ctx, comando) =>
+      rolarDados.executar(ctx.usuarioId, ctx.mesaId, {
+        expressao: comando.expressao,
+        motivo: comando.motivo,
+        oculta: true,
+      }),
+    sussurro: (ctx, comando) =>
+      enviarSussurro.executar(ctx.usuarioId, ctx.mesaId, comando.destinatario, comando.conteudo),
+  });
+
   registrarRotas(app, {
     registrarUsuario: new RegistrarUsuario(
       usuarios,
@@ -187,21 +235,14 @@ export function criarAppDeTeste(opcoes: OpcoesAppDeTeste = {}): AppDeTeste {
     criarPersonagem: new CriarPersonagem(personagens, mesas, usuarios, geradorId),
     listarPersonagens: new ListarPersonagens(personagens, mesas),
     atualizarPersonagem: new AtualizarPersonagem(personagens, mesas, usuarios, publicador),
-    enviarMensagem: new EnviarMensagem(mensagens, mesas, usuarios, geradorId, relogio, publicador),
-    rolarDados: new RolarDados(
-      mensagens,
-      mesas,
-      usuarios,
-      servicoRolagem,
-      geradorId,
-      relogio,
-      publicador,
-    ),
+    enviarMensagem,
+    rolarDados,
     listarMensagens: new ListarMensagens(mensagens, mesas),
+    processarComandoChat: new ProcessarComandoChat(registroComandos),
     criarCena: new CriarCena(cenas, mesas, geradorId, publicador),
     listarCenas: new ListarCenas(cenas, mesas),
     atualizarCena: new AtualizarCena(cenas, mesas, publicador),
-    removerCena: new RemoverCena(cenas, mesas, armazenamento),
+    removerCena: new RemoverCena(cenas, mesas, armazenamento, armazenamentoTokens),
     ativarCena: new AtivarCena(cenas, mesas, publicador),
     definirImagemFundoCena: new DefinirImagemFundoCena(
       cenas,
@@ -221,7 +262,7 @@ export function criarAppDeTeste(opcoes: OpcoesAppDeTeste = {}): AppDeTeste {
       geradorId,
       publicador,
     ),
-    removerToken: new RemoverToken(cenas, mesas, publicador),
+    removerToken: new RemoverToken(cenas, mesas, publicador, armazenamentoTokens),
     servicoToken,
   });
 

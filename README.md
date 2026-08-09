@@ -52,6 +52,8 @@ Plataforma de RPG de mesa online em PT-BR — um clone evoluído do Roll20: mesa
 | `npm run check` | Lint + typecheck de todos os workspaces |
 | `npm run test` | Testes (Vitest) dos três workspaces — shared, api e web |
 | `npm run build` | Build de produção |
+| `npm run supabase:sql -w @rolavinte/api` | Imprime o SQL de instalação (migrations em ordem + buckets), derivado dos arquivos reais |
+| `npm run supabase:verificar -w @rolavinte/api` | Confere schema e Storage do projeto apontado pelo `.env` antes de a API subir |
 
 O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.claude/rules/01-arquitetura.md) em erro de build: `dominio/` e `aplicacao/` não compilam com `fastify`, `@supabase/*`, `resend` ou `socket.io`, `apresentacao/` não alcança `infra/`, e `components/ui` não importa `lib/socket`. A prova de que cada fronteira realmente dispara é automatizada em `apps/api/src/testes/fronteiras-arquitetura.test.ts`.
 
@@ -68,16 +70,24 @@ O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.
 - ✅ Zoom e pan no tabletop (Ctrl + roda, botão do meio, barra de espaço e botões com `aria-label`), com o arrasto de token acertando a célula em qualquer escala
 - ✅ Tokens editáveis pelo mestre: nome, cor e arte por upload, com fallback de iniciais quando a imagem falha
 - ✅ Barra de vida no token vinculada à ficha do personagem, atualizada ao vivo por evento WS — sem PV duplicado no token
-- ✅ Chat da mesa com rolagem de dados: `/r 2d20kh1+5 # ataque com vantagem`
+- ✅ Arte de token e mapa apagados do Storage ao excluir o token ou a cena (falha de Storage não desfaz a exclusão)
+- ✅ Encolher o grid deixando peças fora do mapa é recusado, dizendo quantas são — nenhum token é movido sem o mestre pedir
+- ✅ Chat da mesa com registry de comandos: `/r 2d20kh1+5 # ataque com vantagem`, `/sussurro @Fulano …`, `/oculto 1d20`, com aliases e aviso em PT-BR para comando desconhecido ou incompleto
+- ✅ Sussurro entre participantes e rolagem oculta do mestre, com a visibilidade filtrada no banco (não na tela) e rótulo textual explícito em cada mensagem privada
 - ✅ Motor de dados com vantagem/desvantagem (`kh`/`kl`), multi-termos e RNG injetável
 - ✅ Fichas de personagem (atributos d20, PV, anotações) com testes de atributo em 1 clique
-- ✅ Contrato de eventos WS aplicado nos dois lados: evento novo sem ouvinte no front derruba a suíte, em vez de falhar em silêncio
+- ✅ Reconexão resiliente: queda de rede não pede F5 — a mesa avisa o estado, bloqueia a escrita com o motivo escrito (sem perder o texto digitado) e ressincroniza os caches ao voltar
+- ✅ Estados de carregamento, erro e vazio padronizados em toda a interface, com notificações em `aria-live` e botão de "Tentar novamente"
+- ✅ Contrato de eventos WS aplicado nos dois lados: evento novo sem ouvinte no front — ou sem publicador no servidor — derruba a suíte, em vez de falhar em silêncio
+- ✅ Preparo de ambiente verificável: `supabase:sql` gera o SQL de instalação a partir das migrations reais e `supabase:verificar` confere schema e Storage antes de a API subir
 - ✅ Autorização de domínio: só o mestre cria cenas/tokens, gere convites, remove jogadores, edita e encerra a mesa; jogador move apenas tokens dos próprios personagens
 - ✅ Endurecimento da API: cabeçalhos do helmet, rate limit (300 req/min global, 10 req/min em login e registro), body limit de 256 KB, erro global `{ erro, requisicaoId }` em PT-BR e logs com segredos redigidos
 
 ## Backlog
 
-O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/backlog/README.md) — 14 épicos e 89 cards (21 concluídos), organizados em três ondas (mesa jogável → paridade com o Roll20 → operação). Os cards novos nascem das descobertas de cada entrega, então a contagem cresce junto com o que já foi feito.
+O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/backlog/README.md) — 15 épicos e 98 cards (30 concluídos), organizados em três ondas (mesa jogável → paridade com o Roll20 → operação). Os cards novos nascem das descobertas de cada entrega, então a contagem cresce junto com o que já foi feito.
+
+O histórico de versões, com o que mudou e o que ainda não funciona, está em [docs/release-notes/](docs/release-notes/README.md) — a mais recente é a [v0.5.0](docs/release-notes/v0.5.0.md).
 
 ## Arquitetura
 

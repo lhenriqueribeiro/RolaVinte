@@ -26,6 +26,9 @@ import { AtualizarPersonagem } from './aplicacao/personagens/atualizar-personage
 import { EnviarMensagem } from './aplicacao/jogo/enviar-mensagem';
 import { RolarDados } from './aplicacao/jogo/rolar-dados';
 import { ListarMensagens } from './aplicacao/jogo/listar-mensagens';
+import { EnviarSussurro } from './aplicacao/jogo/enviar-sussurro';
+import { RegistroComandosChat } from './aplicacao/jogo/comandos-chat';
+import { ProcessarComandoChat } from './aplicacao/jogo/processar-comando-chat';
 import { CriarCena } from './aplicacao/jogo/criar-cena';
 import { ListarCenas } from './aplicacao/jogo/listar-cenas';
 import { AtualizarCena } from './aplicacao/jogo/atualizar-cena';
@@ -128,6 +131,53 @@ async function iniciar(): Promise<void> {
     });
   });
 
+  // ── Comandos de chat (RV-074) ─────────────────────────────────────
+  // Os três casos de uso do chat nascem antes do resto porque o registry de
+  // comandos os compõe. O `Record` de manipuladores é total por tipo: comando
+  // novo no parser de `@rolavinte/shared` para de compilar aqui até ganhar dono.
+  const enviarMensagem = new EnviarMensagem(
+    mensagens,
+    mesas,
+    usuarios,
+    geradorId,
+    relogio,
+    publicador,
+  );
+  const rolarDados = new RolarDados(
+    mensagens,
+    mesas,
+    usuarios,
+    servicoRolagem,
+    geradorId,
+    relogio,
+    publicador,
+  );
+  const enviarSussurro = new EnviarSussurro(
+    mensagens,
+    mesas,
+    usuarios,
+    geradorId,
+    relogio,
+    publicador,
+  );
+
+  const registroComandos = new RegistroComandosChat({
+    fala: (ctx, comando) => enviarMensagem.executar(ctx.usuarioId, ctx.mesaId, comando.conteudo),
+    rolagem: (ctx, comando) =>
+      rolarDados.executar(ctx.usuarioId, ctx.mesaId, {
+        expressao: comando.expressao,
+        motivo: comando.motivo,
+      }),
+    'rolagem-oculta': (ctx, comando) =>
+      rolarDados.executar(ctx.usuarioId, ctx.mesaId, {
+        expressao: comando.expressao,
+        motivo: comando.motivo,
+        oculta: true,
+      }),
+    sussurro: (ctx, comando) =>
+      enviarSussurro.executar(ctx.usuarioId, ctx.mesaId, comando.destinatario, comando.conteudo),
+  });
+
   // ── Casos de uso ──────────────────────────────────────────────────
   const usos = {
     registrarUsuario: new RegistrarUsuario(
@@ -154,21 +204,14 @@ async function iniciar(): Promise<void> {
     criarPersonagem: new CriarPersonagem(personagens, mesas, usuarios, geradorId),
     listarPersonagens: new ListarPersonagens(personagens, mesas),
     atualizarPersonagem: new AtualizarPersonagem(personagens, mesas, usuarios, publicador),
-    enviarMensagem: new EnviarMensagem(mensagens, mesas, usuarios, geradorId, relogio, publicador),
-    rolarDados: new RolarDados(
-      mensagens,
-      mesas,
-      usuarios,
-      servicoRolagem,
-      geradorId,
-      relogio,
-      publicador,
-    ),
+    enviarMensagem,
+    rolarDados,
     listarMensagens: new ListarMensagens(mensagens, mesas),
+    processarComandoChat: new ProcessarComandoChat(registroComandos),
     criarCena: new CriarCena(cenas, mesas, geradorId, publicador),
     listarCenas: new ListarCenas(cenas, mesas),
     atualizarCena: new AtualizarCena(cenas, mesas, publicador),
-    removerCena: new RemoverCena(cenas, mesas, armazenamento),
+    removerCena: new RemoverCena(cenas, mesas, armazenamento, armazenamentoTokens),
     ativarCena: new AtivarCena(cenas, mesas, publicador),
     definirImagemFundoCena: new DefinirImagemFundoCena(
       cenas,
@@ -188,7 +231,7 @@ async function iniciar(): Promise<void> {
       geradorId,
       publicador,
     ),
-    removerToken: new RemoverToken(cenas, mesas, publicador),
+    removerToken: new RemoverToken(cenas, mesas, publicador, armazenamentoTokens),
     verificarParticipacao: new VerificarParticipacao(mesas),
   };
 

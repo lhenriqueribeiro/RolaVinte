@@ -7,6 +7,7 @@ import {
   TAMANHO_MAXIMO_IMAGEM_FUNDO_BYTES,
 } from '@rolavinte/shared';
 import { LIMITE_CORPO_PADRAO_BYTES } from '../../app';
+import { mensagemTokensForaDoGrid } from '../../aplicacao/jogo/atualizar-cena';
 import {
   criarAppDeTeste,
   ORIGEM_WEB_TESTE,
@@ -190,6 +191,72 @@ describe('PATCH /api/cenas/:cenaId', () => {
     });
 
     expect(resposta.statusCode).toBe(403);
+  });
+
+  describe('encolher o grid com peças na área removida (RV-036)', () => {
+    /** Coloca tokens na cena recém-criada, que nasce 25x15. */
+    async function comTokens(
+      mestre: SessaoDeTeste,
+      cenaId: string,
+      ...posicoes: readonly [number, number][]
+    ): Promise<void> {
+      let indice = 0;
+      for (const [x, y] of posicoes) {
+        indice += 1;
+        const resposta = await contexto.app.inject({
+          method: 'POST',
+          url: `/api/cenas/${cenaId}/tokens`,
+          headers: mestre.cabecalhos,
+          payload: { nome: `Goblin ${indice}`, x, y },
+        });
+        expect(resposta.statusCode).toBe(201);
+      }
+    }
+
+    it('devolve 409 em PT-BR dizendo quantas peças ficariam fora', async () => {
+      const mestre = await contexto.autenticarComo();
+      const mesa = await criarMesa(mestre);
+      const cena = await criarCena(mestre, mesa.id, 'Cripta');
+      await comTokens(mestre, cena.id, [20, 5], [24, 14]);
+
+      const resposta = await contexto.app.inject({
+        method: 'PATCH',
+        url: `/api/cenas/${cena.id}`,
+        headers: mestre.cabecalhos,
+        payload: { larguraGrid: 10 },
+      });
+
+      expect(resposta.statusCode).toBe(409);
+      expect(resposta.json<{ erro: string }>().erro).toBe(mensagemTokensForaDoGrid(2));
+      // A cena continua do tamanho anterior e ninguém foi movido.
+      const depois = await contexto.fakes.cenas.buscarPorId(cena.id);
+      expect([depois?.larguraGrid, depois?.alturaGrid]).toEqual([25, 15]);
+      const tokens = await contexto.fakes.cenas.listarTokensDaCena(cena.id);
+      expect(tokens.map((t) => [t.x, t.y]).sort()).toEqual(
+        [
+          [20, 5],
+          [24, 14],
+        ].sort(),
+      );
+    });
+
+    it('devolve 200 quando a área removida está vazia', async () => {
+      const mestre = await contexto.autenticarComo();
+      const mesa = await criarMesa(mestre);
+      const cena = await criarCena(mestre, mesa.id, 'Cripta');
+      await comTokens(mestre, cena.id, [0, 0], [9, 9]);
+
+      const resposta = await contexto.app.inject({
+        method: 'PATCH',
+        url: `/api/cenas/${cena.id}`,
+        headers: mestre.cabecalhos,
+        payload: { larguraGrid: 10, alturaGrid: 10 },
+      });
+
+      expect(resposta.statusCode).toBe(200);
+      const atualizada = resposta.json<CenaDTO>();
+      expect([atualizada.larguraGrid, atualizada.alturaGrid]).toEqual([10, 10]);
+    });
   });
 });
 
