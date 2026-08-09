@@ -23,6 +23,8 @@ import { AceitarConvite } from './aplicacao/mesas/aceitar-convite';
 import { CriarPersonagem } from './aplicacao/personagens/criar-personagem';
 import { ListarPersonagens } from './aplicacao/personagens/listar-personagens';
 import { AtualizarPersonagem } from './aplicacao/personagens/atualizar-personagem';
+import { RemoverPersonagem } from './aplicacao/personagens/remover-personagem';
+import { DuplicarPersonagem } from './aplicacao/personagens/duplicar-personagem';
 import { EnviarMensagem } from './aplicacao/jogo/enviar-mensagem';
 import { RolarDados } from './aplicacao/jogo/rolar-dados';
 import { ListarMensagens } from './aplicacao/jogo/listar-mensagens';
@@ -204,6 +206,8 @@ async function iniciar(): Promise<void> {
     criarPersonagem: new CriarPersonagem(personagens, mesas, usuarios, geradorId),
     listarPersonagens: new ListarPersonagens(personagens, mesas),
     atualizarPersonagem: new AtualizarPersonagem(personagens, mesas, usuarios, publicador),
+    removerPersonagem: new RemoverPersonagem(personagens, mesas),
+    duplicarPersonagem: new DuplicarPersonagem(personagens, mesas, usuarios, geradorId),
     enviarMensagem,
     rolarDados,
     listarMensagens: new ListarMensagens(mensagens, mesas),

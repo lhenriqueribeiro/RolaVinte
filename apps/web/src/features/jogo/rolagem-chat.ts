@@ -40,10 +40,11 @@ export function estaNoFim(metricas: MetricasRolagem, folga = FOLGA_FIM_PX): bool
  * Rótulo em PT-BR do aviso de mensagens não lidas, com plural correto.
  *
  * Nota sobre o que **não** está aqui: a compensação de `scrollTop` ao prepender
- * uma página antiga (`scrollTopAntes + (alturaDepois - alturaAntes)`) seria a
- * outra metade do RV-073, e não foi escrita porque não há o que prepender —
- * `GET /mesas/:mesaId/mensagens` não aceita cursor. Uma função pronta e nunca
- * chamada só faria parecer que a paginação existe.
+ * uma página antiga (`scrollTopAntes + (alturaDepois - alturaAntes)`) é a outra
+ * metade do RV-073 e continua por escrever. O motivo mudou: a rota já aceita
+ * cursor (`?antesDe=<iso>&antesDeId=<uuid>&limite=<n>`), o que falta é o
+ * `useInfiniteQuery` em `api.ts` chamá-la. Uma função pronta e nunca chamada só
+ * faria parecer que a paginação já chegou à tela.
  */
 export function rotuloNaoLidas(quantidade: number): string {
   return quantidade === 1 ? '1 nova mensagem' : `${quantidade} novas mensagens`;

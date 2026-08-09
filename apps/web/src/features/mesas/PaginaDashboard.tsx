@@ -10,7 +10,7 @@ import { useSessao } from '@/features/auth/store-sessao';
 import { useCriarMesa, useMesas } from './api';
 import { AcaoEncerrarMesa } from './AcaoEncerrarMesa';
 import { AcaoSairDaMesa } from './AcaoSairDaMesa';
-import { formatarData, NOME_SISTEMA } from './formatos';
+import { formatarData, nomeDoSistema } from './formatos';
 
 function CartaoMesa({ mesa }: { mesa: MesaDTO }) {
   const encerrada = mesa.encerradaEm !== null;
@@ -45,7 +45,7 @@ function CartaoMesa({ mesa }: { mesa: MesaDTO }) {
       {mesa.descricao && <p className="mb-3 line-clamp-2 text-sm text-texto-2">{mesa.descricao}</p>}
 
       <p className="text-xs text-texto-2">
-        {NOME_SISTEMA[mesa.sistema]} · {mesa.totalJogadores}{' '}
+        {nomeDoSistema(mesa.sistema)} · {mesa.totalJogadores}{' '}
         {mesa.totalJogadores === 1 ? 'participante' : 'participantes'} · Mestre: {mesa.mestreNome}
       </p>
 
@@ -143,7 +143,7 @@ export function PaginaDashboard() {
             >
               {SISTEMAS_RPG.map((s) => (
                 <option key={s} value={s}>
-                  {NOME_SISTEMA[s]}
+                  {nomeDoSistema(s)}
                 </option>
               ))}
             </select>

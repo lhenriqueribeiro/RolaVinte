@@ -8,7 +8,9 @@ import {
   comandoChatSchema,
   criarCenaSchema,
   criarTokenSchema,
+  cursorDeMensagens,
   enviarMensagemSchema,
+  listarMensagensQuerySchema,
   moverTokenSchema,
   rolarDadosSchema,
   TAMANHO_MAXIMO_IMAGEM_FUNDO_BYTES,
@@ -83,11 +85,24 @@ export function registrarRotasJogo(app: FastifyInstance, deps: Deps): void {
     },
   });
 
+  /**
+   * Histórico do chat, paginado por cursor (RV-073).
+   *
+   * `?antesDe=<iso>&antesDeId=<uuid>` são as duas metades do cursor e vêm
+   * sempre juntas — o schema recusa meia; `?limite=<n>` tem padrão 50 e teto
+   * 100. Sem querystring, a rota devolve a primeira página, que é o que a tela
+   * pedia antes de existir paginação.
+   */
   app.get('/mesas/:mesaId/mensagens', { preHandler: deps.autenticar }, async (request, reply) => {
     const { mesaId } = request.params as { mesaId: string };
+    const consulta = validarEntrada(listarMensagensQuerySchema, request.query ?? {}, reply);
+    if (!consulta) return;
     return responderResultado(
       reply,
-      await deps.listarMensagens.executar(request.usuarioId, mesaId),
+      await deps.listarMensagens.executar(request.usuarioId, mesaId, {
+        limite: consulta.limite,
+        antesDe: cursorDeMensagens(consulta),
+      }),
     );
   });
 

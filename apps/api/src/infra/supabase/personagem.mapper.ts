@@ -1,4 +1,4 @@
-import type { Atributos } from '@rolavinte/shared';
+import type { Atributos, DadosFicha } from '@rolavinte/shared';
 import { Personagem } from '../../dominio/personagens/personagem';
 
 export interface RowPersonagem {
@@ -12,6 +12,25 @@ export interface RowPersonagem {
   pv_max: number;
   atributos: Atributos;
   anotacoes: string;
+  /**
+   * `personagens.dados` (migration 0007). Chega `null`/`undefined` numa linha
+   * gravada antes da migration — e num banco onde ela ainda não rodou —, por
+   * isso a leitura tolera a ausência em vez de estourar: a ficha genérica é
+   * `{}`, e é isso que uma ficha antiga significa.
+   */
+  dados?: DadosFicha | null;
+}
+
+/**
+ * Normaliza o que veio do jsonb. O CHECK da 0007 já barra array e escalar, mas
+ * a defesa fica aqui também porque linhas gravadas antes dele existem — e
+ * `Object.entries(null)` derrubaria a listagem inteira da mesa por causa de uma
+ * ficha.
+ */
+function dadosDaRow(bruto: DadosFicha | null | undefined): DadosFicha {
+  if (bruto === null || bruto === undefined) return {};
+  if (typeof bruto !== 'object' || Array.isArray(bruto)) return {};
+  return bruto;
 }
 
 export function rowParaPersonagem(row: RowPersonagem): Personagem {
@@ -26,6 +45,7 @@ export function rowParaPersonagem(row: RowPersonagem): Personagem {
     pvMax: row.pv_max,
     atributos: row.atributos,
     anotacoes: row.anotacoes,
+    dados: dadosDaRow(row.dados),
   });
 }
 
@@ -41,5 +61,6 @@ export function personagemParaRow(p: Personagem): RowPersonagem {
     pv_max: p.pvMax,
     atributos: p.atributos,
     anotacoes: p.anotacoes,
+    dados: p.dados,
   };
 }

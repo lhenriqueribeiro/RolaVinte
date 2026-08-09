@@ -76,17 +76,20 @@ async function montarCenario(): Promise<Cenario> {
   });
   await mesas.salvar(criada.valor);
 
-  const thorin = Personagem.criar({
-    id: THORIN,
-    mesaId: MESA_ID,
-    donoId: 'bruno',
-    nome: 'Thorin',
-    classe: 'Guerreiro',
-    nivel: 3,
-    pvMax: 30,
-    atributos: ATRIBUTOS,
-    anotacoes: '',
-  });
+  const thorin = Personagem.criar(
+    {
+      id: THORIN,
+      mesaId: MESA_ID,
+      donoId: 'bruno',
+      nome: 'Thorin',
+      classe: 'Guerreiro',
+      nivel: 3,
+      pvMax: 30,
+      atributos: ATRIBUTOS,
+      anotacoes: '',
+    },
+    'dnd5e',
+  );
   if (!thorin.ok) throw new Error(thorin.erro.mensagem);
   await personagens.salvar(thorin.valor);
 

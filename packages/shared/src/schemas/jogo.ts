@@ -18,6 +18,81 @@ export const rolarDadosSchema = z.object({
 });
 export type RolarDadosEntrada = z.infer<typeof rolarDadosSchema>;
 
+/**
+ * Paginação do histórico do chat (RV-073).
+ *
+ * O cursor é o par `(criadoEm, id)` da mensagem mais antiga já carregada — e
+ * **não** um `offset`. Com deslocamento, uma mensagem que chega entre o pedido
+ * da página 1 e o da página 2 empurra a janela inteira: o leitor recebe de novo
+ * o registro que estava na fronteira (ou pula um, se alguém apagasse). Com
+ * cursor, a segunda página é definida pelo conteúdo — "o que é anterior a esta
+ * mensagem" — e nada que chegue depois a desloca.
+ *
+ * O `id` desempata: numa mesa movimentada duas mensagens caem no mesmo
+ * milissegundo, e um cursor só de instante ou repetiria as empatadas (`lte`) ou
+ * as engoliria (`lt`). Por isso as duas metades andam **juntas**, e meia metade
+ * é 400 em vez de um cursor que erra em silêncio.
+ */
+export const LIMITE_MENSAGENS_PADRAO = 50;
+
+/**
+ * Teto de página. Não é enfeite: sem ele `?limite=100000` é uma negação de
+ * serviço barata — uma requisição autenticada varre a tabela de mensagens da
+ * mesa e monta o JSON inteiro na memória do processo.
+ */
+export const LIMITE_MENSAGENS_MAXIMO = 100;
+
+export const MENSAGEM_LIMITE_MENSAGENS = `O limite de mensagens deve ser um inteiro entre 1 e ${LIMITE_MENSAGENS_MAXIMO}.`;
+export const MENSAGEM_CURSOR_INVALIDO =
+  'Cursor de histórico inválido: "antesDe" é uma data ISO e "antesDeId" é o id da mensagem.';
+export const MENSAGEM_CURSOR_INCOMPLETO =
+  'Para carregar mensagens anteriores, informe "antesDe" e "antesDeId" juntos.';
+
+/** Posição estável no histórico: a mensagem a partir da qual se olha para trás. */
+export interface CursorMensagens {
+  /** `criadoEm` da mensagem, ISO 8601. */
+  antesDe: string;
+  /** Id da mensagem — desempata quem nasceu no mesmo instante. */
+  antesDeId: string;
+}
+
+/**
+ * Querystring de `GET /mesas/:mesaId/mensagens`.
+ *
+ * Os campos entram como texto porque é o que uma querystring é; o schema é o
+ * único lugar que converte. `limite` é validado pelo formato **antes** de virar
+ * número para que `?limite=100000` e `?limite=abc` recebam a mesma frase em
+ * PT-BR, em vez de um "Expected number, received nan" vindo do Zod.
+ */
+export const listarMensagensQuerySchema = z
+  .object({
+    antesDe: z.string().datetime({ offset: true, message: MENSAGEM_CURSOR_INVALIDO }).optional(),
+    antesDeId: z.string().uuid(MENSAGEM_CURSOR_INVALIDO).optional(),
+    limite: z
+      .string()
+      .regex(/^\d{1,4}$/, MENSAGEM_LIMITE_MENSAGENS)
+      .transform(Number)
+      .refine((n) => n >= 1 && n <= LIMITE_MENSAGENS_MAXIMO, MENSAGEM_LIMITE_MENSAGENS)
+      .default(String(LIMITE_MENSAGENS_PADRAO)),
+  })
+  .refine((q) => (q.antesDe === undefined) === (q.antesDeId === undefined), {
+    message: MENSAGEM_CURSOR_INCOMPLETO,
+    path: ['antesDe'],
+  });
+export type ListarMensagensQuery = z.infer<typeof listarMensagensQuerySchema>;
+
+/**
+ * O cursor da querystring, ou `null` na primeira página.
+ *
+ * Mora aqui, ao lado do `refine` que exige as duas metades juntas: quem lê a
+ * query não precisa repetir a regra — e não existe um segundo lugar para ela
+ * divergir.
+ */
+export function cursorDeMensagens(query: ListarMensagensQuery): CursorMensagens | null {
+  if (query.antesDe === undefined || query.antesDeId === undefined) return null;
+  return { antesDe: query.antesDe, antesDeId: query.antesDeId };
+}
+
 /** Lado da célula do grid, em pixels (RV-033). */
 export const TAMANHO_CELULA_MIN = 20;
 export const TAMANHO_CELULA_MAX = 200;

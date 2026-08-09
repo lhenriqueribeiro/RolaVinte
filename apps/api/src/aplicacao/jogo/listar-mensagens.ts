@@ -1,9 +1,16 @@
-import type { MensagemDTO } from '@rolavinte/shared';
+import { LIMITE_MENSAGENS_PADRAO, type MensagemDTO } from '@rolavinte/shared';
 import { ErroDominio } from '../../dominio/compartilhado/erro-dominio';
 import { falha, ok, type Result } from '../../dominio/compartilhado/resultado';
-import type { MensagemRepository, MesaRepository } from '../ports/repositorios';
+import type { MensagemRepository, MesaRepository, PaginaHistorico } from '../ports/repositorios';
 
-const LIMITE_PADRAO = 100;
+/**
+ * Primeira página, do tamanho padrão — o que uma chamada sem querystring pede.
+ * Congelado porque é compartilhado por todas as chamadas que omitem a página.
+ */
+const PRIMEIRA_PAGINA: PaginaHistorico = Object.freeze({
+  limite: LIMITE_MENSAGENS_PADRAO,
+  antesDe: null,
+});
 
 /**
  * Histórico do chat. Leitura, então mesa encerrada continua consultável
@@ -13,6 +20,10 @@ const LIMITE_PADRAO = 100;
  * `solicitanteId` desce até a consulta e as mensagens restritas de terceiros
  * nunca entram no resultado. Não há filtro depois daqui — se houvesse, o dado
  * já teria sido carregado e um erro de mapeamento o entregaria.
+ *
+ * A paginação (RV-073) desce pelo mesmo caminho, e pelo mesmo motivo: recortar
+ * a janela aqui, depois de trazer o bolo inteiro do banco, seria carregar o
+ * segredo alheio para descartá-lo — e voltaria a dar teto ao histórico.
  */
 export class ListarMensagens {
   constructor(
@@ -20,12 +31,16 @@ export class ListarMensagens {
     private readonly mesas: MesaRepository,
   ) {}
 
-  async executar(usuarioId: string, mesaId: string): Promise<Result<MensagemDTO[]>> {
+  async executar(
+    usuarioId: string,
+    mesaId: string,
+    pagina: PaginaHistorico = PRIMEIRA_PAGINA,
+  ): Promise<Result<MensagemDTO[]>> {
     const mesa = await this.mesas.buscarPorId(mesaId);
     if (!mesa) return falha(ErroDominio.naoEncontrado('Mesa não encontrada.'));
     if (!mesa.ehParticipante(usuarioId)) {
       return falha(ErroDominio.naoAutorizado('Você não participa desta mesa.'));
     }
-    return ok(await this.mensagens.listarDaMesa(mesaId, usuarioId, LIMITE_PADRAO));
+    return ok(await this.mensagens.listarDaMesa(mesaId, usuarioId, pagina));
   }
 }

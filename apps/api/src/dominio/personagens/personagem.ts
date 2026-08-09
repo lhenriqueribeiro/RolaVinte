@@ -1,7 +1,20 @@
-import type { Atributos } from '@rolavinte/shared';
+import {
+  validarDadosDaFicha,
+  type Atributos,
+  type DadosFicha,
+  type SistemaRpg,
+} from '@rolavinte/shared';
 import { Entidade } from '../compartilhado/entidade';
 import { ErroDominio } from '../compartilhado/erro-dominio';
 import { falha, ok, type Result } from '../compartilhado/resultado';
+
+/** Limite de `nome`, o mesmo na criação, na edição e na cópia. */
+const NOME_MINIMO = 2;
+const NOME_MAXIMO = 60;
+const MENSAGEM_NOME = `Nome do personagem deve ter entre ${NOME_MINIMO} e ${NOME_MAXIMO} caracteres.`;
+
+/** Sufixo da ficha duplicada (RV-093). */
+const SUFIXO_COPIA = ' (cópia)';
 
 interface PropsPersonagem {
   mesaId: string;
@@ -13,6 +26,16 @@ interface PropsPersonagem {
   pvMax: number;
   atributos: Atributos;
   anotacoes: string;
+  /**
+   * A metade da ficha que pertence ao sistema da mesa (RV-091).
+   *
+   * O `Personagem` **não** guarda o sistema: quem o define é a `Mesa`, e
+   * duplicar o valor aqui criaria duas verdades para divergir na primeira
+   * edição da mesa. Por isso todo método que precisa validar `dados` recebe o
+   * `sistema` como parâmetro — é o contexto de `mesas` informando o de
+   * `personagens`, por valor, como manda `.claude/rules/02-ddd.md`.
+   */
+  dados: DadosFicha;
 }
 
 export interface CamposAtualizacaoPersonagem {
@@ -23,6 +46,22 @@ export interface CamposAtualizacaoPersonagem {
   pvMax?: number;
   atributos?: Atributos;
   anotacoes?: string;
+  /** Substitui a ficha do sistema por inteiro; `undefined` não mexe nela. */
+  dados?: DadosFicha;
+}
+
+export interface DadosCriacaoPersonagem {
+  id: string;
+  mesaId: string;
+  donoId: string;
+  nome: string;
+  classe: string;
+  nivel: number;
+  pvMax: number;
+  atributos: Atributos;
+  anotacoes: string;
+  /** Omitido nasce com os padrões do sistema (`dadosIniciaisDaFicha`). */
+  dados?: DadosFicha;
 }
 
 export class Personagem extends Entidade {
@@ -33,19 +72,45 @@ export class Personagem extends Entidade {
     super(id);
   }
 
-  static criar(dados: Omit<PropsPersonagem, 'pvAtual'> & { id: string }): Result<Personagem> {
+  static criar(dados: DadosCriacaoPersonagem, sistema: SistemaRpg): Result<Personagem> {
     const nome = dados.nome.trim();
-    if (nome.length < 2 || nome.length > 60) {
-      return falha(ErroDominio.validacao('Nome do personagem deve ter entre 2 e 60 caracteres.'));
+    if (nome.length < NOME_MINIMO || nome.length > NOME_MAXIMO) {
+      return falha(ErroDominio.validacao(MENSAGEM_NOME));
     }
     if (dados.pvMax < 1) return falha(ErroDominio.validacao('PV máximo deve ser positivo.'));
-    const { id, ...resto } = dados;
-    return ok(new Personagem(id, { ...resto, nome, pvAtual: dados.pvMax }));
+
+    // Mesmo na criação a ficha do sistema passa pelo schema: `dadosIniciaisDaFicha`
+    // sai daqui quando o cliente não manda nada, e o que ele manda é conferido.
+    const ficha = validarDadosDaFicha(sistema, dados.dados);
+    if (!ficha.ok) return falha(ErroDominio.validacao(ficha.erro));
+
+    const { id, dados: _dadosBrutos, ...resto } = dados;
+    return ok(new Personagem(id, { ...resto, nome, pvAtual: dados.pvMax, dados: ficha.dados }));
   }
 
+  /**
+   * Hidrata do banco. **Não** revalida: uma ficha gravada antes de o sistema da
+   * mesa mudar continua carregando, e o congelamento acontece na próxima
+   * escrita, onde há como avisar o usuário. Revalidar aqui tornaria a ficha
+   * ilegível — o pior desfecho possível para o dono dela.
+   */
   static reconstituir(dados: PropsPersonagem & { id: string }): Personagem {
     const { id, ...props } = dados;
     return new Personagem(id, props);
+  }
+
+  /**
+   * Nome da cópia, cabendo no limite de 60 caracteres (RV-093).
+   *
+   * Um nome de 58 caracteres mais " (cópia)" daria 66 e a duplicação falharia
+   * com um erro de validação que o usuário não causou nem consegue evitar —
+   * então o nome base é encurtado, e não a operação recusada.
+   */
+  static nomeDaCopia(nome: string): string {
+    const base = nome.trim();
+    const disponivel = NOME_MAXIMO - SUFIXO_COPIA.length;
+    const encurtado = base.length > disponivel ? base.slice(0, disponivel).trimEnd() : base;
+    return `${encurtado}${SUFIXO_COPIA}`;
   }
 
   get mesaId(): string {
@@ -75,16 +140,43 @@ export class Personagem extends Entidade {
   get anotacoes(): string {
     return this.props.anotacoes;
   }
-
-  podeSerEditadoPor(usuarioId: string, ehMestreDaMesa: boolean): boolean {
-    return ehMestreDaMesa || this.props.donoId === usuarioId;
+  get dados(): DadosFicha {
+    return this.props.dados;
   }
 
-  atualizar(campos: CamposAtualizacaoPersonagem): Result<void> {
+  /**
+   * Ponto único de autorização da ficha: dono ou mestre da mesa (RV-027,
+   * RV-093).
+   *
+   * Editar, excluir e duplicar compartilham exatamente esta regra. Reescrevê-la
+   * em cada caso de uso é o defeito F5 da taxonomia — foi assim que o
+   * congelamento de mesa encerrada furou nas fichas. Quem chama continua
+   * obrigado a passar por `Mesa.autorizarEscritaDeParticipante`: esta guarda
+   * responde "quem", a da mesa responde "quando".
+   */
+  autorizarEscrita(
+    usuarioId: string,
+    ehMestreDaMesa: boolean,
+    mensagemNegada: string,
+  ): Result<void> {
+    if (ehMestreDaMesa || this.props.donoId === usuarioId) return ok(undefined);
+    return falha(ErroDominio.naoAutorizado(mensagemNegada));
+  }
+
+  atualizar(campos: CamposAtualizacaoPersonagem, sistema: SistemaRpg): Result<void> {
+    // A ficha do sistema é validada **antes** de qualquer mutação: uma recusa no
+    // meio deixaria o agregado meio atualizado em memória.
+    let fichaNova: DadosFicha | undefined;
+    if (campos.dados !== undefined) {
+      const ficha = validarDadosDaFicha(sistema, campos.dados);
+      if (!ficha.ok) return falha(ErroDominio.validacao(ficha.erro));
+      fichaNova = ficha.dados;
+    }
+
     if (campos.nome !== undefined) {
       const nome = campos.nome.trim();
-      if (nome.length < 2 || nome.length > 60) {
-        return falha(ErroDominio.validacao('Nome do personagem deve ter entre 2 e 60 caracteres.'));
+      if (nome.length < NOME_MINIMO || nome.length > NOME_MAXIMO) {
+        return falha(ErroDominio.validacao(MENSAGEM_NOME));
       }
       this.props.nome = nome;
     }
@@ -107,6 +199,34 @@ export class Personagem extends Entidade {
     }
     if (campos.atributos !== undefined) this.props.atributos = campos.atributos;
     if (campos.anotacoes !== undefined) this.props.anotacoes = campos.anotacoes;
+    if (fichaNova !== undefined) this.props.dados = fichaNova;
     return ok(undefined);
+  }
+
+  /**
+   * Cópia com id novo, nome sufixado e **PV cheio** (RV-093).
+   *
+   * Passa por `criar` de propósito, em vez de clonar as props: a cópia nasce
+   * sujeita às mesmas invariantes de uma ficha nova, inclusive a validação da
+   * ficha do sistema. Se a mesa trocou de sistema desde que o original foi
+   * gravado, a duplicação recusa com 400 em vez de propagar dados que aquela
+   * mesa já não sabe ler.
+   */
+  duplicar(novoId: string, sistema: SistemaRpg): Result<Personagem> {
+    return Personagem.criar(
+      {
+        id: novoId,
+        mesaId: this.props.mesaId,
+        donoId: this.props.donoId,
+        nome: Personagem.nomeDaCopia(this.props.nome),
+        classe: this.props.classe,
+        nivel: this.props.nivel,
+        pvMax: this.props.pvMax,
+        atributos: { ...this.props.atributos },
+        anotacoes: this.props.anotacoes,
+        dados: structuredClone(this.props.dados),
+      },
+      sistema,
+    );
   }
 }

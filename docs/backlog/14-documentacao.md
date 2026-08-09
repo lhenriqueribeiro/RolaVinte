@@ -22,10 +22,19 @@ O problema que ele existe para resolver: a documentação **gerada pelo processo
   - Nenhuma regra menciona as guardas do agregado (`Mesa.autorizarEscritaDeParticipante` / `autorizarEscritaDoMestre`) — reimplementá-las à mão já causou o furo do RV-027.
   - [07-supabase.md](../../.claude/rules/07-supabase.md) não fala de Storage, buckets nem da política de caminho gerado pela aplicação.
   - Nenhuma regra registra o mecanismo do contrato de eventos WS (RV-115) nem os 4 passos para criar um evento novo.
+  - **`docs/agentes/` tem a mesma doença e duas afirmações hoje falsas** (medido na v0.6.0):
+    `protocolo-comum.md` §5 diz "Este projeto não é um repositório git" e a taxonomia diz, em F10(b),
+    que o workflow de CI é código morto "porque não existe `.git`". O repositório **é** um repositório
+    git — `git rev-parse --show-toplevel` devolve a raiz, há branch `main` com `origin/main` e
+    histórico de commits. O raciocínio de concorrência do protocolo continua válido (todos os agentes
+    escrevem na mesma árvore, sem worktree), mas um agente que leia as duas frases literalmente conclui
+    que o CI é inerte e que não há histórico a consultar. Traga `docs/agentes/` para o escopo desta
+    varredura: é documentação fundacional pelo mesmo critério que trouxe `.claude/rules/`.
 - **Risco a evitar:** guardrail não é changelog. Ele diz *o princípio* e *o teste objetivo em review*. Detalhe de implementação que muda toda versão pertence à release note, não aqui — senão a defasagem volta em duas fases.
 
 **Escopo**
 - Os 9 arquivos de `.claude/rules/`
+- `docs/agentes/protocolo-comum.md` e `docs/agentes/taxonomia-de-falhas.md` — as duas afirmações sobre git
 - `CLAUDE.md`, se o resumo de "o que quebra o build de review" mudar
 - Nenhum arquivo de código
 

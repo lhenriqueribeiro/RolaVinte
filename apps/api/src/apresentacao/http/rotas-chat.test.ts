@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { COMANDOS_CHAT, type MensagemDTO, type MesaDTO } from '@rolavinte/shared';
+import {
+  COMANDOS_CHAT,
+  LIMITE_MENSAGENS_MAXIMO,
+  MENSAGEM_CURSOR_INCOMPLETO,
+  MENSAGEM_CURSOR_INVALIDO,
+  MENSAGEM_LIMITE_MENSAGENS,
+  type MensagemDTO,
+  type MesaDTO,
+} from '@rolavinte/shared';
 import { ROLAGEM_OCULTA_SO_DO_MESTRE } from '../../aplicacao/jogo/rolar-dados';
 import {
   criarAppDeTeste,
@@ -71,12 +79,18 @@ function digitar(autor: SessaoDeTeste, mesaId: string, texto: string) {
   });
 }
 
-function historico(leitor: SessaoDeTeste, mesaId: string) {
+function historico(leitor: SessaoDeTeste, mesaId: string, query: Record<string, string> = {}) {
+  const busca = new URLSearchParams(query).toString();
   return contexto.app.inject({
     method: 'GET',
-    url: `/api/mesas/${mesaId}/mensagens`,
+    url: `/api/mesas/${mesaId}/mensagens${busca ? `?${busca}` : ''}`,
     headers: leitor.cabecalhos,
   });
+}
+
+/** Cursor da querystring montado a partir de uma mensagem já carregada. */
+function cursorDe(mensagem: MensagemDTO): Record<string, string> {
+  return { antesDe: mensagem.criadoEm, antesDeId: mensagem.id };
 }
 
 /** Mesa com mestre, um jogador e uma testemunha que não deve ver os segredos. */
@@ -276,5 +290,178 @@ describe('histórico misto — o filtro é por solicitante, não por mensagem', 
 
     const doBruno = await historico(bruno, mesaId);
     expect(doBruno.body).not.toContain('rolagem-oculta');
+  });
+});
+
+/**
+ * Histórico paginado (RV-073).
+ *
+ * O relógio dos testes está parado, então **todas** as mensagens nascem no
+ * mesmo instante. Longe de ser um artifício, é o pior caso do cursor em mesa
+ * movimentada: sem o desempate por id, um cursor de instante repetiria as
+ * empatadas (`lte`) ou as engoliria (`lt`), e é isso que estes testes prendem.
+ */
+describe('GET /mesas/:mesaId/mensagens — histórico paginado (RV-073)', () => {
+  async function encher(autor: SessaoDeTeste, mesaId: string, quantidade: number) {
+    for (let i = 1; i <= quantidade; i += 1) {
+      const resposta = await digitar(autor, mesaId, `mensagem ${i}`);
+      expect(resposta.statusCode).toBe(201);
+    }
+  }
+
+  function conteudos(resposta: { json: <T>() => T }): string[] {
+    return resposta.json<MensagemDTO[]>().map((m) => m.conteudo);
+  }
+
+  it('sem querystring vem a página padrão de 50, as mais recentes, em ordem cronológica', async () => {
+    const { aria, mesaId } = await montarMesa();
+    await encher(aria, mesaId, 55);
+
+    const pagina = await historico(aria, mesaId);
+    expect(pagina.statusCode).toBe(200);
+    const lista = pagina.json<MensagemDTO[]>();
+    expect(lista).toHaveLength(50);
+    expect(lista[0]!.conteudo).toBe('mensagem 6');
+    expect(lista.at(-1)!.conteudo).toBe('mensagem 55');
+  });
+
+  it('o cursor alcança o que estava acima do teto antigo, sem repetir nem pular', async () => {
+    const { aria, mesaId } = await montarMesa();
+    await encher(aria, mesaId, 55);
+
+    const pagina1 = (await historico(aria, mesaId)).json<MensagemDTO[]>();
+    const pagina2 = await historico(aria, mesaId, cursorDe(pagina1[0]!));
+    expect(pagina2.statusCode).toBe(200);
+
+    expect(conteudos(pagina2)).toEqual([
+      'mensagem 1',
+      'mensagem 2',
+      'mensagem 3',
+      'mensagem 4',
+      'mensagem 5',
+    ]);
+    const carregadas = [...pagina2.json<MensagemDTO[]>(), ...pagina1];
+    expect(new Set(carregadas.map((m) => m.id)).size).toBe(55);
+    // Página menor que o limite: acabou o histórico, e insistir devolve vazio.
+    expect((await historico(aria, mesaId, cursorDe(carregadas[0]!))).json<MensagemDTO[]>()).toEqual(
+      [],
+    );
+  });
+
+  it('mensagem nova entre a página 1 e a página 2 não duplica nem esconde registro', async () => {
+    const { aria, bruno, mesaId } = await montarMesa();
+    await encher(aria, mesaId, 6);
+
+    const pagina1 = (await historico(aria, mesaId, { limite: '2' })).json<MensagemDTO[]>();
+    expect(pagina1.map((m) => m.conteudo)).toEqual(['mensagem 5', 'mensagem 6']);
+
+    // A mesa continua viva enquanto o jogador lê para trás.
+    await digitar(bruno, mesaId, 'chegou agora');
+
+    const pagina2 = await historico(aria, mesaId, { ...cursorDe(pagina1[0]!), limite: '2' });
+    expect(conteudos(pagina2)).toEqual(['mensagem 3', 'mensagem 4']);
+    expect(pagina2.body).not.toContain('chegou agora');
+
+    const pagina3 = await historico(aria, mesaId, {
+      ...cursorDe(pagina2.json<MensagemDTO[]>()[0]!),
+      limite: '2',
+    });
+    expect(conteudos(pagina3)).toEqual(['mensagem 1', 'mensagem 2']);
+
+    const carregadas = [
+      ...pagina3.json<MensagemDTO[]>(),
+      ...pagina2.json<MensagemDTO[]>(),
+      ...pagina1,
+    ];
+    expect(carregadas.map((m) => m.conteudo)).toEqual([
+      'mensagem 1',
+      'mensagem 2',
+      'mensagem 3',
+      'mensagem 4',
+      'mensagem 5',
+      'mensagem 6',
+    ]);
+    expect(new Set(carregadas.map((m) => m.id)).size).toBe(6);
+  });
+
+  it('o filtro de privacidade continua valendo página por página', async () => {
+    const { mestre, aria, bruno, mesaId } = await montarMesa();
+
+    // Público e privado intercalados: se o cursor andasse sobre o histórico
+    // bruto, a página do terceiro chegaria curta — e página curta no meio é o
+    // buraco de onde se infere que existe mensagem privada ali.
+    await digitar(aria, mesaId, 'primeira pública');
+    await digitar(aria, mesaId, '/sussurro @"Mestre Strahd" abro o caixão sozinha');
+    await digitar(aria, mesaId, 'segunda pública');
+    await digitar(mestre, mesaId, '/oculto 1d20 # percepção da Aria');
+    await digitar(aria, mesaId, 'terceira pública');
+
+    const pagina1 = await historico(bruno, mesaId, { limite: '2' });
+    expect(conteudos(pagina1)).toEqual(['segunda pública', 'terceira pública']);
+    expect(pagina1.body).not.toContain('abro o caixão sozinha');
+    expect(pagina1.body).not.toContain('percepção da Aria');
+
+    const pagina2 = await historico(bruno, mesaId, {
+      ...cursorDe(pagina1.json<MensagemDTO[]>()[0]!),
+      limite: '2',
+    });
+    expect(conteudos(pagina2)).toEqual(['primeira pública']);
+    expect(pagina2.body).not.toContain('abro o caixão sozinha');
+    expect(pagina2.body).not.toContain('percepção da Aria');
+
+    // E quem tem direito continua alcançando o que é seu nas páginas antigas.
+    const daAria = await historico(aria, mesaId, { limite: '2' });
+    const anterior = await historico(aria, mesaId, {
+      ...cursorDe(daAria.json<MensagemDTO[]>()[0]!),
+      limite: '2',
+    });
+    expect(conteudos(anterior)).toEqual(['primeira pública', 'abro o caixão sozinha']);
+  });
+
+  it('paginar mesa alheia continua sendo 403, cursor ou não', async () => {
+    const { aria, mesaId } = await montarMesa();
+    await encher(aria, mesaId, 2);
+    const estranho = await contexto.autenticarComo({ nome: 'Estranho' });
+
+    const pagina = (await historico(aria, mesaId, { limite: '1' })).json<MensagemDTO[]>();
+    const resposta = await historico(estranho, mesaId, cursorDe(pagina[0]!));
+    expect(resposta.statusCode).toBe(403);
+  });
+
+  describe('a borda recusa querystring inválida antes de chegar ao caso de uso', () => {
+    it.each([
+      ['limite acima do teto', { limite: '101' }, MENSAGEM_LIMITE_MENSAGENS],
+      ['limite absurdo', { limite: '100000' }, MENSAGEM_LIMITE_MENSAGENS],
+      ['limite zero', { limite: '0' }, MENSAGEM_LIMITE_MENSAGENS],
+      ['limite não numérico', { limite: 'todas' }, MENSAGEM_LIMITE_MENSAGENS],
+      ['limite vazio', { limite: '' }, MENSAGEM_LIMITE_MENSAGENS],
+      ['cursor sem o id', { antesDe: '2026-08-08T12:00:00.000Z' }, MENSAGEM_CURSOR_INCOMPLETO],
+      [
+        'cursor sem o instante',
+        { antesDeId: '00000000-0000-4000-8000-000000000001' },
+        MENSAGEM_CURSOR_INCOMPLETO,
+      ],
+      [
+        'instante que não é data',
+        { antesDe: 'ontem', antesDeId: '00000000-0000-4000-8000-000000000001' },
+        MENSAGEM_CURSOR_INVALIDO,
+      ],
+      [
+        'id que não é uuid',
+        { antesDe: '2026-08-08T12:00:00.000Z', antesDeId: 'msg-1' },
+        MENSAGEM_CURSOR_INVALIDO,
+      ],
+    ])('%s → 400', async (_caso, query, esperado) => {
+      const { aria, mesaId } = await montarMesa();
+      const resposta = await historico(aria, mesaId, query);
+      expect(resposta.statusCode).toBe(400);
+      expect(resposta.json<{ erro: string }>().erro).toContain(esperado);
+    });
+
+    it('o teto é exatamente 100: o limite máximo aceito responde 200', async () => {
+      const { aria, mesaId } = await montarMesa();
+      expect((await historico(aria, mesaId, { limite: '100' })).statusCode).toBe(200);
+      expect(LIMITE_MENSAGENS_MAXIMO).toBe(100);
+    });
   });
 });

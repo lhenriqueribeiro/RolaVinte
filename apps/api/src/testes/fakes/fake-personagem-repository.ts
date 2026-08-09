@@ -1,4 +1,4 @@
-import type { Atributos, PersonagemDTO } from '@rolavinte/shared';
+import type { Atributos, DadosFicha, PersonagemDaMesaDTO } from '@rolavinte/shared';
 import type { PersonagemRepository, UsuarioRepository } from '../../aplicacao/ports/repositorios';
 import { Personagem } from '../../dominio/personagens/personagem';
 
@@ -13,6 +13,7 @@ interface RegistroPersonagem {
   pvMax: number;
   atributos: Atributos;
   anotacoes: string;
+  dados: DadosFicha;
 }
 
 /** Fake em memória de `PersonagemRepository` (read model com nome do dono, como no Supabase). */
@@ -33,20 +34,29 @@ export class FakePersonagemRepository implements PersonagemRepository {
       pvMax: personagem.pvMax,
       atributos: { ...personagem.atributos },
       anotacoes: personagem.anotacoes,
+      dados: structuredClone(personagem.dados),
     });
   }
 
   async buscarPorId(id: string): Promise<Personagem | null> {
     const registro = this.registros.get(id);
     return registro
-      ? Personagem.reconstituir({ ...registro, atributos: { ...registro.atributos } })
+      ? Personagem.reconstituir({
+          ...registro,
+          atributos: { ...registro.atributos },
+          dados: structuredClone(registro.dados),
+        })
       : null;
   }
 
-  async listarDaMesa(mesaId: string): Promise<PersonagemDTO[]> {
+  async remover(id: string): Promise<void> {
+    this.registros.delete(id);
+  }
+
+  async listarDaMesa(mesaId: string): Promise<PersonagemDaMesaDTO[]> {
     const daMesa = [...this.registros.values()].filter((p) => p.mesaId === mesaId);
     const dtos = await Promise.all(
-      daMesa.map(async (p): Promise<PersonagemDTO> => {
+      daMesa.map(async (p): Promise<PersonagemDaMesaDTO> => {
         const dono = await this.usuarios.buscarPorId(p.donoId);
         return {
           id: p.id,
@@ -60,9 +70,15 @@ export class FakePersonagemRepository implements PersonagemRepository {
           pvMax: p.pvMax,
           atributos: { ...p.atributos },
           anotacoes: p.anotacoes,
+          dados: structuredClone(p.dados),
         };
       }),
     );
     return dtos.sort((a, b) => a.nome.localeCompare(b.nome));
+  }
+
+  /** Apoio a testes: quantas fichas existem, para provar exclusão. */
+  get total(): number {
+    return this.registros.size;
   }
 }

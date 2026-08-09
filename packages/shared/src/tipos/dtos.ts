@@ -1,6 +1,7 @@
 import type { ResultadoRolagem } from '../dados/motor-dados';
 import type { Atributos } from '../schemas/personagens';
 import type { SistemaRpg } from '../schemas/mesas';
+import type { DadosFicha } from '../sistemas/tipos';
 
 export interface UsuarioDTO {
   id: string;
@@ -68,7 +69,31 @@ export interface PersonagemDTO {
   pvMax: number;
   atributos: Atributos;
   anotacoes: string;
+  /**
+   * Sistema da mesa a que a ficha pertence (RV-091), copiado no read model.
+   *
+   * Vem junto para que a ficha seja **autossuficiente**: quem a renderiza pede
+   * `definicaoDoSistema(personagem.sistema)` e pronto, sem depender de um
+   * segundo cache (`['mesa', id]`) que pode estar carregando ou desatualizado.
+   * A fonte da verdade continua sendo `Mesa.sistema` — este campo é derivado
+   * dela na leitura, nunca gravado na tabela `personagens`.
+   */
+  sistema: SistemaRpg;
+  /**
+   * A metade da ficha que pertence ao sistema, já validada pelo `schemaFicha`
+   * dele. `{}` nos sistemas que não definem campo nenhum.
+   */
+  dados: DadosFicha;
 }
+
+/**
+ * O que o repositório de personagens sabe devolver: tudo menos o `sistema`.
+ *
+ * A tabela `personagens` não guarda o sistema — ele é da `Mesa`. O caso de uso,
+ * que já carregou a mesa para autorizar, completa o DTO. Assim não há coluna
+ * denormalizada para divergir quando o mestre troca o sistema da mesa.
+ */
+export type PersonagemDaMesaDTO = Omit<PersonagemDTO, 'sistema'>;
 
 export interface CenaDTO {
   id: string;

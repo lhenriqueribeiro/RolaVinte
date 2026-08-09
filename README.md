@@ -75,7 +75,12 @@ O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.
 - ✅ Chat da mesa com registry de comandos: `/r 2d20kh1+5 # ataque com vantagem`, `/sussurro @Fulano …`, `/oculto 1d20`, com aliases e aviso em PT-BR para comando desconhecido ou incompleto
 - ✅ Sussurro entre participantes e rolagem oculta do mestre, com a visibilidade filtrada no banco (não na tela) e rótulo textual explícito em cada mensagem privada
 - ✅ Motor de dados com vantagem/desvantagem (`kh`/`kl`), multi-termos e RNG injetável
-- ✅ Fichas de personagem (atributos d20, PV, anotações) com testes de atributo em 1 clique
+- ✅ Fichas de personagem (atributos, PV, anotações) com teste de atributo em 1 clique, usando o dado que o sistema define
+- ✅ Ficha extensível por sistema de RPG: cada sistema declara a própria ficha (campos, seções, perícias e graus) num registro único em `packages/shared/src/sistemas/`, e a tela renderiza a partir dele — sistema novo não pede `switch (sistema)` em schema, caso de uso ou componente, e campo fora da definição é recusado nomeando o campo
+- ✅ Perícias e proficiência de D&D 5e: 18 perícias, três graus de treinamento (rótulo textual, nunca só cor), bônus de proficiência por nível e rolagem de perícia em 1 clique com o motivo no chat (`Furtividade — Thorin`)
+- ✅ Excluir e duplicar ficha (dono ou mestre), com confirmação acessível — a cópia continua pertencendo ao dono do original e o token vinculado sobrevive no mapa, desvinculado
+- ✅ Histórico do chat paginado por cursor na API (`?antesDe`&`antesDeId`&`limite`), com a visibilidade de sussurro e rolagem oculta preservada em toda página — a rolagem infinita na tela ainda não existe
+- ✅ Fronteira de licenciamento do Pathfinder 2e verificada por teste: teto de semente, atribuição obrigatória junto do dado e conteúdo barrado enquanto o documento de licença estiver incompleto
 - ✅ Reconexão resiliente: queda de rede não pede F5 — a mesa avisa o estado, bloqueia a escrita com o motivo escrito (sem perder o texto digitado) e ressincroniza os caches ao voltar
 - ✅ Estados de carregamento, erro e vazio padronizados em toda a interface, com notificações em `aria-live` e botão de "Tentar novamente"
 - ✅ Contrato de eventos WS aplicado nos dois lados: evento novo sem ouvinte no front — ou sem publicador no servidor — derruba a suíte, em vez de falhar em silêncio
@@ -85,9 +90,9 @@ O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.
 
 ## Backlog
 
-O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/backlog/README.md) — 15 épicos e 98 cards (30 concluídos), organizados em três ondas (mesa jogável → paridade com o Roll20 → operação). Os cards novos nascem das descobertas de cada entrega, então a contagem cresce junto com o que já foi feito.
+O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/backlog/README.md) — 15 épicos e 98 cards (34 concluídos), organizados em três ondas (mesa jogável → paridade com o Roll20 → operação). Os cards novos nascem das descobertas de cada entrega, então a contagem cresce junto com o que já foi feito. A **ordem de execução** vive em [docs/backlog/sprints.md](docs/backlog/sprints.md): objetivo, cards fechados e versão de cada sprint.
 
-O histórico de versões, com o que mudou e o que ainda não funciona, está em [docs/release-notes/](docs/release-notes/README.md) — a mais recente é a [v0.5.0](docs/release-notes/v0.5.0.md).
+O histórico de versões, com o que mudou e o que ainda não funciona, está em [docs/release-notes/](docs/release-notes/README.md) — a mais recente é a [v0.6.0](docs/release-notes/v0.6.0.md).
 
 ## Arquitetura
 

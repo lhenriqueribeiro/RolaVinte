@@ -111,17 +111,21 @@ async function montarCenario(): Promise<Cenario> {
   await mesas.salvar(mesaComJogador(MESA_ID, 'mestre', 'bruno'));
   await mesas.salvar(mesaComJogador(OUTRA_MESA_ID, 'outro', null));
 
-  const thorin = Personagem.criar({
-    id: PERSONAGEM_BRUNO,
-    mesaId: MESA_ID,
-    donoId: 'bruno',
-    nome: 'Thorin',
-    classe: 'Guerreiro',
-    nivel: 3,
-    pvMax: 30,
-    atributos: ATRIBUTOS,
-    anotacoes: '',
-  });
+  const thorin = Personagem.criar(
+    {
+      id: PERSONAGEM_BRUNO,
+      mesaId: MESA_ID,
+      donoId: 'bruno',
+      nome: 'Thorin',
+      classe: 'Guerreiro',
+      nivel: 3,
+      pvMax: 30,
+      atributos: ATRIBUTOS,
+      anotacoes: '',
+    },
+    // Sistema da mesa, exigido por `Personagem.criar` desde o RV-091.
+    'dnd5e',
+  );
   if (!thorin.ok) throw new Error(thorin.erro.mensagem);
   await personagens.salvar(thorin.valor);
 

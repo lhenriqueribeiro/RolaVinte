@@ -5,7 +5,7 @@ import { Campo, CampoArea } from '@/components/ui/Campo';
 import { Erro } from '@/components/ui/Estado';
 import { useNotificar } from '@/components/ui/Notificacao';
 import { useAtualizarMesa } from './api';
-import { NOME_SISTEMA } from './formatos';
+import { nomeDoSistema } from './formatos';
 
 interface Props {
   mesa: MesaDTO;
@@ -82,7 +82,7 @@ export function FormularioEditarMesa({ mesa, motivoBloqueio }: Props) {
           >
             {SISTEMAS_RPG.map((s) => (
               <option key={s} value={s}>
-                {NOME_SISTEMA[s]}
+                {nomeDoSistema(s)}
               </option>
             ))}
           </select>

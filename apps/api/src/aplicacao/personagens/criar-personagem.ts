@@ -8,6 +8,7 @@ import type {
   UsuarioRepository,
 } from '../ports/repositorios';
 import type { GeradorId } from '../ports/infraestrutura';
+import { montarPersonagemDTO } from './personagem-dto';
 
 export class CriarPersonagem {
   constructor(
@@ -30,33 +31,26 @@ export class CriarPersonagem {
     const dono = await this.usuarios.buscarPorId(usuarioId);
     if (!dono) return falha(ErroDominio.naoEncontrado('Usuário não encontrado.'));
 
-    const personagem = Personagem.criar({
-      id: this.geradorId.gerar(),
-      mesaId,
-      donoId: usuarioId,
-      nome: entrada.nome,
-      classe: entrada.classe,
-      nivel: entrada.nivel,
-      pvMax: entrada.pvMax,
-      atributos: entrada.atributos,
-      anotacoes: entrada.anotacoes,
-    });
+    // O sistema é da mesa (RV-091). É ele que decide o que a ficha aceita em
+    // `dados`, e o agregado recusa campo fora da definição — 400, não silêncio.
+    const personagem = Personagem.criar(
+      {
+        id: this.geradorId.gerar(),
+        mesaId,
+        donoId: usuarioId,
+        nome: entrada.nome,
+        classe: entrada.classe,
+        nivel: entrada.nivel,
+        pvMax: entrada.pvMax,
+        atributos: entrada.atributos,
+        anotacoes: entrada.anotacoes,
+        dados: entrada.dados,
+      },
+      mesa.sistema,
+    );
     if (!personagem.ok) return falha(personagem.erro);
 
     await this.personagens.salvar(personagem.valor);
-    const p = personagem.valor;
-    return ok({
-      id: p.id,
-      mesaId: p.mesaId,
-      donoId: p.donoId,
-      donoNome: dono.nome,
-      nome: p.nome,
-      classe: p.classe,
-      nivel: p.nivel,
-      pvAtual: p.pvAtual,
-      pvMax: p.pvMax,
-      atributos: p.atributos,
-      anotacoes: p.anotacoes,
-    });
+    return ok(montarPersonagemDTO(personagem.valor, dono.nome, mesa.sistema));
   }
 }

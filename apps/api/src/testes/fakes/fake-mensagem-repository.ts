@@ -1,7 +1,16 @@
 import { mensagemVisivelPara, type MensagemDTO } from '@rolavinte/shared';
 import { mensagemParaDTO } from '../../aplicacao/mapeadores';
-import type { MensagemRepository } from '../../aplicacao/ports/repositorios';
+import type { MensagemRepository, PaginaHistorico } from '../../aplicacao/ports/repositorios';
 import type { Mensagem } from '../../dominio/jogo/mensagem';
+
+/** Posição na ordem `(criadoEm, id)` — a mesma do `ORDER BY` do adapter (RV-073). */
+function compararPosicao(
+  a: { criadoEm: string; id: string },
+  b: { criadoEm: string; id: string },
+): number {
+  const instante = Date.parse(a.criadoEm) - Date.parse(b.criadoEm);
+  return instante !== 0 ? instante : a.id.localeCompare(b.id);
+}
 
 /**
  * Fake em memória de `MensagemRepository`.
@@ -24,15 +33,25 @@ export class FakeMensagemRepository implements MensagemRepository {
   async listarDaMesa(
     mesaId: string,
     solicitanteId: string,
-    limite: number,
+    pagina: PaginaHistorico,
   ): Promise<MensagemDTO[]> {
-    return this.registros
-      .filter((m) => m.mesaId === mesaId)
-      .filter((m) => mensagemVisivelPara(m, solicitanteId))
-      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
-      .slice(0, limite)
-      .reverse()
-      .map((m) => ({ ...m }));
+    const cursor = pagina.antesDe;
+    return (
+      this.registros
+        .filter((m) => m.mesaId === mesaId)
+        .filter((m) => mensagemVisivelPara(m, solicitanteId))
+        // A janela é recortada depois do filtro, como no adapter: o cursor anda
+        // sobre o histórico que o solicitante enxerga, não sobre o bolo inteiro.
+        .filter(
+          (m) =>
+            cursor === null ||
+            compararPosicao(m, { criadoEm: cursor.antesDe, id: cursor.antesDeId }) < 0,
+        )
+        .sort((a, b) => compararPosicao(b, a))
+        .slice(0, pagina.limite)
+        .reverse()
+        .map((m) => ({ ...m }))
+    );
   }
 
   /** Apoio a testes: tudo o que foi persistido, em ordem de inserção. */

@@ -72,6 +72,9 @@ function personagem(campos: Partial<PersonagemDTO> = {}): PersonagemDTO {
       carisma: 10,
     },
     anotacoes: '',
+    // Campos que o RV-091 acrescentou ao `PersonagemDTO`.
+    sistema: 'dnd5e',
+    dados: {},
     ...campos,
   };
 }

@@ -365,3 +365,84 @@ Cenário: Anti-spam
 
 **DoD específico**
 - [ ] Nenhuma linha gravada no banco por ping.
+
+---
+
+### RV-117 — Personagem criado e removido em tempo real
+
+**Épico:** E11 · **Depende de:** RV-115, RV-093 · **Tamanho:** P · **Onda:** 2
+
+**História**
+> Como **jogador com a mesa aberta**, quero **ver a lista de fichas mudar quando alguém excluir ou duplicar um personagem**, para **não continuar clicando numa ficha que já não existe**.
+
+**Contexto técnico**
+- O RV-093 entregou `DELETE /personagens/:id` e `POST /personagens/:id/duplicar`, e o RV-042 já emite
+  `personagem:atualizado`. **Faltam os dois irmãos**: `personagem:criado` e `personagem:removido` não
+  existem em [eventos-ws.ts](../../packages/shared/src/tipos/eventos-ws.ts) — a única entrada de
+  personagem lá é `'personagem:atualizado'`. Consequência medida nos dois lados: quem está com a mesa
+  aberta continua vendo na lista a ficha excluída, e a cópia recém-criada não aparece, até um F5 ou uma
+  reconexão. O token vinculado mantém a barra de vida na tela pelo mesmo motivo (ela é derivada do
+  `PersonagemDTO` em cache, não do token).
+- **Por que a entrega do RV-093 não fez isto**: o evento não pode nascer pela metade. Os quatro passos
+  do [RV-115](#rv-115--aplicar-o-contrato-de-eventos-ws-nos-dois-lados) são obrigatórios e simultâneos —
+  declarar em `EventosServidorParaCliente`, registrar no `Record` interno, acrescentar o método a
+  `PublicadorEventosMesa` (adapter **e** fake) e assinar em `use-socket-mesa.ts`. Declarar o evento sem
+  o ouvinte deixa `cobertura-eventos-ws.test.ts` vermelho; criar o ouvinte sem publicador deixa
+  `cobertura-publicador-ws.test.ts` vermelho (RV-116). É **um card só**, tocando api e web de uma vez.
+- **Decisão a herdar do RV-070:** o evento vai para a sala `mesa:{id}`, e o cliente decide o que fazer
+  com o cache. Aqui a decisão certa é `invalidateQueries(['personagens', mesaId])` e
+  `(['cena', mesaId])`, não `setQueryData` — a lista visível depende de autorização que o cliente não
+  reproduz (o [RV-095](09-fichas.md#rv-095--bestiário-do-mestre) esconderá NPCs dos jogadores, e um
+  `setQueryData` com o DTO no payload vazaria a ficha para quem não pode vê-la).
+- **Armadilha F6 — texto que promete.** O diálogo de exclusão em
+  [PainelPersonagens.tsx](../../apps/web/src/features/personagens/PainelPersonagens.tsx) hoje diz, com
+  teste fixando a frase, que os outros só verão a ficha sumir **ao recarregar**. Esse texto passa a ser
+  mentira no minuto em que este card entrar: **mude os dois juntos**, o texto e o teste.
+- **Armadilha 2:** duplicar cria uma ficha que talvez o destinatário não possa ver. Emitir o `criado`
+  para a sala inteira com o DTO dentro repete o erro que o sussurro evitou; mande o mínimo (`{ mesaId }`
+  ou o id) e deixe cada cliente recarregar o que tem direito de ver.
+
+**Escopo**
+- `packages/shared/src/tipos/eventos-ws.ts` — `personagem:criado` e `personagem:removido`
+- `apps/api/src/aplicacao/ports/infraestrutura.ts` + `apresentacao/ws/publicador-socket.ts` +
+  `testes/fakes/fake-publicador-eventos-mesa.ts`
+- `apps/api/src/aplicacao/personagens/{criar,duplicar,remover}-personagem.ts` — publicar o evento
+- `apps/web/src/features/jogo/use-socket-mesa.ts` — ouvintes e invalidação
+- `apps/web/src/features/personagens/PainelPersonagens.tsx` — o texto do diálogo e o teste que o fixa
+
+**Critérios de aceite**
+```gherkin
+Cenário: Ficha excluída some para todos, sem recarregar
+  Dado dois jogadores com a mesma mesa aberta
+  Quando o dono excluir "Thorin"
+  Então a ficha some da lista dos dois em segundos
+  E o token que a referenciava continua no mapa, sem barra de vida
+
+Cenário: Cópia aparece para todos
+  Quando o mestre duplicar "Goblin"
+  Então "Goblin (cópia)" aparece na lista dos participantes sem F5
+
+Cenário: Autorização — o evento não vaza ficha
+  Dado um jogador que não pode ver a ficha criada
+  Quando o evento chegar
+  Então ele não recebe dado de personagem no payload
+  E a lista dele continua exibindo apenas o que a API autoriza
+
+Cenário: Borda — evento de outra mesa
+  Dado que estou na mesa A
+  Quando chegar o evento carimbado com a mesa B
+  Então nada é invalidado no cache da mesa A
+```
+
+**Testes obrigatórios**
+- Front: `use-socket-mesa` invalida exatamente `['personagens', mesaId]` e `['cena', mesaId]` — nem a
+  mais, nem a menos —, e `cobertura-eventos-ws.test.ts` continua verde por ter ouvinte, não por
+  omissão.
+- API: `cobertura-publicador-ws.test.ts` cobre os dois eventos novos; use case de excluir e de duplicar
+  publica pela port (com fake), sem que a rota conheça o socket.
+- O teste que fixa a frase do diálogo é **atualizado**, não apagado.
+
+**DoD específico**
+- [ ] Os quatro passos do RV-115 feitos no mesmo commit — nenhum evento órfão em nenhuma direção.
+- [ ] Nenhum `PersonagemDTO` viaja no payload do evento.
+- [ ] O texto da UI voltou a descrever o que o código faz.

@@ -28,6 +28,8 @@ import type { AceitarConvite } from './aplicacao/mesas/aceitar-convite';
 import type { CriarPersonagem } from './aplicacao/personagens/criar-personagem';
 import type { ListarPersonagens } from './aplicacao/personagens/listar-personagens';
 import type { AtualizarPersonagem } from './aplicacao/personagens/atualizar-personagem';
+import type { RemoverPersonagem } from './aplicacao/personagens/remover-personagem';
+import type { DuplicarPersonagem } from './aplicacao/personagens/duplicar-personagem';
 import type { EnviarMensagem } from './aplicacao/jogo/enviar-mensagem';
 import type { RolarDados } from './aplicacao/jogo/rolar-dados';
 import type { ListarMensagens } from './aplicacao/jogo/listar-mensagens';
@@ -73,6 +75,8 @@ export interface CasosDeUsoHttp {
   criarPersonagem: CriarPersonagem;
   listarPersonagens: ListarPersonagens;
   atualizarPersonagem: AtualizarPersonagem;
+  removerPersonagem: RemoverPersonagem;
+  duplicarPersonagem: DuplicarPersonagem;
   enviarMensagem: EnviarMensagem;
   rolarDados: RolarDados;
   listarMensagens: ListarMensagens;

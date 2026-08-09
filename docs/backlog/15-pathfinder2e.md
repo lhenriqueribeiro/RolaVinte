@@ -20,7 +20,7 @@ Catálogo grande é Onda 3 e é o **último** card do épico (RV-157). Se o épi
 
 ### 2. Licenciamento — decidido, não re-decidir
 
-Isto foi pesquisado e fechado. Não reabra:
+Isto foi pesquisado e fechado. Não reabra. A decisão vive em [docs/licencas/pathfinder2e.md](../licencas/pathfinder2e.md), e desde o RV-150 ela é **verificada por teste** — `packages/shared/src/sistemas/pathfinder2e/licenca.test.ts` reprova conteúdo sem `fonte`, semente acima do teto e conteúdo que chegue antes da atribuição completa. O resumo abaixo continua valendo:
 
 - **[2e.aonprd.com](https://2e.aonprd.com/)** (Archives of Nethys) opera sob a **Community Use Policy da Paizo** somada à **OGL 1.0a**, e **proíbe expressamente uso comercial**. Fazer *scraping* em massa do AoN para dentro deste repositório está **proibido**.
 - O **dataset do sistema pf2e do Foundry VTT** existe sob uma permissão específica da parceria Foundry Gaming ↔ Paizo. Essa permissão **não é transferível** para este projeto. Empacotar aquele dataset está **proibido**.
@@ -37,11 +37,18 @@ Consequência prática para quem executa: **todo card que faça conteúdo aparec
 
 Ao pesquisar regras no AoN: **leia para entender, não copie**. Texto descritivo não entra no repositório. Fórmula, faixa numérica e nome de mecânica entram.
 
-### 3. Dependência dura: RV-091 e RV-090
+### 3. Dependência dura: RV-091 e RV-090 — **satisfeita na v0.6.0**
 
-[RV-091 — Strategy de sistema de ficha](09-fichas.md) e [RV-090 — Perícias e proficiência](09-fichas.md) são **pré-requisito** e **ainda não estão feitos**.
+[RV-091 — Strategy de sistema de ficha](09-fichas.md) e [RV-090 — Perícias e proficiência](09-fichas.md) eram **pré-requisito** e estão **concluídos**. O que isso te entrega, concretamente:
 
-Sem eles, Pathfinder vira `switch (sistema)` espalhado por schema, use case e componente — exatamente o oposto do Open/Closed de [03-solid.md](../../.claude/rules/03-solid.md) e do ponto de extensão canônico (`Map<tipo, Handler>` no composition root) de [04-design-patterns.md](../../.claude/rules/04-design-patterns.md). Cada card abaixo que depende deles diz isso em `Depende de:`. Se você abrir um card e precisar escrever um `switch (sistema)`, a Definition of Ready não está satisfeita: **pare e reporte**.
+- `definicaoDoSistema(sistema)` em [registro.ts](../../packages/shared/src/sistemas/registro.ts) é o único lugar que associa chave de sistema a comportamento; **registrar PF2e é uma linha ali**.
+- A ficha do front (`FichaPersonagem.tsx`) renderiza percorrendo `secoes`/`campos`/`pericias` da definição e **não cita o nome de nenhum sistema** — o RV-152 não cria tela nova.
+- `bonusPericia`, `expressaoDePericia`, `motivoDeRolagemDePericia` e `definirGrauDePericia` já existem em [calculo.ts](../../packages/shared/src/sistemas/calculo.ts) e delegam ao registro: o RV-153 fornece a **tabela**, não a aritmética.
+- Sistema no enum sem definição no registro derruba `npm run check` **e** `npm run test`, nomeando o sistema (medido).
+
+Sem eles, Pathfinder viraria `switch (sistema)` espalhado por schema, use case e componente — exatamente o oposto do Open/Closed de [03-solid.md](../../.claude/rules/03-solid.md) e do ponto de extensão canônico (`Map<tipo, Handler>` no composition root) de [04-design-patterns.md](../../.claude/rules/04-design-patterns.md). Se você abrir um card e precisar escrever um `switch (sistema)`, a Definition of Ready não está satisfeita: **pare e reporte**.
+
+**O que continua aberto e morde o RV-152:** o lado do banco. `SISTEMAS_RPG` e o `check` de `mesas.sistema` não têm amarra — é o [RV-096](09-fichas.md#rv-096--amarrar-o-check-de-mesassistema-ao-sistemas_rpg), card protetor que vem **antes** do RV-152 pela mesma lógica da seção 6.
 
 ### 4. Linguagem ubíqua (PT-BR) — [02-ddd.md](../../.claude/rules/02-ddd.md)
 
@@ -113,13 +120,15 @@ Fontes: [Proficiência](https://2e.aonprd.com/Rules.aspx?ID=3305) · [Graus de s
 O card que **fecha** uma classe de risco vem antes dos que a exercitam:
 
 ```
-RV-150 licenciamento ──┬─────────────────────────────────────► RV-157 catálogo
+RV-150 licenciamento ──┬─────────────────────────────────────► RV-157 catálogo   (✅ v0.6.0)
                        │
 RV-151 motor de regras ┴─► RV-152 ficha ─┬─► RV-153 perícias ─► RV-154 grau no chat ─┐
-                                         │                                            ├─► RV-156 ataques + MAP
-                                         └─► RV-155 defesas ───────────────────────── ┘
-                                                                                       └─► RV-158 iniciativa
+                       ↑                 │                                            ├─► RV-156 ataques + MAP
+       RV-096 (E09) ───┘                 └─► RV-155 defesas ───────────────────────── ┘
+       protege o enum                                                                  └─► RV-158 iniciativa
 ```
+
+[RV-096](09-fichas.md#rv-096--amarrar-o-check-de-mesassistema-ao-sistemas_rpg) mora no E09 mas serve a este épico: é ele que impede o RV-152 de acrescentar `'pathfinder2e'` ao enum e esquecer a migration do `check`. Mesma lógica do RV-150 — fechar a classe de risco antes de exercitá-la.
 
 **Convenção deste épico:** RV-150 e RV-151 não têm superfície HTTP — não existe autorização a testar neles. Nesses dois cards o cenário de autorização é substituído por um cenário `Guarda:`, que é a verificação automatizada que ocupa o mesmo lugar. Todos os demais cards têm cenário de autorização de verdade, com `403`/`401` provado por teste de contrato ([F4 da taxonomia](../agentes/taxonomia-de-falhas.md)).
 
@@ -127,7 +136,33 @@ RV-151 motor de regras ┴─► RV-152 ficha ─┬─► RV-153 perícias ─�
 
 ### RV-150 — Fixar a fronteira de licenciamento com atribuição e teto de conteúdo
 
-**Épico:** E15 · **Depende de:** — · **Tamanho:** P · **Onda:** 2 · **Faça este primeiro do épico**
+**Épico:** E15 · **Depende de:** — · **Tamanho:** P · **Onda:** 2 · **Faça este primeiro do épico** · **Status:** ✅ Concluído
+
+> **Decisões tomadas na entrega (v0.6.0).** [licenca.ts](../../packages/shared/src/sistemas/pathfinder2e/licenca.ts)
+> é um auditor **puro**: recebe `ArquivoDeSemente[]` já lidos e devolve `ViolacaoDeLicenca[]`. Quem
+> toca o disco é o teste, porque o mesmo bundle de `@rolavinte/shared` vai para o navegador e um
+> `import 'node:fs'` exportado pelo índice quebraria o web.
+> **Nasceu uma quarta regra que o card não pedia — `atribuicao-incompleta`.** Sem ela, o documento de
+> licença conteria a promessa em prosa "antes de publicar conteúdo, inclua a OGL e a Seção 15", que é
+> exatamente o F1 que este card veio matar. Agora o marcador `OGL-PENDENTE` é **lido por código**:
+> semente vazia passa; no primeiro item, vermelho dizendo o que completar. **O texto verbatim da OGL
+> 1.0a não foi transcrito de propósito** — escrevê-lo de memória arriscaria texto legal impreciso, o
+> que é pior que a ausência; ele precisa vir da fonte oficial, e a guarda impede que conteúdo entre
+> antes disso.
+> **Formato da semente decidido aqui:** um `.json` por tipo, nome do arquivo = tipo, array no topo,
+> itens com `chave`/`nome`/`fonte`. Está escrito no README do diretório e o auditor reprova o que
+> fugir disso. O diretório nasce **vazio**, que é o estado válido de hoje.
+> **A guarda do front é uma varredura:** `AvisoLicenca.test.tsx` percorre `apps/web/src` e reprova
+> qualquer arquivo que escreva "Paizo", "Open Game License" ou "Community Use" fora do componente —
+> então a tela que exibir conteúdo de PF2e monta `<AvisoLicenca />` ou fica vermelha.
+> **Prova de que a guarda reprova, medida com violação real em disco:** 31 itens num tipo, item sem
+> `fonte`, arquivo de 70053 bytes, conteúdo com o documento pendente e o número do teto repetido no
+> documento — cinco experimentos, cinco vermelhos com o arquivo nomeado, todos desfeitos.
+> **`<AvisoLicenca>` ainda não é montado por tela nenhuma, e isso está correto hoje**: `pathfinder2e`
+> não é valor de `SISTEMAS_RPG` e nenhuma tela exibe conteúdo do sistema. O primeiro consumidor é o
+> RV-152 (rodapé da ficha).
+> **Limite honesto:** a auditoria cobre **apenas** o diretório da semente. Conteúdo de PF2e colado em
+> `apps/api` ou em outro pacote passaria sem ser visto.
 
 **História**
 > Como **mantenedor**, quero **a fronteira legal do conteúdo de Pathfinder escrita e verificada por teste**, para **que nenhum card seguinte arraste para o repositório um dataset que não podemos distribuir**.
@@ -265,14 +300,16 @@ Cenário: Borda — CD por nível fora da tabela
 
 ### RV-152 — Ficha de Pathfinder 2e sobre a strategy de sistema
 
-**Épico:** E15 · **Depende de:** RV-091, RV-151 · **Tamanho:** G · **Onda:** 2
+**Épico:** E15 · **Depende de:** RV-091 (✅), RV-151, RV-096 · **Tamanho:** G · **Onda:** 2
 
 **História**
 > Como **jogador de PF2e**, quero **criar minha ficha com ancestralidade, herança, antecedente, classe, nível e os seis modificadores de atributo**, para **entrar na campanha sem manter uma planilha paralela**.
 
 **Contexto técnico**
 - RV-091 cria `packages/shared/src/sistemas/` com `DefinicaoSistema` (`schemaFicha`, `secoes`, `rolagensPadrao`) e o registro `Map<SistemaRpg, DefinicaoSistema>`. **Este card é uma entrada nova nesse registro e nada além disso.** Se você precisar de um `switch (sistema)` em qualquer lugar, RV-091 não está pronto: pare e reporte.
-- **Armadilha dura — o enum tem duas metades.** `SISTEMAS_RPG` em [mesas.ts](../../packages/shared/src/schemas/mesas.ts) é um `z.enum`, e a coluna correspondente tem `check (sistema in ('dnd5e','tormenta20','ordem-paranormal','generico'))` em [0001_esquema_inicial.sql](../../apps/api/supabase/migrations/0001_esquema_inicial.sql). Adicionar `'pathfinder2e'` só no TypeScript **compila, passa no lint, passa em todo teste com fake — e estoura no primeiro INSERT real**. Classe **F10 — configuração que nunca foi exercitada**. Migration nova é obrigatória.
+- **Armadilha dura — o enum tem duas metades.** `SISTEMAS_RPG` em [mesas.ts](../../packages/shared/src/schemas/mesas.ts) é um `z.enum`, e a coluna correspondente tem `check (sistema in ('dnd5e','tormenta20','ordem-paranormal','generico'))` em [0001_esquema_inicial.sql](../../apps/api/supabase/migrations/0001_esquema_inicial.sql). Adicionar `'pathfinder2e'` só no TypeScript **compila, passa no lint, passa em todo teste com fake — e estoura no primeiro INSERT real**. Classe **F10 — configuração que nunca foi exercitada**. Migration nova é obrigatória. **Desde a curadoria da v0.6.0 isto deixou de ser só um aviso:** o [RV-096](09-fichas.md#rv-096--amarrar-o-check-de-mesassistema-ao-sistemas_rpg) transforma o esquecimento em suíte vermelha e é pré-requisito deste card. Se ele já estiver feito, você vai *ver* o vermelho ao acrescentar o valor ao enum — é o comportamento esperado, e a migration é a correção.
+- **A metade do TypeScript já está fechada:** acrescentar `'pathfinder2e'` a `SISTEMAS_RPG` sem entrada no registro derruba `npm run check` (`TS2741`) e `registro.test.ts`. Registrar a definição é o que apaga esse vermelho — não edite o teste.
+- **Atribuição (RV-150, ✅):** monte `<AvisoLicenca />` de [components/ui](../../apps/web/src/components/ui/AvisoLicenca.tsx) no rodapé da ficha. **Nunca reescreva o texto no JSX** — há uma varredura em `AvisoLicenca.test.tsx` que reprova qualquer arquivo de `apps/web/src` contendo "Paizo", "Open Game License" ou "Community Use" fora do componente. Esta ficha é o **primeiro consumidor** dele.
 - **Armadilha de modelo — modificador direto, não valor de atributo.** `atributosSchema` em [personagens.ts](../../packages/shared/src/schemas/personagens.ts) guarda 1..30 e é usado por todos os sistemas e pelo `PersonagemDTO`. **Não altere.** A ficha PF2e guarda os seis modificadores em `dados.modificadores` (faixa −5..+8) e **ignora** `atributos`; `modificadorAtributo()` não participa deste sistema. Escreva esse porquê no schema.
 - **Consequência direta disso (F6 — promessa da UI):** o "teste de atributo em 1 clique" genérico, que hoje deriva o bônus de `atributos`, rolaria `+0` eternamente numa ficha PF2e. Ele **não pode ser oferecido** nesse sistema; a rolagem correta chega no RV-153.
 - Faixa de nível: 1..20, coerente com `criarPersonagemSchema`.
@@ -282,7 +319,7 @@ Cenário: Borda — CD por nível fora da tabela
 - `packages/shared/src/sistemas/registro.ts` — registrar `pathfinder2e`
 - `packages/shared/src/schemas/mesas.ts` — `SISTEMAS_RPG` ganha `'pathfinder2e'`
 - `apps/api/supabase/migrations/000X_sistema_pathfinder2e.sql` — recria o `check` de `mesas.sistema` com o valor novo
-- Front: **nenhuma tela nova.** [FichaPersonagem.tsx](../../apps/web/src/features/personagens/FichaPersonagem.tsx) renderiza pelas seções da definição
+- Front: **nenhuma tela nova.** [FichaPersonagem.tsx](../../apps/web/src/features/personagens/FichaPersonagem.tsx) renderiza pelas seções da definição — a única alteração prevista é montar `<AvisoLicenca />` no rodapé
 
 **Critérios de aceite**
 ```gherkin
@@ -331,6 +368,7 @@ Cenário: Ficha genérica intacta
 - [ ] Zero `switch (sistema)` novo em api, web ou shared.
 - [ ] `atributosSchema` (1..30) inalterado no shared e no banco.
 - [ ] O motivo de a ficha PF2e ignorar `atributos` está escrito no `definicao.ts`, não só neste card.
+- [ ] `<AvisoLicenca />` montado no rodapé da ficha, sem uma linha do texto de atribuição copiada para o JSX.
 
 ---
 

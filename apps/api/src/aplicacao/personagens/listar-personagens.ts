@@ -15,6 +15,10 @@ export class ListarPersonagens {
     if (!mesa.ehParticipante(usuarioId)) {
       return falha(ErroDominio.naoAutorizado('Você não participa desta mesa.'));
     }
-    return ok(await this.personagens.listarDaMesa(mesaId));
+    // O sistema entra aqui, e não numa coluna de `personagens` (RV-091): a mesa
+    // já foi carregada para autorizar, e derivar evita a segunda verdade que
+    // divergiria no dia em que o mestre trocasse o sistema da mesa.
+    const fichas = await this.personagens.listarDaMesa(mesaId);
+    return ok(fichas.map((ficha) => ({ ...ficha, sistema: mesa.sistema })));
   }
 }

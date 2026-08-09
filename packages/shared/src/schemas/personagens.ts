@@ -20,6 +20,18 @@ export const atributosSchema = z.object({
 });
 export type Atributos = z.infer<typeof atributosSchema>;
 
+/**
+ * A metade da ficha que pertence ao sistema da mesa (RV-091).
+ *
+ * Aqui só se verifica que é um objeto: **quem valida o conteúdo é o
+ * `schemaFicha` do sistema** (`sistemas/registro.ts`), e este schema não tem
+ * como saber de que mesa a requisição fala. A validação de verdade acontece no
+ * domínio, com o sistema em mãos, e campo fora da definição vira 400.
+ */
+export const dadosFichaSchema = z.record(z.string(), z.unknown(), {
+  invalid_type_error: 'Os dados da ficha devem ser um objeto.',
+});
+
 export const criarPersonagemSchema = z.object({
   nome: z.string().trim().min(2).max(60),
   classe: z.string().trim().max(40).default(''),
@@ -34,6 +46,8 @@ export const criarPersonagemSchema = z.object({
     carisma: 10,
   }),
   anotacoes: z.string().max(5000).default(''),
+  /** Omitido nasce com os padrões do sistema (`dadosIniciaisDaFicha`). */
+  dados: dadosFichaSchema.optional(),
 });
 export type CriarPersonagemEntrada = z.infer<typeof criarPersonagemSchema>;
 

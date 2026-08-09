@@ -187,41 +187,59 @@ Cenário: Jogador não usa o comando
 
 ### RV-073 — Histórico paginado
 
-**Épico:** E07 · **Depende de:** — · **Tamanho:** M · **Onda:** 1 · **Status:** 🚧 Parcial — interface entregue, backend pendente
+**Épico:** E07 · **Depende de:** — · **Tamanho:** M · **Onda:** 1 · **Status:** 🚧 Parcial — backend e rolagem entregues, `useInfiniteQuery` pendente
 
-> **Por que continua aberto.** Verificado no código no fecho da v0.5.0:
-> [rotas-jogo.ts](../../apps/api/src/apresentacao/http/rotas-jogo.ts) não lê querystring nenhuma,
-> `ListarMensagens.executar(usuarioId, mesaId)` não recebe cursor e `listarDaMesa` usa um
-> `LIMITE_PADRAO = 100` fixo. Não há risco de duplicar ou pular registro entre páginas porque **não há
-> páginas**: numa campanha com mais de 100 mensagens o jogador simplesmente nunca alcança o histórico
-> anterior, e a tela não avisa que existe algo acima. O que falta está detalhado no Contexto técnico
-> abaixo; **o card só fecha quando o cursor existir na rota, na port e no `ORDER BY`.**
+> **Backend entregue (v0.6.0).** O cursor existe na rota, na port e no `ORDER BY`:
+> `GET /mesas/:mesaId/mensagens?antesDe=<iso>&antesDeId=<uuid>&limite=<n>`, padrão 50 e teto 100
+> (`?limite=100000` é 400 — sem teto, uma requisição autenticada varre a tabela inteira).
+> **As duas metades do cursor andam juntas** e meia metade é 400: o card falava só em `antesDe`, mas
+> um cursor de instante puro ou repete as mensagens empatadas no milissegundo (`lte`) ou as engole
+> (`lt`), e mesa movimentada empata o tempo todo. O `id` desempata no filtro **e** no `ORDER BY`.
+> **Visibilidade e cursor saem numa expressão só** — `and(or(visibilidade),or(anteriores))`, um
+> parâmetro `or` — em vez de dois `.or()` encadeados: privacidade que depende de como o PostgREST
+> trata chave duplicada é defesa que ninguém consegue apontar no código (F1). O recorte continua
+> **depois** do filtro, então a página do terceiro vem cheia e nunca há buraco de onde inferir que
+> existe mensagem privada ali.
+> **A resposta continua sendo `MensagemDTO[]`**, sem envelope de "tem mais": o sinal de fim é a
+> página vir menor que o `limite`, que é uma contagem só de mensagens visíveis — não há um segundo
+> número para vazar. Custa uma requisição vazia no fim do histórico.
+> **O que falta é a tela:** `useMensagens` continua `useQuery` (mostra as 50 mais recentes), e a
+> outra metade é o `useInfiniteQuery` mais a compensação de `scrollTop` ao prepender.
+>
+> **Confirmado pelo curador em 2026-08-09, e com uma consequência nova: hoje o card é uma regressão
+> para o usuário.** O padrão da rota caiu de 100 para 50 mensagens
+> (`LIMITE_MENSAGENS_PADRAO`), e **não existe caminho na interface** para pedir a página seguinte —
+> nem botão, nem rolagem infinita. Efeito líquido: o chat passou a mostrar **metade** do histórico que
+> mostrava antes da v0.6.0. Enquanto a metade de interface não entrar, cada sessão longa perde mais
+> começo de sessão do que perdia. Por isso o card **permanece na primeira sprint disponível** em vez de
+> esperar o épico de chat — ver [sprints.md](sprints.md). O que exatamente falta está medido em
+> `features/jogo/api.ts:35` e `rolagem-chat.ts:44`, com o contrato escrito nos comentários dos dois
+> arquivos.
 
 **História**
 > Como **jogador**, quero **rolar o chat para trás e carregar mensagens antigas**, para **consultar o que aconteceu em sessões passadas**.
 
 **Contexto técnico**
-- Hoje `ListarMensagens` traz as últimas 100 e o front carrega tudo de uma vez.
 - Use cursor por `criado_em` + `id` (estável, sem `offset`).
-- **Estado em v0.5.0: metade entregue.** A parte de interface que não dependia do
-  cursor está feita — o chat só desce sozinho quando o leitor já está no fim, e quem
-  está lendo o histórico recebe o aviso "N novas mensagens" em vez de um salto
-  (`features/jogo/rolagem-chat.ts` mais os testes de `Chat.rolagem.test.tsx`). O que
-  falta é **inteiramente backend**: `GET /mesas/:mesaId/mensagens` ignora querystring
-  e devolve sempre a mesma página, então `useInfiniteQuery` mandando `antesDe`
-  receberia as mesmas mensagens de novo e as duplicaria na tela. Enquanto a rota não
-  aceitar `?antesDe=<iso>&limite=<n>`, `useMensagens` continua `useQuery` de
-  propósito. Ao fechar o backend, o que resta na interface é o `useInfiniteQuery` e a
-  compensação de `scrollTop` ao prepender uma página
-  (`scrollTopAntes + (alturaDepois - alturaAntes)`), deliberadamente **não** escrita
-  agora para não parecer que a paginação existe.
-- O desempate do cursor precisa entrar junto no `ORDER BY` do adapter **e** no
-  `FakeMensagemRepository`: hoje os dois ordenam só por `criado_em` e invertem
-  mensagens do mesmo instante (registrado na entrega do RV-070).
+- **Interface, parte 1 (v0.5.0):** o chat só desce sozinho quando o leitor já está no
+  fim, e quem está lendo o histórico recebe o aviso "N novas mensagens" em vez de um
+  salto (`features/jogo/rolagem-chat.ts` mais os testes de `Chat.rolagem.test.tsx`).
+- **Backend (v0.6.0):** `listarDaMesa(mesaId, solicitanteId, { limite, antesDe })`,
+  querystring validada em `listarMensagensQuerySchema` (`@rolavinte/shared`), desempate
+  por `id` no filtro e no `ORDER BY` do adapter **e** do `FakeMensagemRepository` — os
+  dois ordenavam só por `criado_em` e invertiam mensagens do mesmo instante (registrado
+  na entrega do RV-070).
+- **Interface, parte 2 (falta):** `useInfiniteQuery` em `features/jogo/api.ts`,
+  carregamento ao chegar no topo e compensação de `scrollTop` ao prepender
+  (`scrollTopAntes + (alturaDepois - alturaAntes)`). O cursor da próxima página é o
+  `criadoEm` + `id` da **primeira** mensagem da página já carregada; página menor que o
+  `limite` é fim de histórico. Mexer nisso mexe também em `Chat.tsx` (a lista vira
+  `data.pages.flat()`) e em `use-socket-mesa.ts`, que hoje faz `setQueryData` de um
+  array simples em `['mensagens', mesaId]`.
 
 **Escopo**
-- `MensagemRepository.listarDaMesa(mesaId, { limite, antesDe })`
-- `GET /mesas/:mesaId/mensagens?antesDe=<iso>&limite=50`
+- `MensagemRepository.listarDaMesa(mesaId, solicitanteId, { limite, antesDe })`
+- `GET /mesas/:mesaId/mensagens?antesDe=<iso>&antesDeId=<uuid>&limite=50`
 - Front: `useInfiniteQuery` e carregamento ao chegar no topo, preservando a posição de rolagem
 
 **Critérios de aceite**
@@ -245,6 +263,11 @@ Cenário: Mensagem nova durante a leitura
 
 **Testes obrigatórios**
 - Repositório/use case: paginação por cursor não repete nem pula mensagens quando chegam novas entre as páginas.
+- Entregue no adapter, não só no fake: `mensagem-repository.supabase.test.ts` **executa** a consulta
+  registrada (um avaliador da árvore `and`/`or` do PostgREST, oráculo independente do adapter) sobre
+  linhas reais, com mensagens empatadas no mesmo instante. Trocar `lt` por `lte` no cursor, tirar o
+  `order('id')` ou perder o filtro de visibilidade na página com cursor deixa o arquivo vermelho — os
+  três foram verificados quebrando de propósito.
 
 ---
 

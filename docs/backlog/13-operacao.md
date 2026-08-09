@@ -272,6 +272,17 @@ Cenário: Exclusão exige confirmação
   prova a **consulta**. Foi medido: trocar o filtro por `[...TIPOS_MENSAGEM_PUBLICOS, 'sussurro']`
   deixa o teste do adapter vermelho e os **15** testes de `rotas-chat.test.ts` verdes. Use esse arquivo
   como molde para os demais.
+- **Atualização da v0.6.0 — o adapter de personagens cresceu e ganhou meio teste.** O
+  [mapper](../../apps/api/src/infra/supabase/personagem.mapper.test.ts) passou a ter teste próprio (é
+  ele que prova que a ficha gravada antes da `0007` sobrevive), mas a **consulta** continua provada só
+  por leitura, e agora ela tem mais superfície: `remover()` (um `delete().eq('id', ...)`), a coluna
+  `dados` acrescentada à constante `COLUNAS` de todo `select`/`upsert` e o join de `usuarios(nome)`.
+- **Divergência concreta nova, entregue pelo RV-093:** `tokens.personagem_id` é `on delete set null`
+  desde a `0001`, e o `FakeCenaRepository` **não emula a FK** — depois de excluir a ficha ele mantém o
+  `personagemId` morto no token. Hoje é inofensivo (nada lê `token.personagemId` sem cruzar com a
+  lista de personagens), mas o primeiro código que inferir "tem ficha" de `personagemId !== null` vai
+  divergir entre teste e produção. O barato é ensinar o fake a zerar o vínculo quando a ficha some, no
+  mesmo lote deste card.
 - **Peso novo no adapter de cenas:** a limpeza do [RV-047](04-tokens.md#rv-047--apagar-a-arte-do-token-do-storage-ao-excluir-token-ou-cena)
   depende de `listarTokensDaCena` devolver `imagem_caminho` **antes** da cascata. O `FakeCenaRepository`
   replica a cascata e por isso o experimento fica vermelho nele — mas se `COLUNAS_TOKEN` perder a
@@ -466,6 +477,15 @@ Cenário: Borda — schema desatualizado falha de forma legível
   **todo** `insert`. Sem a `0005`, o histórico não abre e nenhuma mensagem é enviada: **o chat inteiro
   está fora do ar** contra o banco real, para fala comum inclusive. O `tipo` também precisa do CHECK
   novo — `sussurro` e `rolagem-oculta` são recusados pelo constraint da `0001`.
+- **A fila cresceu para três migrations, e a mais nova amplia o estrago (curadoria da v0.6.0).** Além
+  da `0005`, o repositório passou a ter a `0006_registro_de_migrations.sql` e a
+  [`0007_fichas_por_sistema.sql`](../../apps/api/supabase/migrations/0007_fichas_por_sistema.sql), e
+  **nenhuma das três foi aplicada** no projeto em uso. A `0007` acrescenta `personagens.dados`, que
+  entra na constante `COLUNAS` de **todo** select e upsert de personagem: num banco sem ela, **abrir a
+  aba de personagens de qualquer mesa quebra**, não só a ficha de sistema. Duas boas notícias medidas:
+  o script já foi reescrito para **derivar do diretório** (último commit da v0.6.0), e a `0007` se
+  registra em `migrations_aplicadas` — então o verificador a denuncia sozinho, sem ninguém editar
+  lista nenhuma. O que falta aqui é **executar**: aplicar as três em ordem e registrar a saída.
 - **A causa é a forma da guarda, não o esquecimento.** A lista `VERIFICACOES` em
   [verificar-supabase.mjs](../../apps/api/scripts/verificar-supabase.mjs) é escrita à mão, migration por
   migration, enquanto o irmão dele (`sql-de-instalacao.mjs`) **lê o diretório** e por isso não
@@ -490,7 +510,8 @@ Cenário: Borda — schema desatualizado falha de forma legível
   arquivo. Migration aplicada é imutável — divergência encontrada vira `0006`, não edição da `0005`.
 
 **Escopo**
-- Aplicação da `0005_chat.sql` no ambiente `yewjuijqqenmckhxrnrc` (e em qualquer outro em uso)
+- Aplicação de `0005_chat.sql`, `0006_registro_de_migrations.sql` e `0007_fichas_por_sistema.sql`, **em
+  ordem**, no ambiente `yewjuijqqenmckhxrnrc` (e em qualquer outro em uso)
 - `apps/api/scripts/verificar-supabase.mjs`: checklist derivada de `supabase/migrations/`
 - `apps/api/scripts/*.test.mjs` ou `apps/api/src/testes/`: teste offline de que migration sem
   verificação correspondente derruba a suíte
@@ -527,7 +548,9 @@ Cenário: Borda — sem credencial, a falha é legível
 - A verificação contra o banco real continua manual; registre no PR o ambiente, a data e a saída.
 
 **DoD específico**
-- [ ] `0005_chat.sql` aplicada, com chat funcionando ponta a ponta contra o banco real: fala, rolagem,
-      sussurro entre duas contas e `/oculto` do mestre invisível ao jogador.
+- [ ] `0005_chat.sql`, `0006_registro_de_migrations.sql` e `0007_fichas_por_sistema.sql` aplicadas, com
+      chat funcionando ponta a ponta contra o banco real (fala, rolagem, sussurro entre duas contas e
+      `/oculto` do mestre invisível ao jogador) **e** a aba de personagens abrindo — a `0007` é
+      pré-requisito de todo select de personagem, não só da ficha por sistema.
 - [ ] A checklist do verificador não depende de alguém lembrar de editá-la.
 - [ ] O que o script **não** cobre (check constraints, policies de Storage) está escrito na saída dele.

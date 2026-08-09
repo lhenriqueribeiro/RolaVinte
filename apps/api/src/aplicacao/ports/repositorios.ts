@@ -1,4 +1,10 @@
-import type { JogadorDaMesaDTO, MensagemDTO, MesaDTO, PersonagemDTO } from '@rolavinte/shared';
+import type {
+  CursorMensagens,
+  JogadorDaMesaDTO,
+  MensagemDTO,
+  MesaDTO,
+  PersonagemDaMesaDTO,
+} from '@rolavinte/shared';
 import type { Usuario } from '../../dominio/contas/usuario';
 import type { Mesa } from '../../dominio/mesas/mesa';
 import type { Personagem } from '../../dominio/personagens/personagem';
@@ -24,8 +30,17 @@ export interface MesaRepository {
 export interface PersonagemRepository {
   salvar(personagem: Personagem): Promise<void>;
   buscarPorId(id: string): Promise<Personagem | null>;
-  /** Read model — inclui nome do dono. */
-  listarDaMesa(mesaId: string): Promise<PersonagemDTO[]>;
+  /**
+   * Exclui a ficha (RV-093). Os tokens que a referenciavam permanecem na cena
+   * com `personagem_id` nulo — é `on delete set null` no banco desde a 0001.
+   */
+  remover(id: string): Promise<void>;
+  /**
+   * Read model — inclui nome do dono, **sem** o sistema: ele é da `Mesa`, e
+   * quem completa o `PersonagemDTO` é o caso de uso, que já carregou a mesa
+   * para autorizar.
+   */
+  listarDaMesa(mesaId: string): Promise<PersonagemDaMesaDTO[]>;
 }
 
 export interface CenaRepository {
@@ -43,6 +58,19 @@ export interface CenaRepository {
   listarTokensDaCena(cenaId: string): Promise<Token[]>;
 }
 
+/** Uma página do histórico do chat (RV-073). */
+export interface PaginaHistorico {
+  limite: number;
+  /**
+   * Cursor da mensagem mais antiga já carregada; `null` na primeira página.
+   *
+   * Cursor e não `offset` — e o desempate por `id` é parte do contrato, não
+   * detalhe do adapter: um repositório que ordenasse só por `criadoEm` devolveria
+   * a mesma mensagem em duas páginas assim que duas caíssem no mesmo instante.
+   */
+  antesDe: CursorMensagens | null;
+}
+
 export interface MensagemRepository {
   salvar(mensagem: Mensagem): Promise<void>;
   /**
@@ -52,6 +80,15 @@ export interface MensagemRepository {
    * excluídos já na consulta (RV-070/RV-071). Filtrar depois de trazer, ou no
    * cliente, seria deixar o segredo sair do servidor — e o `limite` passaria a
    * contar mensagens que o solicitante nem pode ver.
+   *
+   * O mesmo vale para o cursor (RV-073): a janela é recortada **depois** do
+   * filtro de visibilidade, então uma página nunca fica curta por causa do
+   * segredo alheio nem deixa um buraco de onde um terceiro pudesse inferir que
+   * existe mensagem privada ali.
    */
-  listarDaMesa(mesaId: string, solicitanteId: string, limite: number): Promise<MensagemDTO[]>;
+  listarDaMesa(
+    mesaId: string,
+    solicitanteId: string,
+    pagina: PaginaHistorico,
+  ): Promise<MensagemDTO[]>;
 }

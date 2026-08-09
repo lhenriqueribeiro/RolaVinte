@@ -7,6 +7,9 @@ import type {
   UsuarioRepository,
 } from '../ports/repositorios';
 import type { PublicadorEventosMesa } from '../ports/infraestrutura';
+import { montarPersonagemDTO } from './personagem-dto';
+
+const NEGADO = 'Só o dono do personagem ou o mestre podem editar a ficha.';
 
 export class AtualizarPersonagem {
   constructor(
@@ -26,34 +29,21 @@ export class AtualizarPersonagem {
 
     const mesa = await this.mesas.buscarPorId(personagem.mesaId);
     if (!mesa) return falha(ErroDominio.naoEncontrado('Mesa não encontrada.'));
-    if (!personagem.podeSerEditadoPor(usuarioId, mesa.ehMestre(usuarioId))) {
-      return falha(
-        ErroDominio.naoAutorizado('Só o dono do personagem ou o mestre podem editar a ficha.'),
-      );
-    }
+
+    const dono = personagem.autorizarEscrita(usuarioId, mesa.ehMestre(usuarioId), NEGADO);
+    if (!dono.ok) return falha(dono.erro);
+
     // A ficha entra no mesmo congelamento das demais escritas (RV-027): a UI
     // promete "somente leitura para todo mundo" ao encerrar a mesa.
     const aberta = mesa.autorizarEscritaDeParticipante(usuarioId);
     if (!aberta.ok) return falha(aberta.erro);
 
-    const atualizado = personagem.atualizar(entrada);
+    const atualizado = personagem.atualizar(entrada, mesa.sistema);
     if (!atualizado.ok) return falha(atualizado.erro);
 
     await this.personagens.salvar(personagem);
-    const dono = await this.usuarios.buscarPorId(personagem.donoId);
-    const dto: PersonagemDTO = {
-      id: personagem.id,
-      mesaId: personagem.mesaId,
-      donoId: personagem.donoId,
-      donoNome: dono?.nome ?? 'Jogador',
-      nome: personagem.nome,
-      classe: personagem.classe,
-      nivel: personagem.nivel,
-      pvAtual: personagem.pvAtual,
-      pvMax: personagem.pvMax,
-      atributos: personagem.atributos,
-      anotacoes: personagem.anotacoes,
-    };
+    const usuarioDono = await this.usuarios.buscarPorId(personagem.donoId);
+    const dto = montarPersonagemDTO(personagem, usuarioDono?.nome ?? 'Jogador', mesa.sistema);
 
     // RV-042: a barra de vida desenhada sobre o token lê o PV daqui, não do
     // token. O broadcast é o que faz o dano aparecer no mapa sem recarregar —

@@ -18,15 +18,19 @@ export function useCenaAtiva(mesaId: string) {
 }
 
 /**
- * Histórico do chat — hoje as últimas 100 mensagens, de uma vez.
+ * Histórico do chat — a página mais recente (50 mensagens), de uma vez.
  *
- * Continua `useQuery` e não `useInfiniteQuery` porque
- * `GET /mesas/:mesaId/mensagens` ainda não aceita cursor: a rota ignora
- * querystring e devolve sempre a mesma página. Um `useInfiniteQuery` mandando
- * `antesDe` receberia as mesmas 100 mensagens a cada "próxima página" e as
- * duplicaria na tela. O RV-073 fica pela metade até a rota ganhar
- * `?antesDe=<iso>&limite=<n>`; a metade que não dependia disso — não saltar a
- * rolagem e avisar de mensagem nova — está no `Chat`.
+ * **A rota já é paginada por cursor** (RV-073):
+ * `GET /mesas/:mesaId/mensagens?antesDe=<iso>&antesDeId=<uuid>&limite=<n>`,
+ * onde `antesDe`/`antesDeId` são o `criadoEm` e o `id` da mensagem mais antiga
+ * já carregada — as duas metades vão juntas, ou a rota responde 400. Uma página
+ * mais curta que o `limite` significa fim do histórico.
+ *
+ * Isto aqui ainda é `useQuery` porque o que falta do card é a tela: trocar por
+ * `useInfiniteQuery`, carregar ao chegar no topo e compensar o `scrollTop` ao
+ * prepender (`scrollTopAntes + (alturaDepois - alturaAntes)`). Enquanto isso não
+ * existir, o chat mostra as 50 mais recentes — e não 100, como antes: o padrão
+ * da rota é 50, com teto de 100.
  */
 export function useMensagens(mesaId: string) {
   return useQuery({
