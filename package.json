@@ -1,0 +1,33 @@
+{
+  "name": "rolavinte",
+  "private": true,
+  "version": "0.4.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @rolavinte/api\" \"npm run dev -w @rolavinte/web\"",
+    "build": "npm run build -w @rolavinte/shared && npm run build -w @rolavinte/api && npm run build -w @rolavinte/web",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run check --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^9.1.2",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.66.0"
+  },
+  "engines": {
+    "node": ">=22.9"
+  }
+}

@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Cancela execuções antigas do mesmo branch/PR quando chega um push novo.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+  # Nenhum segredo é necessário: a API não sobe no CI, apenas typecheck/lint, testes e build.
+  NODE_OPTIONS: '--max-old-space-size=4096'
+
+jobs:
+  verificacao:
+    name: Verificação (check, testes e build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # O repositório versiona package-lock.json, então a instalação é determinística.
+      - name: Instalar dependências
+        run: npm ci
+
+      # Inclui o lint: o script "check" da raiz agrega lint + typecheck dos workspaces.
+      - name: Check (lint + typecheck)
+        run: npm run check
+
+      - name: Testes
+        run: npm run test
+
+      - name: Build de produção
+        run: npm run build

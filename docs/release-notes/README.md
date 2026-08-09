@@ -1,0 +1,18 @@
+# Release notes
+
+Histórico de versões do RolaVinte, da mais recente para a mais antiga. Uma linha por versão; o arquivo de
+cada uma traz entregas, resultado de `check`/`test`/`build`, passos de atualização e limitações conhecidas.
+
+| Versão | Data | Resumo |
+|---|---|---|
+| [v0.4.0](v0.4.0.md) | 2026-08-09 | Cenas e mapas (CRUD, ativação, imagem de fundo, grid, zoom e pan), tokens com arte e barra de vida vinculada à ficha, com o contrato de eventos WS aplicado nos dois lados antes do resto (447 testes verdes). |
+| [v0.3.0](v0.3.0.md) | 2026-08-09 | Ciclo de vida das mesas (convites, remoção, saída, encerramento, edição), endurecimento HTTP com helmet/rate limit/erro global e suíte de testes do front (178 testes verdes). |
+| [v0.2.0](v0.2.0.md) | 2026-08-09 | Fundação técnica: lint de arquitetura no `check`, workflow de CI e harness de testes de contrato HTTP com fakes em memória (55 testes verdes). |
+
+## Convenções
+
+- Um arquivo por versão, nomeado `vMAJOR.MINOR.PATCH.md`, igual ao campo `version` do `package.json` da
+  raiz.
+- Escrito para quem desenvolve: o que mudou, por que importa e o que fazer com um clone existente.
+- Números (testes, tamanhos, tempos) só entram quando vieram de uma execução real.
+- Problema conhecido no fim da fase vai para "Limitações conhecidas", não é omitido.

@@ -1,0 +1,117 @@
+import { z } from 'zod';
+
+export const enviarMensagemSchema = z.object({
+  mesaId: z.string().uuid(),
+  conteudo: z.string().trim().min(1, 'Mensagem vazia').max(2000),
+});
+export type EnviarMensagemEntrada = z.infer<typeof enviarMensagemSchema>;
+
+export const rolarDadosSchema = z.object({
+  mesaId: z.string().uuid(),
+  expressao: z.string().trim().min(1).max(200),
+  motivo: z.string().trim().max(120).default(''),
+});
+export type RolarDadosEntrada = z.infer<typeof rolarDadosSchema>;
+
+/** Lado da célula do grid, em pixels (RV-033). */
+export const TAMANHO_CELULA_MIN = 20;
+export const TAMANHO_CELULA_MAX = 200;
+export const TAMANHO_CELULA_PADRAO = 44;
+
+/**
+ * Mensagem única do limite de célula. O schema Zod e o agregado `Cena` usam
+ * esta constante: o mestre recebe o mesmo texto vindo da borda HTTP ou do
+ * domínio, e não existe cópia para divergir.
+ */
+export const MENSAGEM_TAMANHO_CELULA = 'Tamanho da célula deve estar entre 20 e 200.';
+
+export const COR_GRID_PADRAO = '#3a4a63';
+
+const COR_HEXADECIMAL = /^#[0-9a-fA-F]{6}$/;
+
+export const criarCenaSchema = z.object({
+  mesaId: z.string().uuid(),
+  nome: z.string().trim().min(1).max(80),
+  larguraGrid: z.number().int().min(5).max(100).default(25),
+  alturaGrid: z.number().int().min(5).max(100).default(15),
+  corFundo: z.string().regex(COR_HEXADECIMAL, 'Cor inválida').default('#1a2332'),
+  tamanhoCelula: z
+    .number()
+    .int(MENSAGEM_TAMANHO_CELULA)
+    .min(TAMANHO_CELULA_MIN, MENSAGEM_TAMANHO_CELULA)
+    .max(TAMANHO_CELULA_MAX, MENSAGEM_TAMANHO_CELULA)
+    .default(TAMANHO_CELULA_PADRAO),
+  gridVisivel: z.boolean().default(true),
+  corGrid: z.string().regex(COR_HEXADECIMAL, 'Cor do grid inválida').default(COR_GRID_PADRAO),
+});
+export type CriarCenaEntrada = z.infer<typeof criarCenaSchema>;
+
+/**
+ * Edição da cena (RV-030/RV-033): PATCH parcial derivado de `criarCenaSchema`,
+ * para que as mensagens de validação sejam idênticas às da criação. `mesaId`
+ * sai porque cena não muda de mesa.
+ *
+ * `.partial()` embrulha cada campo em `optional`, que curto-circuita antes do
+ * `default` — campo ausente chega como `undefined` ao caso de uso, e não como o
+ * valor padrão (senão um PATCH de nome zeraria a cor do grid).
+ */
+export const atualizarCenaSchema = criarCenaSchema.omit({ mesaId: true }).partial();
+export type AtualizarCenaEntrada = z.infer<typeof atualizarCenaSchema>;
+
+/** Imagem de fundo da cena (RV-032): o que a API aceita em `POST /cenas/:id/fundo`. */
+export const TIPOS_IMAGEM_FUNDO = ['image/png', 'image/jpeg', 'image/webp'] as const;
+export type TipoImagemFundo = (typeof TIPOS_IMAGEM_FUNDO)[number];
+
+export const TAMANHO_MAXIMO_IMAGEM_FUNDO_BYTES = 8 * 1024 * 1024;
+
+/** Nome do campo multipart que carrega o arquivo. */
+export const CAMPO_IMAGEM_FUNDO = 'arquivo';
+
+export const MENSAGEM_TIPO_IMAGEM_FUNDO = 'Envie uma imagem PNG, JPEG ou WebP.';
+export const MENSAGEM_TAMANHO_IMAGEM_FUNDO = 'A imagem do mapa deve ter no máximo 8 MB.';
+
+export const criarTokenSchema = z.object({
+  cenaId: z.string().uuid(),
+  nome: z.string().trim().min(1).max(60),
+  cor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default('#e74c3c'),
+  x: z.number().int().min(0),
+  y: z.number().int().min(0),
+  personagemId: z.string().uuid().nullable().default(null),
+});
+export type CriarTokenEntrada = z.infer<typeof criarTokenSchema>;
+
+export const moverTokenSchema = z.object({
+  tokenId: z.string().uuid(),
+  x: z.number().int().min(0).max(999),
+  y: z.number().int().min(0).max(999),
+});
+export type MoverTokenEntrada = z.infer<typeof moverTokenSchema>;
+
+/**
+ * Edição das propriedades do token (RV-040): PATCH parcial derivado de
+ * `criarTokenSchema`, para que nome e cor tenham exatamente as mesmas regras da
+ * criação. Posição fica de fora de propósito — mover tem rota própria, com
+ * autorização diferente (jogador move o token do seu personagem; só o mestre
+ * renomeia e recolore).
+ */
+export const atualizarTokenSchema = criarTokenSchema.pick({ nome: true, cor: true }).partial();
+export type AtualizarTokenEntrada = z.infer<typeof atualizarTokenSchema>;
+
+/**
+ * Arte do token (RV-041).
+ *
+ * Tipo, tamanho máximo e nome do campo multipart são **os mesmos** da imagem de
+ * fundo (RV-032): as constantes são reaproveitadas, não recopiadas, para que
+ * apertar ou afrouxar o limite valha para os dois uploads de uma vez. Só a
+ * mensagem de tamanho é própria — quem sobe a arte de um monstro não deve ler
+ * "imagem do mapa".
+ */
+export const TIPOS_IMAGEM_TOKEN = TIPOS_IMAGEM_FUNDO;
+export type TipoImagemToken = TipoImagemFundo;
+export const TAMANHO_MAXIMO_IMAGEM_TOKEN_BYTES = TAMANHO_MAXIMO_IMAGEM_FUNDO_BYTES;
+export const CAMPO_IMAGEM_TOKEN = CAMPO_IMAGEM_FUNDO;
+export const MENSAGEM_TIPO_IMAGEM_TOKEN = MENSAGEM_TIPO_IMAGEM_FUNDO;
+export const MENSAGEM_TAMANHO_IMAGEM_TOKEN = 'A arte do token deve ter no máximo 8 MB.';

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+*.tsbuildinfo
+
+# SQL de migrations é imutável depois de aplicado (guardrail 07-supabase.md):
+# formatar reescreveria arquivos que não podem mudar.
+apps/api/supabase/migrations/
+
+# Markdown fica fora: os guardrails (.claude/rules), os cards do backlog e o
+# CLAUDE.md são documentos lidos por pessoas e por agentes. Reflowar tabelas e
+# quebras de linha geraria diff enorme sem ganho nenhum de qualidade de código.
+*.md
