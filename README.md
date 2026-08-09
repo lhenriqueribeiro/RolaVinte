@@ -17,9 +17,19 @@ Plataforma de RPG de mesa online em PT-BR — um clone evoluído do Roll20: mesa
    npm install
    ```
 
-2. **Configure o Supabase**: crie um projeto em [supabase.com](https://supabase.com), abra o SQL Editor e execute, em ordem, os arquivos de `apps/api/supabase/migrations/`.
+2. **Prepare o Supabase**: crie um projeto em [supabase.com](https://supabase.com), gere o SQL de instalação e cole no SQL Editor:
 
-3. **Configure o ambiente**: copie `.env.example` para `apps/api/.env` e preencha `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `JWT_SEGREDO`. `RESEND_API_KEY` é opcional — sem ela, os emails de convite aparecem no console da API.
+   ```bash
+   npm run supabase:sql -w @rolavinte/api
+   ```
+
+   A saída são as migrations em ordem mais o provisionamento dos buckets de Storage (`mapas` e `tokens`). Ela é derivada dos arquivos reais, então não desatualiza. **Migrations são imutáveis depois de aplicadas** — rode isto só em projeto novo; para um projeto que já tem parte aplicada, execute apenas os arquivos que faltam.
+
+3. **Configure o ambiente**: copie `.env.example` para `apps/api/.env` e preencha `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e `JWT_SEGREDO`.
+
+   > ⚠️ **Tem que ser a chave secreta** (`sb_secret_…`, ou `service_role` num projeto legado), em *Project Settings → API Keys*. A chave **publicável** (`sb_publishable_…`, antiga `anon`) não serve: o RLS está em deny-all para `anon`/`authenticated`, então a API subiria com todas as consultas vazias. A partida recusa a chave errada com essa explicação, em vez de deixar você descobrir depois.
+
+   `RESEND_API_KEY` é opcional — sem ela, os emails de convite aparecem no console da API.
 
 4. **Suba tudo**:
 

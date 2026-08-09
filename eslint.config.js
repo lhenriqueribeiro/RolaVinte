@@ -306,6 +306,16 @@ export default tseslint.config(
     },
   },
 
+  // ── Scripts utilitários de workspace ────────────────────────────────
+  // Rodam no Node, fora de src/, e não participam do typecheck do projeto.
+  {
+    name: 'rolavinte/scripts',
+    files: ['apps/*/scripts/**/*.{js,mjs}', 'scripts/**/*.{js,mjs}'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
+
   // Prettier por último: desliga regras de estilo que conflitam com o formatador.
   prettier,
 );

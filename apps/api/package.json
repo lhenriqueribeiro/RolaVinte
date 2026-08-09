@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
     "start": "tsx --env-file-if-exists=.env src/main.ts",
+    "supabase:sql": "node scripts/sql-de-instalacao.mjs",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc --noEmit"

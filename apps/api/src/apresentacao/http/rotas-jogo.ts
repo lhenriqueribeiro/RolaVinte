@@ -159,29 +159,25 @@ export function registrarRotasJogo(app: FastifyInstance, deps: Deps): void {
     return responderResultado(reply, await deps.ativarCena.executar(request.usuarioId, cenaId));
   });
 
-  app.post(
-    '/cenas/:cenaId/fundo',
-    { preHandler: deps.autenticar },
-    async (request, reply) => {
-      const { cenaId } = request.params as { cenaId: string };
-      const arquivo = await request.file();
-      if (!arquivo) {
-        return reply
-          .status(400)
-          .send({ erro: `Envie a imagem do mapa no campo "${CAMPO_IMAGEM_FUNDO}".` });
-      }
-      // Estoura o limite de tamanho → o plugin lança 413, traduzido em PT-BR
-      // pelo handler global de erros. Tipo e tamanho são decididos no caso de uso.
-      const conteudo = await arquivo.toBuffer();
-      return responderResultado(
-        reply,
-        await deps.definirImagemFundoCena.executar(request.usuarioId, cenaId, {
-          tipo: arquivo.mimetype,
-          conteudo,
-        }),
-      );
-    },
-  );
+  app.post('/cenas/:cenaId/fundo', { preHandler: deps.autenticar }, async (request, reply) => {
+    const { cenaId } = request.params as { cenaId: string };
+    const arquivo = await request.file();
+    if (!arquivo) {
+      return reply
+        .status(400)
+        .send({ erro: `Envie a imagem do mapa no campo "${CAMPO_IMAGEM_FUNDO}".` });
+    }
+    // Estoura o limite de tamanho → o plugin lança 413, traduzido em PT-BR
+    // pelo handler global de erros. Tipo e tamanho são decididos no caso de uso.
+    const conteudo = await arquivo.toBuffer();
+    return responderResultado(
+      reply,
+      await deps.definirImagemFundoCena.executar(request.usuarioId, cenaId, {
+        tipo: arquivo.mimetype,
+        conteudo,
+      }),
+    );
+  });
 
   app.post('/cenas/:cenaId/tokens', { preHandler: deps.autenticar }, async (request, reply) => {
     const { cenaId } = request.params as { cenaId: string };
@@ -213,27 +209,23 @@ export function registrarRotasJogo(app: FastifyInstance, deps: Deps): void {
     );
   });
 
-  app.post(
-    '/tokens/:tokenId/imagem',
-    { preHandler: deps.autenticar },
-    async (request, reply) => {
-      const { tokenId } = request.params as { tokenId: string };
-      const arquivo = await request.file();
-      if (!arquivo) {
-        return reply
-          .status(400)
-          .send({ erro: `Envie a arte do token no campo "${CAMPO_IMAGEM_TOKEN}".` });
-      }
-      const conteudo = await arquivo.toBuffer();
-      return responderResultado(
-        reply,
-        await deps.definirImagemToken.executar(request.usuarioId, tokenId, {
-          tipo: arquivo.mimetype,
-          conteudo,
-        }),
-      );
-    },
-  );
+  app.post('/tokens/:tokenId/imagem', { preHandler: deps.autenticar }, async (request, reply) => {
+    const { tokenId } = request.params as { tokenId: string };
+    const arquivo = await request.file();
+    if (!arquivo) {
+      return reply
+        .status(400)
+        .send({ erro: `Envie a arte do token no campo "${CAMPO_IMAGEM_TOKEN}".` });
+    }
+    const conteudo = await arquivo.toBuffer();
+    return responderResultado(
+      reply,
+      await deps.definirImagemToken.executar(request.usuarioId, tokenId, {
+        tipo: arquivo.mimetype,
+        conteudo,
+      }),
+    );
+  });
 
   app.delete('/tokens/:tokenId', { preHandler: deps.autenticar }, async (request, reply) => {
     const { tokenId } = request.params as { tokenId: string };
