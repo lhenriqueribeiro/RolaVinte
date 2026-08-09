@@ -7,6 +7,7 @@
     "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
     "start": "tsx --env-file-if-exists=.env src/main.ts",
     "supabase:sql": "node scripts/sql-de-instalacao.mjs",
+    "supabase:verificar": "node --env-file-if-exists=.env scripts/verificar-supabase.mjs",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc --noEmit"
