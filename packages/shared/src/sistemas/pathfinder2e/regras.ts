@@ -248,6 +248,72 @@ export function somarModificadores(modificadores: readonly Modificador[]): numbe
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Penalidade de ataques múltiplos (MAP)
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * As ordens de ataque que a regra distingue **dentro de um turno**.
+ *
+ * São três porque a regra tem três degraus, e o terceiro é "terceiro **ou
+ * seguintes**": o quarto ataque do turno sofre a mesma penalidade do terceiro.
+ * Quem oferece a escolha ao jogador (RV-156) rotula o último como "3º ataque ou
+ * mais", e é por isso que não existe entrada 4 nesta lista — inventá-la sugeriria
+ * que o quarto ataque tem um número próprio, e ele não tem.
+ */
+export const ORDENS_DE_ATAQUE = [1, 2, 3] as const;
+
+export type OrdemDeAtaque = (typeof ORDENS_DE_ATAQUE)[number];
+
+/**
+ * A penalidade de cada ordem, por tipo de arma — **tabela, não sequência de
+ * `if`**.
+ *
+ * A disciplina é a mesma de `PROFICIENCIA_POR_GRAU`: escrita como tabela, a regra
+ * fica visível para quem a lê e uma variante nova (uma arma que reduza a
+ * penalidade de outro jeito) entra como coluna em vez de um `else if` no meio de
+ * uma conta. E há duas armadilhas aqui que um `if` esconde:
+ *
+ * - o segundo ataque **não** tem a mesma penalidade do terceiro (−5 contra −10);
+ * - a arma **ágil** troca os dois valores (−4 e −8), e não "reduz em 1" — a
+ *   diferença é 1 no segundo e 2 no terceiro, então derivar um do outro por
+ *   subtração casaria por acidente num degrau e erraria no outro.
+ */
+const MAP_POR_ORDEM: Record<OrdemDeAtaque, { readonly comum: number; readonly agil: number }> = {
+  1: { comum: 0, agil: 0 },
+  2: { comum: -5, agil: -4 },
+  3: { comum: -10, agil: -8 },
+};
+
+/**
+ * A penalidade de ataques múltiplos daquele ataque: `0` no primeiro, −5/−10 nos
+ * seguintes, e −4/−8 quando a arma tem o traço **ágil**.
+ *
+ * Dois pontos que a regra determina e que o código precisa preservar:
+ *
+ * 1. **A penalidade é da arma daquele ataque**, não da anterior. Quem golpeia com
+ *    a espada e depois com a adaga ágil sofre −4 no segundo golpe, e não −5 — e é
+ *    por isso que `agil` é parâmetro desta chamada em vez de estado de um turno.
+ * 2. **A penalidade zera no fim do turno.** Não há contador aqui, e não há em
+ *    lugar nenhum: sem o agregado de Combate (RV-060/RV-062) o servidor não sabe
+ *    de quem é o turno nem quando zerar, e um contador global seria estado
+ *    compartilhado errado por construção. A ordem é **escolha explícita do
+ *    jogador** (ver o DoD do RV-156).
+ *
+ * `ordem` chega como `number` — e não como `OrdemDeAtaque` — de propósito: o
+ * critério de aceite do card exige `null` para ordem fora de 1..3, e com o tipo
+ * estreito esse caminho só seria alcançável por `as`, o que é uma guarda que não
+ * dá para exercitar (F1 da taxonomia). Fora da faixa devolve `null`, como
+ * `cdPorNivel`: extrapolar seria inventar regra.
+ */
+export function penalidadeAtaquesMultiplos(ordem: number, agil: boolean): number | null {
+  const linha = ORDENS_DE_ATAQUE.includes(ordem as OrdemDeAtaque)
+    ? MAP_POR_ORDEM[ordem as OrdemDeAtaque]
+    : undefined;
+  if (linha === undefined) return null;
+  return agil ? linha.agil : linha.comum;
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Leitura do d20 natural
 // ─────────────────────────────────────────────────────────────────────
 

@@ -37,32 +37,41 @@ import { bonusProficiencia, GRAUS_TREINAMENTO, type GrauTreinamento } from './re
  * casos do card e o caso que a armadilha nº 1 produz.
  */
 
-const ATRIBUTOS_NEUTROS: Atributos = {
+/**
+ * Atributos de uma ficha de PF2e: o número gravado **é** o modificador (RV-098).
+ *
+ * Desde o RV-098 eles moram na coluna comum, como em todo sistema — o que é deste
+ * sistema é a escala (−5..+8, sem a fórmula `(valor − 10) / 2`). Antes disso a
+ * ficha guardava uma segunda cópia dentro de `dados`, e era essa que valia.
+ */
+const MODIFICADORES_ZERADOS: Atributos = {
+  forca: 0,
+  destreza: 0,
+  constituicao: 0,
+  inteligencia: 0,
+  sabedoria: 0,
+  carisma: 0,
+};
+
+/** Atributos de um personagem de D&D 5e — escala 1..30, para o teste de regressão. */
+const ATRIBUTOS_DE_DND: Atributos = {
   forca: 10,
-  destreza: 10,
+  destreza: 16,
   constituicao: 10,
   inteligencia: 10,
   sabedoria: 10,
   carisma: 10,
 };
 
-/** Colunas comuns cheias: no d20 clássico dariam +5, e aqui não valem nada. */
-const ATRIBUTOS_ALTOS: Atributos = {
-  forca: 20,
-  destreza: 20,
-  constituicao: 20,
-  inteligencia: 20,
-  sabedoria: 20,
-  carisma: 20,
-};
-
-function fichaPf2e(nivel: number, dados: DadosFicha = {}): PersonagemCalculavel {
+function fichaPf2e(
+  nivel: number,
+  modificadores: Partial<Atributos> = {},
+  dados: DadosFicha = {},
+): PersonagemCalculavel {
   return {
     sistema: 'pathfinder2e',
     nivel,
-    // De propósito: as colunas comuns altas provariam qualquer queda acidental
-    // para `modificadorAtributo()`.
-    atributos: ATRIBUTOS_ALTOS,
+    atributos: { ...MODIFICADORES_ZERADOS, ...modificadores },
     dados: { ...dadosIniciaisDaFicha('pathfinder2e'), ...dados },
   };
 }
@@ -72,9 +81,9 @@ function comPericia(
   nivel: number,
   pericia: string,
   grau: GrauTreinamento,
-  modificadores: Partial<Record<string, number>> = {},
+  modificadores: Partial<Atributos> = {},
 ): PersonagemCalculavel {
-  const base = fichaPf2e(nivel, modificadores as DadosFicha);
+  const base = fichaPf2e(nivel, modificadores);
   return { ...base, dados: SISTEMA_PATHFINDER2E.definirGrauDePericia(base.dados, pericia, grau) };
 }
 
@@ -154,10 +163,7 @@ describe('bônus de perícia — as 16 × {destreinado, treinado, lendário} nos
     (chave, _atr, nivel, grau) => {
       const pericia = PERICIAS_PF2E.find((p) => p.chave === chave);
       if (!pericia) throw new Error(`perícia sumiu da tabela: ${chave}`);
-      const ficha = comPericia(nivel, chave, grau, {
-        [`modificador${pericia.atributo.charAt(0).toUpperCase()}${pericia.atributo.slice(1)}`]:
-          MODIFICADOR,
-      });
+      const ficha = comPericia(nivel, chave, grau, { [pericia.atributo]: MODIFICADOR });
 
       expect(grauDePericia(ficha, chave)).toBe(grau);
       expect(bonusPericia(ficha, chave)).toBe(MODIFICADOR + bonusProficiencia(nivel, grau));
@@ -168,13 +174,13 @@ describe('bônus de perícia — as 16 × {destreinado, treinado, lendário} nos
     // A armadilha nº 1, escrita com número: Destreza +4, nível 20, destreinado
     // em Furtividade é +4. Se algum dia isto virar +24, todo destreinado do
     // sistema inflou em silêncio.
-    const ficha = comPericia(20, 'furtividade', 'destreinado', { modificadorDestreza: 4 });
+    const ficha = comPericia(20, 'furtividade', 'destreinado', { destreza: 4 });
     expect(bonusPericia(ficha, 'furtividade')).toBe(4);
     expect(expressaoDePericia(ficha, 'furtividade')).toBe('1d20+4');
   });
 
   it('o cenário do card: nível 5, treinado em Furtividade, Destreza +4 → +11', () => {
-    const ficha = comPericia(5, 'furtividade', 'treinado', { modificadorDestreza: 4 });
+    const ficha = comPericia(5, 'furtividade', 'treinado', { destreza: 4 });
     expect(bonusPericia(ficha, 'furtividade')).toBe(11);
     expect(expressaoDePericia(ficha, 'furtividade')).toBe('1d20+11');
     expect(motivoDeRolagemDePericia('pathfinder2e', 'furtividade', 'Seelah')).toBe(
@@ -183,34 +189,41 @@ describe('bônus de perícia — as 16 × {destreinado, treinado, lendário} nos
   });
 
   it('o outro cenário do card: destreinado em Arcanismo com Inteligência +1 → +1', () => {
-    const ficha = comPericia(5, 'arcanismo', 'destreinado', { modificadorInteligencia: 1 });
+    const ficha = comPericia(5, 'arcanismo', 'destreinado', { inteligencia: 1 });
     expect(bonusPericia(ficha, 'arcanismo')).toBe(1);
     expect(expressaoDePericia(ficha, 'arcanismo')).toBe('1d20+1');
   });
 
   it('modificador negativo sai com sinal, sem virar "+-1"', () => {
-    const ficha = comPericia(3, 'atletismo', 'treinado', { modificadorForca: -1 });
+    const ficha = comPericia(3, 'atletismo', 'treinado', { forca: -1 });
     expect(bonusPericia(ficha, 'atletismo')).toBe(4);
-    const desastrado = comPericia(1, 'atletismo', 'destreinado', { modificadorForca: -2 });
+    const desastrado = comPericia(1, 'atletismo', 'destreinado', { forca: -2 });
     expect(expressaoDePericia(desastrado, 'atletismo')).toBe('1d20-2');
   });
 
-  it('nenhum bônus muda quando as colunas comuns 1..30 mudam', () => {
-    // Rede contra a queda para `modificadorAtributo()`: a ficha de PF2e ignora
-    // `atributos`, e um `(valor - 10) / 2` escondido apareceria aqui.
-    const alta = comPericia(5, 'furtividade', 'treinado');
-    const baixa: PersonagemCalculavel = { ...alta, atributos: ATRIBUTOS_NEUTROS };
+  it('todo bônus acompanha o atributo gravado, sem passar pela fórmula do d20', () => {
+    // Rede contra as duas metades do defeito do RV-098. Com +4 em tudo:
+    // - um bônus que ignore a coluna (o comportamento anterior) daria proficiência
+    //   pura, sem o +4;
+    // - um bônus que aplique `(4 - 10) / 2` daria proficiência −3.
+    // Os dois erros aparecem aqui, perícia por perícia, com o nome na mensagem.
+    const ficha = comPericia(5, 'furtividade', 'destreinado', {
+      forca: 4,
+      destreza: 4,
+      constituicao: 4,
+      inteligencia: 4,
+      sabedoria: 4,
+      carisma: 4,
+    });
     for (const pericia of PERICIAS_PF2E) {
-      expect(bonusPericia(alta, pericia.chave), pericia.chave).toBe(
-        bonusPericia(baixa, pericia.chave),
-      );
+      expect(bonusPericia(ficha, pericia.chave), pericia.chave).toBe(4);
     }
   });
 });
 
 describe('Saber é uma família, não uma chave', () => {
   function fichaComSaberes(): PersonagemCalculavel {
-    const base = fichaPf2e(5, { modificadorInteligencia: 2 });
+    const base = fichaPf2e(5, { inteligencia: 2 });
     let dados = acrescentarSaber(base.dados, 'Guerra');
     dados = acrescentarSaber(dados, 'Náutico');
     dados = definirGrauDeSaber(dados, chaveDeSaber('Guerra'), 'treinado');
@@ -392,7 +405,7 @@ describe('ações que exigem treinamento', () => {
     const thorin: PersonagemCalculavel = {
       sistema: 'dnd5e',
       nivel: 3,
-      atributos: ATRIBUTOS_NEUTROS,
+      atributos: ATRIBUTOS_DE_DND,
       dados: dadosIniciaisDaFicha('dnd5e'),
     };
     expect(acoesDePericia(thorin, 'furtividade')).toEqual([]);

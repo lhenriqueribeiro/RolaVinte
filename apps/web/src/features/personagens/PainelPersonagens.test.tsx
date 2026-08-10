@@ -104,6 +104,26 @@ describe('gestão de fichas na lista (RV-093)', () => {
     });
     expect(await screen.findByText('Cópia criada: Thorin (cópia).')).toBeInTheDocument();
   });
+
+  it('criar não manda atributo nenhum: o padrão é da escala do sistema (RV-098)', async () => {
+    // O formulário mandava seis 10 fixos, o padrão do d20 clássico. Numa mesa de
+    // PF2e, cuja escala vai de -5 a +8, isso significa "+10 em tudo" e devolve
+    // 400 — a interface não pode escolher o padrão de um sistema que ela não
+    // conhece. Quem decide é a definição, na api.
+    const usuario = userEvent.setup();
+    await montar([]);
+
+    await usuario.click(screen.getByRole('button', { name: '+ Novo personagem' }));
+    await usuario.type(screen.getByLabelText('Nome'), 'Seelah');
+    await usuario.click(screen.getByRole('button', { name: 'Criar' }));
+
+    await waitFor(() => {
+      expect(requisitarFalso).toHaveBeenCalledWith(`/mesas/${MESA_ID}/personagens`, {
+        metodo: 'POST',
+        corpo: { nome: 'Seelah', classe: '', nivel: 1, pvMax: 10, anotacoes: '' },
+      });
+    });
+  });
 });
 
 describe('exclusão pede confirmação em diálogo acessível (RV-093)', () => {

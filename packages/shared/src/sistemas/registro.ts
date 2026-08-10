@@ -1,4 +1,10 @@
 import { SISTEMAS_RPG, type SistemaRpg } from '../schemas/mesas';
+import {
+  ATRIBUTOS,
+  ROTULOS_ATRIBUTO,
+  type Atributos,
+  type NomeAtributo,
+} from '../schemas/personagens';
 import { SISTEMA_DND5E } from './dnd5e';
 import { definicaoGenericaPara, SISTEMA_GENERICO } from './generico';
 import { SISTEMA_PATHFINDER2E } from './pathfinder2e/definicao';
@@ -41,6 +47,97 @@ export const DEFINICOES_SISTEMA: readonly DefinicaoSistema[] = Object.freeze(
 /** A ficha de sistema de um personagem recém-criado, com todos os padrões. */
 export function dadosIniciaisDaFicha(sistema: SistemaRpg): DadosFicha {
   return definicaoDoSistema(sistema).schemaFicha.parse({});
+}
+
+/**
+ * Os seis atributos de um personagem recém-criado, na escala do sistema
+ * (RV-098): 10 no d20 clássico, +0 no PF2e.
+ *
+ * Existe porque o padrão **não** cabia no `criarPersonagemSchema`: um `10` fixo
+ * ali é o padrão de um sistema só, e numa mesa de PF2e significaria "+10 em
+ * tudo" — acima do teto da própria escala, recusado na criação de toda ficha.
+ */
+export function atributosIniciais(sistema: SistemaRpg): Atributos {
+  const { padrao } = definicaoDoSistema(sistema).atributos;
+  return {
+    forca: padrao,
+    destreza: padrao,
+    constituicao: padrao,
+    inteligencia: padrao,
+    sabedoria: padrao,
+    carisma: padrao,
+  };
+}
+
+export interface AtributosValidos {
+  ok: true;
+  atributos: Atributos;
+}
+
+export interface AtributosInvalidos {
+  ok: false;
+  /** Mensagem em PT-BR, pronta para virar o corpo de um 400. */
+  erro: string;
+}
+
+function problemaDoAtributo(
+  definicao: DefinicaoSistema,
+  atributo: NomeAtributo,
+  valor: unknown,
+): string | null {
+  const rotulo = ROTULOS_ATRIBUTO[atributo];
+  const escala = definicao.atributos;
+  if (typeof valor !== 'number' || !Number.isFinite(valor)) {
+    return `${rotulo}: informe um número.`;
+  }
+  if (!Number.isInteger(valor)) return `${rotulo}: informe um número inteiro.`;
+  if (valor < escala.minimo || valor > escala.maximo) {
+    // A faixa não é reescrita aqui: sai de `escala.descricao`, o único lugar onde
+    // ela está redigida para o usuário.
+    return `${rotulo} ${valor} está fora da escala do sistema (${escala.descricao}).`;
+  }
+  return null;
+}
+
+/**
+ * Valida os seis atributos contra a **escala do sistema da mesa** (RV-098).
+ *
+ * É o irmão de `validarDadosDaFicha`, e existe pelo mesmo motivo: a faixa depende
+ * do sistema, e o schema HTTP não sabe de que mesa a requisição fala. O
+ * `atributosSchema` garante a forma (seis inteiros); a escala é conferida aqui,
+ * com o sistema em mãos, e a recusa vira 400 em PT-BR dizendo o atributo, o valor
+ * e a escala — "Destreza 18 está fora da escala do sistema (modificador direto,
+ * de -5 a +8)".
+ *
+ * Devolve objeto em vez de lançar porque falha de validação é resultado esperado
+ * (`.claude/rules/01-arquitetura.md`), e o `packages/shared` não conhece o
+ * `Result` do domínio da api.
+ */
+export function validarAtributosDoSistema(
+  sistema: SistemaRpg,
+  atributos: Atributos,
+): AtributosValidos | AtributosInvalidos {
+  const definicao = definicaoDoSistema(sistema);
+  const problemas = ATRIBUTOS.map((atributo) =>
+    problemaDoAtributo(definicao, atributo, atributos[atributo]),
+  ).filter((problema): problema is string => problema !== null);
+
+  if (problemas.length > 0) {
+    return { ok: false, erro: `Atributos de ${definicao.nome}: ${problemas.join(' ')}` };
+  }
+  // Só as seis chaves conhecidas atravessam: o que vier de fora do contrato não
+  // entra na coluna de carona.
+  return {
+    ok: true,
+    atributos: {
+      forca: atributos.forca,
+      destreza: atributos.destreza,
+      constituicao: atributos.constituicao,
+      inteligencia: atributos.inteligencia,
+      sabedoria: atributos.sabedoria,
+      carisma: atributos.carisma,
+    },
+  };
 }
 
 export interface FichaValida {

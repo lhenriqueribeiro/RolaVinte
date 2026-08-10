@@ -4,6 +4,152 @@ A ficha atual tem 6 atributos, PV e anotações — genérica por design. Este �
 
 ---
 
+### RV-098 — Atributo não pode ter duas verdades na mesma ficha
+
+**Épico:** E09 · **Depende de:** RV-152 · **Tamanho:** M · **Onda:** 1 · **Status:** ✅ Concluído (v0.8.0)
+
+> **Decisão tomada na entrega: a saída 2 — a definição declara a escala.**
+> O atributo continua na coluna comum `personagens.atributos`, que passa a ser a **única** casa dele em
+> todo sistema, e o que vira dado da definição é a **escala**: `DefinicaoSistema.atributos:
+> EscalaDeAtributo` (`descricao`, `minimo`, `maximo`, `padrao`, `modificador(valor)`). D&D 5e, Tormenta
+> 20, Ordem Paranormal e genérico declaram `ESCALA_D20_CLASSICA` (1..30, bônus por `(valor − 10) / 2`);
+> PF2e declara `ESCALA_ATRIBUTO_PF2E` (−5..+8, `modificador` é a identidade). O `dados` da ficha de PF2e
+> **não guarda mais modificador nenhum**.
+>
+> **Por que não a saída 1 (atributo vira do sistema, sai da coluna comum).** É a mais correta no papel e a
+> mais caroa na prática: exigiria mover o atributo de **todo personagem já gravado** para `dados`,
+> reescrever `PersonagemDTO`, `FichaCalculavel`, o agregado, o mapper e as fixtures de meia dúzia de
+> suítes — tudo isso onde a armadilha nº 1 do card manda ter mais cuidado ("D&D 5e não pode regredir") e
+> sem ganho nenhum para o jogador. Atributo é um conceito que **todo** sistema tem; o que varia é a
+> escala, e escala cabe num dado.
+>
+> **Por que não a saída 3 (a definição declara quais campos comuns usa, e PF2e ignora `atributos`).**
+> Ela conserta a metade errada: manteria o campo exigido-e-ignorado, só com uma justificativa por escrito.
+> E contradiz o primeiro cenário de aceite deste card — "informei os atributos, a ficha exibe exatamente o
+> que informei". Ignorar não é uma verdade só, é continuar com duas e escolher a outra.
+>
+> **`usaAtributosComuns` morreu, e isso corrige um cenário do [RV-152](15-pathfinder2e.md) (F11).** O
+> booleano era a pergunta errada — "as colunas comuns valem neste sistema?" —, e enquanto ele existia a
+> ficha de PF2e **escondia** os seis atributos, porque o número certo estava na outra casa. Com a escala
+> declarada, o bloco comum desenha a faixa do sistema, o botão de dado rola
+> `definicao.atributos.modificador(...)` (o +4 gravado, não o `+0` que o RV-152 temia) e o cenário "o botão
+> genérico de atributo não aparece" daquele card **deixou de valer** — a razão de ele existir era o número
+> errado, não o botão.
+>
+> **Escala é cobrada no agregado, não no schema HTTP.** `atributosSchema` passou a validar só a forma (seis
+> inteiros) e `criarPersonagemSchema.atributos` ficou **opcional, sem padrão** — um `10` fixo ali é o
+> padrão de um sistema só, e numa mesa de PF2e significaria "+10 em tudo", 400 em toda criação. Quem valida
+> é `validarAtributosDoSistema(sistema, atributos)` (irmão de `validarDadosDaFicha`), chamado por
+> `Personagem.criar` e `Personagem.atualizar`; omitido, o agregado usa `atributosIniciais(sistema)`. A
+> mensagem sai em PT-BR com atributo, valor e faixa: *"Atributos de Pathfinder 2e: Força 18 está fora da
+> escala do sistema (modificador direto, de -5 a +8)."*
+>
+> **Migration `0009_consolidar_atributos_pathfinder2e.sql`**, só para mesas de PF2e (D&D não é tocado —
+> nem uma linha). Consolida atributo por atributo: modificador gravado em `dados` diferente de zero manda;
+> senão converte o valor da coluna comum pela fórmula do d20, limitado à escala (o Força 18 do defeito vira
+> +4, que é o que aquele 18 sempre significou); senão 0. Nenhuma das duas metades é descartada em silêncio.
+> O `where` também exige uma das seis chaves antigas, para que uma reaplicação não converta de novo o que
+> já foi consolidado. ~~**Medido em 2026-08-10: `0001`–`0008` aplicadas no Supabase real, buckets
+> provisionados, e a `0009` é a única pendente**~~ — **a `0009` foi aplicada na verificação independente
+> desta sprint** (`npm run supabase:migrar -w @rolavinte/api`), e o efeito foi conferido linha a linha no
+> banco em uso: o único personagem de PF2e existente (`Valeros`) tinha `atributos` = 18/14/16/10/12/10 **e**
+> os seis `modificador*` = 0 em `dados` — as duas verdades convivendo, exatamente como o card descreve — e
+> passou a ter `atributos` = +4/+2/+3/+0/+1/+0 com as seis chaves removidas de `dados`. O personagem de D&D
+> 5e (`Yume`) ficou **idêntico**, como o `where m.sistema = 'pathfinder2e'` promete. A falha ruidosa que este
+> bloco descrevia (ficha antiga recusando salvamento com 400 de escala) **não existe mais**, e nunca chegou
+> a nenhum usuário.
+>
+> **O cenário "uma verdade só" foi verificado no banco, não no fake.** Criando um personagem de PF2e com
+> `{forca:4, destreza:2, …}` pela API em execução: a criação devolveu os mesmos números, a listagem releu os
+> mesmos números e a linha do Postgres tem **zero** chaves `modificador*` em `dados` (contadas por
+> `jsonb_object_keys`). Em D&D 5e, 18/14/16/10/12/8 voltaram idênticos na escala 1..30, com `dados` guardando
+> só o que é do sistema. O teste que o card pedia — criar informando e **reler pela listagem** — existe e é
+> de verdade: [rotas-personagens-atributos.test.ts](../../apps/api/src/apresentacao/http/rotas-personagens-atributos.test.ts),
+> 9 casos de contrato nos dois sistemas.
+>
+> **Uma consequência de fronteira ficou aberta e é a única coisa deste card que merece atenção futura:** com
+> a faixa fora do `atributosSchema`, quem valida é o agregado, e hoje os três caminhos de escrita
+> (`POST /mesas/:id/personagens`, `PATCH /personagens/:id`, `duplicar`) passam por ele. Um caso de uso novo
+> que grave `atributos` sem atravessar `Personagem.criar`/`atualizar` não teria faixa nenhuma no caminho e
+> nada acusaria — a defesa mais forte seria um `check` em `personagens.atributos`, que não é escrevível sem
+> saber o sistema da linha (o sistema é da `Mesa`). Não virou card: não há caminho de escrita novo previsto,
+> e um card para um risco sem consequência descritível hoje seria backlog inflado.
+>
+> **A varredura dos outros campos comuns (DoD) virou teste, não parágrafo.** `nome`, `classe`, `nivel`,
+> `pvAtual`, `pvMax` e `anotacoes` **não** tinham segunda casa: nenhum `schemaFicha` os declara, e os dois
+> que participam de conta — `nivel` (proficiência) e `pvMax`/`pvAtual` (barra de vida sobre o token) — têm
+> significado e escala idênticos em todo sistema, ao contrário do atributo. Diferente do atributo, também,
+> é que ninguém tentou duplicá-los: o RV-152 recusou explicitamente repetir `classe`/`nivel` em `dados`, e
+> o RV-155 já traz escrito que não haverá segundo campo de PV. Para a resposta não depender de memória,
+> `registro.test.ts` agora reprova **qualquer** sistema que declare em `dados` (ou numa seção) um campo com
+> o nome de coluna comum — as seis colunas mais as formas derivadas do atributo.
+
+**História**
+> Como **jogador de Pathfinder**, quero **que os atributos que eu preencho sejam os que a ficha usa**, para **não digitar Força 18 e ver a perícia calcular como se fosse 0**.
+
+**Contexto técnico**
+- Encontrado por verificação manual no navegador contra o banco real, em 2026-08-10, **com os 1.167 testes verdes**. Cada metade é testada isoladamente, e nenhuma exercitava as duas juntas.
+- Estado de um personagem de Pathfinder recém-criado pela API, lido direto do Postgres:
+
+  ```
+  coluna atributos : {"forca":18,"destreza":14,"constituicao":16,...}   ← ignorada pela ficha
+  dados            : {"modificadorForca":0,"modificadorDestreza":0,...} ← o que a ficha lê
+  ```
+
+- A causa é uma premissa do [RV-091](#rv-091--strategy-de-sistema-de-ficha) que não se sustentou: as colunas comuns seriam "iguais em todo sistema". **Atributo é justamente o que não é.** D&D 5e usa valor de 1 a 30 e deriva o modificador; Pathfinder 2e (pós-remaster) usa o **modificador direto**, de −5 a +8. São escalas diferentes para o mesmo conceito.
+- Consequência hoje: `criarPersonagemSchema` **exige** `atributos`, o banco persiste, a ficha de PF2e não mostra e nada usa. Quem preenche na criação vê o valor desaparecer sem aviso.
+- **Não é bug de um sistema, é da fronteira.** Qualquer sistema futuro com escala própria de atributo cai no mesmo buraco.
+
+**Escopo**
+- `packages/shared/src/sistemas/tipos.ts` — decidir de quem é o atributo: da definição do sistema ou da coluna comum
+- `packages/shared/src/schemas/personagens.ts` — `atributos` deixa de ser obrigatório na criação, ou a definição declara como interpretá-lo
+- `packages/shared/src/sistemas/pathfinder2e/definicao.ts` e `dnd5e.ts`
+- `apps/api/src/dominio/personagens/personagem.ts` e a migration de consolidação, se houver
+- `apps/web/src/features/personagens/FichaPersonagem.tsx`
+
+**Decisão a tomar, com justificativa escrita** *(tomada: saída 2 — ver o bloco no início do card)*
+
+Três saídas, e o card **não** determina qual — quem executa escolhe e registra o porquê:
+
+1. **O atributo passa a ser do sistema.** A coluna comum sai da ficha, cada definição declara os seus. Mais correto conceitualmente; exige migration de consolidação e mexe no D&D.
+2. **A definição declara a escala.** A coluna comum fica, e a definição diz se o número é valor ou modificador. Menos migration; mantém uma coluna que alguns sistemas interpretam de um jeito e outros de outro.
+3. **A definição declara quais campos comuns usa.** `atributos` fica opcional e a ficha de PF2e o ignora explicitamente, com o schema de criação deixando de exigi-lo.
+
+O que **não** é aceitável é o estado atual: exigir, guardar e ignorar.
+
+**Critérios de aceite**
+```gherkin
+Cenário: O que eu preencho é o que a ficha usa
+  Dado uma mesa de Pathfinder 2e
+  Quando eu criar um personagem informando os atributos
+  Então a ficha exibe exatamente os valores que eu informei
+  E o bônus de perícia é calculado a partir deles
+
+Cenário: Uma verdade só
+  Quando eu ler a linha do personagem no banco
+  Então o atributo aparece em um único lugar, não em dois
+
+Cenário: D&D 5e não regride
+  Dado uma mesa de D&D 5e com personagem existente
+  Então a ficha continua exibindo e calculando como antes, sem perda de dado
+
+Cenário: Borda — escala respeitada
+  Dado uma mesa de Pathfinder 2e
+  Quando eu informar 18 num atributo
+  Então recebo 400, porque a escala do sistema vai de -5 a +8
+```
+
+**Testes obrigatórios**
+- Contrato: criar personagem em mesa de PF2e e **ler de volta** conferindo que o valor informado é o que sai — o teste que faltava, exercitando as duas metades juntas.
+- Domínio: valor fora da escala do sistema é recusado.
+- Migração: personagem de D&D 5e gravado antes deste card continua legível e calculando igual.
+
+**DoD específico**
+- [ ] Nenhum campo é exigido na criação e ignorado na leitura.
+- [ ] A varredura por "duas fontes de verdade do mesmo conceito" foi feita nos outros campos comuns (PV e nível também são iguais em todo sistema?), com o resultado registrado.
+
+---
+
 ### RV-091 — Strategy de sistema de ficha
 
 **Épico:** E09 · **Depende de:** — · **Tamanho:** G · **Onda:** 2 · **Faça este primeiro do épico** · **Status:** ✅ Concluído

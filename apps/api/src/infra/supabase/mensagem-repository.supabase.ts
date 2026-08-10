@@ -5,8 +5,14 @@ import type { Mensagem } from '../../dominio/jogo/mensagem';
 import { garantirSemErro } from './cliente';
 import { mensagemParaRow, rowParaMensagemDTO, type RowMensagem } from './mensagem.mapper';
 
-const COLUNAS =
-  'id, mesa_id, autor_id, autor_nome, tipo, conteudo, rolagem, motivo, destinatario_id, destinatario_nome, criado_em';
+/**
+ * As colunas lidas do histórico. Exportada porque é ela que a guarda offline da
+ * migration confere (`apps/api/src/testes/avaliacao-de-mensagem.test.ts`):
+ * coluna que o mapper espera e que nenhuma migration cria é a F10 clássica —
+ * compila, passa com fakes, e volta `undefined` do banco real.
+ */
+export const COLUNAS =
+  'id, mesa_id, autor_id, autor_nome, tipo, conteudo, rolagem, motivo, avaliacao, destinatario_id, destinatario_nome, criado_em';
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 

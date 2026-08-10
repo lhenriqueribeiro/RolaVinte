@@ -55,20 +55,16 @@ export function PainelPersonagens({ mesaId, souMestre, motivoBloqueio = null }: 
 
   function submeterCriacao(e: FormEvent) {
     e.preventDefault();
+    // `atributos` não vai daqui de propósito (RV-098): o padrão é da escala do
+    // sistema da mesa, e a api o aplica (`atributosIniciais`). O `10` fixo que
+    // estava neste lugar era o padrão do d20 clássico mandado para toda mesa —
+    // numa mesa de PF2e ele significa "+10 em tudo", acima do teto da escala.
     criar.mutate(
       {
         nome,
         classe,
         nivel: 1,
         pvMax,
-        atributos: {
-          forca: 10,
-          destreza: 10,
-          constituicao: 10,
-          inteligencia: 10,
-          sabedoria: 10,
-          carisma: 10,
-        },
         anotacoes: '',
       },
       {

@@ -1,15 +1,18 @@
 import { useState, type FormEvent } from 'react';
 import {
+  ataquesDoPersonagem,
   ATRIBUTOS,
+  defesasDoPersonagem,
   definicaoDoSistema,
   formatarBonus,
-  modificadorAtributo,
   type Atributos,
   type DadosFicha,
+  type DefesaCalculada,
   type FamiliaPericia,
   type NomeAtributo,
   type PersonagemCalculavel,
   type PersonagemDTO,
+  type RolagemDeAtaqueCalculada,
 } from '@rolavinte/shared';
 import { AvisoLicenca } from '@/components/ui/AvisoLicenca';
 import { Botao } from '@/components/ui/Botao';
@@ -19,6 +22,8 @@ import { useAtualizarPersonagem } from './api';
 import { useRolarDados } from '@/features/jogo/api';
 import { definirCampo } from './campos-ficha';
 import { CamposDoSistema } from './CamposDoSistema';
+import { SecaoAtaques } from './SecaoAtaques';
+import { SecaoDefesas } from './SecaoDefesas';
 import { SecaoPericias } from './SecaoPericias';
 import { linhasDePericia, type LinhaDePericia } from './pericias';
 
@@ -79,6 +84,13 @@ export function FichaPersonagem({
   // que é o mesmo contrato dos dados de atributo desde sempre.
   const ficha: PersonagemCalculavel = { sistema: personagem.sistema, nivel, atributos, dados };
   const pericias = linhasDePericia(ficha, personagem.nome);
+  // As defesas seguem a mesma regra dos bônus de perícia: derivadas do que está na
+  // tela, e não do que está gravado. Trocar o grau de Reflexos muda o número antes
+  // de salvar, e é com ele que o dado rola (RV-155).
+  const defesas = defesasDoPersonagem(ficha, personagem.nome);
+  // Os ataques seguem a mesma regra: as três expressões de acerto saem do que está na
+  // tela, então marcar a arma como ágil troca a penalidade antes de salvar (RV-156).
+  const ataques = ataquesDoPersonagem(ficha, personagem.nome);
 
   function salvar(e: FormEvent) {
     e.preventDefault();
@@ -95,14 +107,17 @@ export function FichaPersonagem({
   }
 
   /**
-   * O dado do teste vem da definição (`dadoDeTeste`), não de um `1d20` escrito
-   * aqui: o teste de perícia já saía assim (`expressaoDePericia`), e um `1d20`
-   * fixo no atributo faria a mesma ficha usar dados diferentes nas duas metades
-   * no dia em que entrar um sistema que não é d20 — exatamente a decisão por
-   * sistema fora do registro que o RV-091 veio apagar.
+   * O dado vem da definição (`dadoDeTeste`) e o bônus vem da **escala** dela
+   * (`atributos.modificador`, RV-098) — nem o `1d20` nem a fórmula
+   * `(valor − 10) / 2` estão escritos aqui.
+   *
+   * Sem a escala, esta linha era a fórmula do d20 aplicada a todo sistema: numa
+   * ficha de PF2e ela rolaria `+0` para sempre, e foi por isso que o RV-152
+   * precisou esconder o bloco inteiro. Com a interpretação vindo do registro, o
+   * botão rola o número certo em qualquer sistema e não há nada a esconder.
    */
   function expressaoDeAtributo(atributo: NomeAtributo): string {
-    return `${definicao.dadoDeTeste}${formatarBonus(modificadorAtributo(atributos[atributo]))}`;
+    return `${definicao.dadoDeTeste}${formatarBonus(definicao.atributos.modificador(atributos[atributo]))}`;
   }
 
   function rolarAtributo(atributo: NomeAtributo) {
@@ -114,6 +129,56 @@ export function FichaPersonagem({
 
   function rolarPericia(linha: LinhaDePericia) {
     rolar.mutate({ expressao: linha.expressao, motivo: linha.motivo });
+  }
+
+  /**
+   * A expressão e o motivo vêm prontos do sistema (`defesasDoPersonagem`), como
+   * nas perícias: a defesa que não se rola chega com os dois em `null` e nem
+   * oferece botão, então aqui não há nada a decidir nem a somar.
+   */
+  function rolarDefesa(defesa: DefesaCalculada) {
+    if (defesa.expressao === null || defesa.motivo === null) return;
+    rolar.mutate({ expressao: defesa.expressao, motivo: defesa.motivo });
+  }
+
+  /**
+   * O acerto é uma **checagem**: leva a CA do alvo como `cd`, e é isso que faz o
+   * chat anunciar o grau de sucesso (RV-154). `null` quando a CA não foi informada —
+   * e aí a rolagem sai como qualquer outra, sem grau.
+   */
+  function rolarAcerto(rolagem: RolagemDeAtaqueCalculada, cd: number | null) {
+    if (rolagem.expressao === null || rolagem.motivo === null) return;
+    rolar.mutate({ expressao: rolagem.expressao, motivo: rolagem.motivo, cd });
+  }
+
+  /**
+   * O dano **nunca** leva CD, e é por isso que esta função existe separada de
+   * `rolarAcerto` em vez de receber um parâmetro opcional: dano não é checado contra
+   * nada, e "Falha crítica" num 1d8+4 não significa coisa nenhuma. A separação vem do
+   * contrato (`acertos` e `danos` são listas distintas) e termina aqui.
+   */
+  function rolarDano(rolagem: RolagemDeAtaqueCalculada) {
+    if (rolagem.expressao === null || rolagem.motivo === null) return;
+    rolar.mutate({ expressao: rolagem.expressao, motivo: rolagem.motivo });
+  }
+
+  /** Os ataques nascem, morrem e mudam pelo modelo do sistema, como as famílias. */
+  function acrescentarAtaque(nome: string) {
+    const modelo = definicao.ataques;
+    if (modelo === null) return;
+    setDados((atual) => modelo.acrescentar(atual, nome));
+  }
+
+  function removerAtaque(ataqueChave: string) {
+    const modelo = definicao.ataques;
+    if (modelo === null) return;
+    setDados((atual) => modelo.remover(atual, ataqueChave));
+  }
+
+  function alterarCampoDoAtaque(ataqueChave: string, campo: string, valor: unknown) {
+    const modelo = definicao.ataques;
+    if (modelo === null) return;
+    setDados((atual) => modelo.definirCampo(atual, ataqueChave, campo, valor));
   }
 
   /**
@@ -207,56 +272,59 @@ export function FichaPersonagem({
           </div>
         </div>
 
-        {/* A metade comum da ficha só aparece nos sistemas que a usam. No PF2e o
-            personagem guarda o **modificador** direto na metade do sistema e
-            ignora estas colunas: oferecer aqui o teste genérico rolaria `1d20+0`
-            para sempre, uma promessa que o sistema não cumpre (F6). Quem decide é
-            o dado da definição, não um `if` de sistema. */}
-        {definicao.usaAtributosComuns && (
-          <fieldset className="mt-4">
-            <legend className="mb-2 text-sm text-texto-2">
-              Atributos (clique no dado para testar)
-            </legend>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-              {ATRIBUTOS.map((atributo) => {
-                const valor = atributos[atributo];
-                const mod = modificadorAtributo(valor);
-                return (
-                  <div
-                    key={atributo}
-                    className="rounded-lg border border-borda bg-painel-2 p-2 text-center"
+        {/* Os seis atributos são de **todo** sistema, e aparecem em todos: o que
+            varia é a escala, e ela vem da definição (RV-098). A legenda diz qual
+            é ("valor de 1 a 30" ou "modificador direto, de -5 a +8"), os limites
+            do `input` saem dela, e o bônus do dado sai de
+            `definicao.atributos.modificador`.
+
+            Antes do RV-098 este bloco era escondido no PF2e (`usaAtributosComuns`)
+            porque o número certo não estava aqui — estava numa segunda cópia
+            dentro de `dados`, e o botão rolaria `1d20+0` (F6). Consertada a
+            fonte, não há nada a esconder: o campo que o jogador edita é o mesmo
+            que a perícia soma. */}
+        <fieldset className="mt-4">
+          <legend className="mb-2 text-sm text-texto-2">
+            Atributos ({definicao.atributos.descricao}) — clique no dado para testar
+          </legend>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {ATRIBUTOS.map((atributo) => {
+              const valor = atributos[atributo];
+              const mod = definicao.atributos.modificador(valor);
+              return (
+                <div
+                  key={atributo}
+                  className="rounded-lg border border-borda bg-painel-2 p-2 text-center"
+                >
+                  <p className="text-[11px] font-semibold text-texto-2">
+                    {ROTULO_ATRIBUTO[atributo]}
+                  </p>
+                  <input
+                    aria-label={`Valor de ${atributo}`}
+                    type="number"
+                    min={definicao.atributos.minimo}
+                    max={definicao.atributos.maximo}
+                    className="w-full bg-transparent text-center text-lg font-bold text-texto focus:outline-none disabled:opacity-100"
+                    value={valor}
+                    onChange={(e) =>
+                      setAtributos({ ...atributos, [atributo]: Number(e.target.value) })
+                    }
+                    disabled={!podeEditar}
+                  />
+                  <button
+                    type="button"
+                    className="mt-1 w-full cursor-pointer rounded bg-fundo px-1 py-0.5 text-xs text-ouro hover:bg-ouro/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => rolarAtributo(atributo)}
+                    disabled={motivoBloqueio !== null}
+                    title={motivoBloqueio ?? `Rolar ${expressaoDeAtributo(atributo)}`}
                   >
-                    <p className="text-[11px] font-semibold text-texto-2">
-                      {ROTULO_ATRIBUTO[atributo]}
-                    </p>
-                    <input
-                      aria-label={`Valor de ${atributo}`}
-                      type="number"
-                      min={1}
-                      max={30}
-                      className="w-full bg-transparent text-center text-lg font-bold text-texto focus:outline-none disabled:opacity-100"
-                      value={valor}
-                      onChange={(e) =>
-                        setAtributos({ ...atributos, [atributo]: Number(e.target.value) })
-                      }
-                      disabled={!podeEditar}
-                    />
-                    <button
-                      type="button"
-                      className="mt-1 w-full cursor-pointer rounded bg-fundo px-1 py-0.5 text-xs text-ouro hover:bg-ouro/10 disabled:cursor-not-allowed disabled:opacity-50"
-                      onClick={() => rolarAtributo(atributo)}
-                      disabled={motivoBloqueio !== null}
-                      title={motivoBloqueio ?? `Rolar ${expressaoDeAtributo(atributo)}`}
-                    >
-                      🎲 {mod >= 0 ? '+' : ''}
-                      {mod}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </fieldset>
-        )}
+                    🎲 {formatarBonus(mod)}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </fieldset>
 
         <CamposDoSistema
           secoes={definicao.secoes}
@@ -264,6 +332,30 @@ export function FichaPersonagem({
           desabilitado={!podeEditar}
           aoAlterar={alterarCampo}
         />
+
+        {/* As defesas derivadas vêm depois dos campos do sistema porque é dali que
+            os números saem — os graus e a armadura estão logo acima. Nenhum deles
+            é editável aqui: somente leitura significa não editável, e não "sem
+            botão de dado" (RV-155). */}
+        <SecaoDefesas defesas={defesas} motivoBloqueio={motivoBloqueio} aoRolar={rolarDefesa} />
+
+        {/* Os ataques vêm depois das defesas porque é a ordem da mesa: primeiro o que
+            te protege, depois o que você faz no turno. Sistema sem modelo de ataques
+            declara `null` e a seção não existe — a tela não pergunta qual é o
+            sistema. */}
+        {definicao.ataques && (
+          <SecaoAtaques
+            modelo={definicao.ataques}
+            ataques={ataques}
+            desabilitado={!podeEditar}
+            motivoBloqueio={motivoBloqueio}
+            aoAcrescentar={acrescentarAtaque}
+            aoRemover={removerAtaque}
+            aoAlterarCampo={alterarCampoDoAtaque}
+            aoRolarAcerto={rolarAcerto}
+            aoRolarDano={rolarDano}
+          />
+        )}
 
         <SecaoPericias
           linhas={pericias}

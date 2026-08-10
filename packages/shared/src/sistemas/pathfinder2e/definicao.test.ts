@@ -1,16 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { ATRIBUTOS, criarPersonagemSchema, type Atributos } from '../../schemas/personagens';
 import {
+  atributosIniciais,
   dadosIniciaisDaFicha,
   DEFINICOES_SISTEMA,
   definicaoDoSistema,
+  validarAtributosDoSistema,
   validarDadosDaFicha,
 } from '../registro';
 import type { DadosFicha, FichaCalculavel } from '../tipos';
 import { ATRIBUICAO_PF2E } from './atribuicao';
 import {
   bonusDeChecagem,
-  chaveDoModificador,
+  CHAVES_MODIFICADOR_LEGADAS,
+  ESCALA_ATRIBUTO_PF2E,
   modificadorDeAtributo,
   MODIFICADOR_MAXIMO,
   MODIFICADOR_MINIMO,
@@ -34,31 +37,30 @@ import { GRAUS_TREINAMENTO } from './regras';
  * regras que são **deste** sistema.
  */
 
-/** Colunas comuns cheias: no d20 clássico dariam +5 de modificador. */
-const ATRIBUTOS_ALTOS: Atributos = {
-  forca: 20,
-  destreza: 20,
-  constituicao: 20,
-  inteligencia: 20,
-  sabedoria: 20,
-  carisma: 20,
-};
+/** Atributos de PF2e: o número gravado **é** o modificador (RV-098). */
+const MODIFICADORES_ZERADOS: Atributos = atributosIniciais('pathfinder2e');
 
-const ATRIBUTOS_NEUTROS: Atributos = {
-  forca: 10,
-  destreza: 10,
-  constituicao: 10,
-  inteligencia: 10,
-  sabedoria: 10,
-  carisma: 10,
+/** Seelah como o card do RV-098 a descreve: Destreza +4, Inteligência +1. */
+const MODIFICADORES_DE_SEELAH: Atributos = {
+  ...MODIFICADORES_ZERADOS,
+  destreza: 4,
+  inteligencia: 1,
 };
 
 function fichaInicial(): DadosFicha {
   return dadosIniciaisDaFicha('pathfinder2e');
 }
 
-function ficha(nivel: number, dados: DadosFicha, atributos = ATRIBUTOS_ALTOS): FichaCalculavel {
+function ficha(
+  nivel: number,
+  dados: DadosFicha,
+  atributos = MODIFICADORES_ZERADOS,
+): FichaCalculavel {
   return { nivel, atributos, dados };
+}
+
+function comModificador(atributo: keyof Atributos, valor: number): Atributos {
+  return { ...MODIFICADORES_ZERADOS, [atributo]: valor };
 }
 
 function erroAoSalvar(dados: DadosFicha): string {
@@ -68,17 +70,33 @@ function erroAoSalvar(dados: DadosFicha): string {
 }
 
 describe('ficha de PF2e — o esqueleto do sistema (RV-152)', () => {
-  it('nasce com os seis modificadores em +0, identidade vazia e tudo destreinado', () => {
+  it('nasce com identidade vazia e tudo destreinado — e sem modificador nenhum em `dados`', () => {
+    // Os seis modificadores saíram daqui no RV-098: eles são o atributo do
+    // personagem e moram na coluna comum. Enquanto estavam nos dois lugares, a
+    // criação gravava um e a ficha lia o outro.
     expect(fichaInicial()).toEqual({
       ancestralidade: '',
       heranca: '',
       antecedente: '',
-      modificadorForca: 0,
-      modificadorDestreza: 0,
-      modificadorConstituicao: 0,
-      modificadorInteligencia: 0,
-      modificadorSabedoria: 0,
-      modificadorCarisma: 0,
+      // As entradas informadas das defesas (RV-155). Nenhum número derivado está
+      // aqui: CA, salvaguardas, Percepção, CD de classe e PV sugerido são
+      // calculados a cada leitura — ver `defesas.test.ts`.
+      grauArmadura: 'destreinado',
+      grauFortitude: 'destreinado',
+      grauReflexos: 'destreinado',
+      grauVontade: 'destreinado',
+      grauPercepcao: 'destreinado',
+      grauCdClasse: 'destreinado',
+      bonusItemArmadura: 0,
+      // Ausência é diferente de zero: sem armadura não há teto de Destreza.
+      limiteDestrezaArmadura: null,
+      atributoChaveClasse: '',
+      pvDaAncestralidade: 0,
+      pvDaClassePorNivel: 0,
+      // A lista de ataques nasce vazia (RV-156): nome, bônus de acerto, dano e o
+      // traço ágil são informados pelo jogador, e a penalidade de ataques múltiplos
+      // **não** é gravada — ela é derivada da ordem que ele escolhe no golpe.
+      ataques: [],
       // As dezesseis perícias de chave fixa nascem destreinadas (RV-153); Saber
       // é família e começa sem nenhuma especialização.
       treinamentos: {
@@ -103,11 +121,12 @@ describe('ficha de PF2e — o esqueleto do sistema (RV-152)', () => {
     });
   });
 
-  it('as seis chaves de modificador são exatamente estas — renomeá-las é migração de dados', () => {
-    // Escritas à mão de propósito: as chaves ficam gravadas em `personagens.dados`
-    // de todo personagem de PF2e, e trocar o gerador de nome sem migration deixa
-    // o bônus de todo mundo em zero, em silêncio.
-    expect(ATRIBUTOS.map(chaveDoModificador)).toEqual([
+  it('as seis chaves antigas de modificador estão registradas — é o que a migration 0009 consolida', () => {
+    // Escritas à mão de propósito: são as chaves gravadas em `personagens.dados`
+    // de todo personagem de PF2e criado antes do RV-098, e a `0009` precisa
+    // nomear exatamente estas seis. Uma esquecida é um atributo apagado em
+    // silêncio — a guarda offline da migration compara com esta lista.
+    expect(CHAVES_MODIFICADOR_LEGADAS).toEqual([
       'modificadorForca',
       'modificadorDestreza',
       'modificadorConstituicao',
@@ -115,6 +134,14 @@ describe('ficha de PF2e — o esqueleto do sistema (RV-152)', () => {
       'modificadorSabedoria',
       'modificadorCarisma',
     ]);
+  });
+
+  it('a ficha recusa as chaves antigas em vez de guardar um valor que ninguém lê', () => {
+    // Depois do RV-098 elas não são mais campo de ficha. Aceitá-las de novo
+    // reabriria a segunda casa do atributo, e é assim que a suíte diz isso.
+    for (const chave of CHAVES_MODIFICADOR_LEGADAS) {
+      expect(erroAoSalvar({ ...fichaInicial(), [chave]: 4 })).toContain(chave);
+    }
   });
 
   it('classe e nível não se duplicam na metade do sistema — são colunas comuns', () => {
@@ -131,19 +158,20 @@ describe('ficha de PF2e — o esqueleto do sistema (RV-152)', () => {
     expect(criarPersonagemSchema.safeParse({ ...base, nivel: 0 }).success).toBe(false);
   });
 
-  it('as seções são Identidade e Atributos, nesta ordem', () => {
+  it('as seções da metade do sistema são Identidade e Defesas', () => {
     // Perícias não é uma `SecaoFicha`: ela sai da lista `pericias` (RV-153), que
     // tem seção própria na interface, e uma seção homônima duplicaria o título.
-    // Defesas chega no RV-155.
-    expect(SISTEMA_PATHFINDER2E.secoes.map((s) => s.chave)).toEqual(['identidade', 'atributos']);
+    // Atributos saiu no RV-098: ele é o bloco comum da ficha, desenhado pela
+    // escala que a definição declara — uma seção aqui significaria seis campos de
+    // modificador ao lado dos seis atributos comuns. Defesas (RV-155) é seção
+    // porque o que ela tem são campos **informados**; o número derivado não é
+    // campo e vive em `defesas(ficha)`.
+    expect(SISTEMA_PATHFINDER2E.secoes.map((s) => s.chave)).toEqual(['identidade', 'defesas']);
     expect(SISTEMA_PATHFINDER2E.secoes[0]?.campos.map((c) => c.chave)).toEqual([
       'ancestralidade',
       'heranca',
       'antecedente',
     ]);
-    expect(SISTEMA_PATHFINDER2E.secoes[1]?.campos.map((c) => c.chave)).toEqual(
-      ATRIBUTOS.map(chaveDoModificador),
-    );
   });
 
   it('identidade é texto livre — a ficha não enumera conteúdo da Paizo', () => {
@@ -163,34 +191,45 @@ describe('ficha de PF2e — o esqueleto do sistema (RV-152)', () => {
   });
 });
 
-describe('ficha de PF2e — modificador direto, não valor de atributo', () => {
-  it('o sistema declara que não usa os atributos comuns', () => {
-    expect(SISTEMA_PATHFINDER2E.usaAtributosComuns).toBe(false);
-  });
-
-  it('o modificador sai de `dados`, e não das colunas 1..30', () => {
-    // Força 20 daria +5 no d20 clássico. Aqui a ficha nunca preencheu o
-    // modificador, então ele é +0 — e o +5 não pode aparecer de lugar nenhum.
-    // As duas formas importam: a ficha inicial (chave presente, valendo 0) e a
-    // ficha gravada antes deste card (chave ausente), que é onde uma queda para
-    // `modificadorAtributo()` passaria despercebida.
-    for (const dados of [fichaInicial(), {}]) {
-      const f = ficha(5, dados, ATRIBUTOS_ALTOS);
-      for (const atributo of ATRIBUTOS) {
-        expect(modificadorDeAtributo(f, atributo), `modificador de ${atributo}`).toBe(0);
-      }
+describe('ficha de PF2e — o atributo é o modificador, e tem uma casa só (RV-098)', () => {
+  it('a escala declarada é o modificador direto, sem fórmula do d20', () => {
+    expect(SISTEMA_PATHFINDER2E.atributos).toBe(ESCALA_ATRIBUTO_PF2E);
+    expect([ESCALA_ATRIBUTO_PF2E.minimo, ESCALA_ATRIBUTO_PF2E.maximo]).toEqual([-5, 8]);
+    expect(ESCALA_ATRIBUTO_PF2E.padrao).toBe(0);
+    // Identidade: o número gravado já é o modificador. Se algum dia isto virar
+    // `(valor - 10) / 2`, todo personagem de PF2e cai para -3.
+    for (const valor of [-5, -1, 0, 4, 8]) {
+      expect(ESCALA_ATRIBUTO_PF2E.modificador(valor), `modificador de ${valor}`).toBe(valor);
     }
   });
 
-  it('o valor gravado manda, mesmo contra uma coluna comum baixa', () => {
-    const dados = { ...fichaInicial(), modificadorDestreza: 4 };
-    const magra: Atributos = { ...ATRIBUTOS_NEUTROS, destreza: 1 };
-    expect(modificadorDeAtributo(ficha(5, dados, magra), 'destreza')).toBe(4);
+  it('o modificador sai da coluna comum, que é o que a criação grava', () => {
+    // Este é o cenário do card: informei +4 de Destreza, e é +4 que a ficha usa.
+    // Antes do RV-098 a coluna era ignorada e o número saía de `dados`.
+    const f = ficha(5, fichaInicial(), MODIFICADORES_DE_SEELAH);
+    expect(modificadorDeAtributo(f, 'destreza')).toBe(4);
+    expect(modificadorDeAtributo(f, 'inteligencia')).toBe(1);
+    expect(modificadorDeAtributo(f, 'forca')).toBe(0);
   });
 
-  it('modificador ausente ou estragado vale +0 em vez de quebrar a ficha', () => {
-    expect(modificadorDeAtributo(ficha(1, {}), 'forca')).toBe(0);
-    expect(modificadorDeAtributo(ficha(1, { modificadorForca: 'muito' }), 'forca')).toBe(0);
+  it('modificador negativo atravessa com o sinal, sem virar zero', () => {
+    expect(
+      modificadorDeAtributo(ficha(3, fichaInicial(), comModificador('forca', -1)), 'forca'),
+    ).toBe(-1);
+  });
+
+  it('valor estragado vale +0 em vez de tornar a ficha ilegível', () => {
+    const estragada = { ...MODIFICADORES_ZERADOS, forca: 'muito' } as unknown as Atributos;
+    expect(modificadorDeAtributo(ficha(1, fichaInicial(), estragada), 'forca')).toBe(0);
+  });
+
+  it('nenhuma chave de modificador sobra em `dados`', () => {
+    const inicial = fichaInicial();
+    for (const chave of CHAVES_MODIFICADOR_LEGADAS) {
+      expect(chave in inicial, `\`dados.${chave}\` voltou: o atributo tem duas casas de novo`).toBe(
+        false,
+      );
+    }
   });
 
   it.each([
@@ -208,63 +247,82 @@ describe('ficha de PF2e — modificador direto, não valor de atributo', () => {
     ['nível 12, destreinado, +2 (o nível não entra)', 12, 'sabedoria', 'destreinado', 2, 2],
     ['nível 3, perito, −1', 3, 'constituicao', 'perito', -1, 6],
   ] as const)('bônus de checagem — %s', (_rotulo, nivel, atributo, grau, modificador, esperado) => {
-    const dados = { ...fichaInicial(), [chaveDoModificador(atributo)]: modificador };
-    expect(bonusDeChecagem(ficha(nivel, dados), atributo, grau)).toBe(esperado);
+    const atributos = comModificador(atributo, modificador);
+    expect(bonusDeChecagem(ficha(nivel, fichaInicial(), atributos), atributo, grau)).toBe(esperado);
   });
 
-  it('nenhuma rolagem padrão muda quando os atributos comuns mudam', () => {
-    // Hoje `rolagensPadrao` está vazio (a iniciativa do PF2e é por Percepção e
-    // chega no RV-158), então esta varredura é a rede que impede a iniciativa
-    // por Destreza da ficha genérica de entrar aqui por descuido.
+  it('toda rolagem padrão que existir usa a escala do sistema, não a do d20', () => {
+    // `rolagensPadrao` está vazio (a iniciativa do PF2e é por Percepção e chega no
+    // RV-158). A varredura é a rede que impede a iniciativa por Destreza da ficha
+    // genérica — `(valor - 10) / 2` — de entrar aqui por descuido: com Destreza
+    // +4, a expressão tem de trazer +4.
     const dados = fichaInicial();
     for (const rolagem of SISTEMA_PATHFINDER2E.rolagensPadrao) {
       expect(
-        rolagem.expressao({ nivel: 5, atributos: ATRIBUTOS_NEUTROS, dados }),
-        `a rolagem "${rolagem.chave}" muda com as colunas comuns: ela deriva de ` +
-          `\`atributos\`, e neste sistema aquele número não vale nada.`,
-      ).toBe(rolagem.expressao({ nivel: 5, atributos: ATRIBUTOS_ALTOS, dados }));
+        rolagem.expressao({ nivel: 5, atributos: comModificador('destreza', 4), dados }),
+        `a rolagem "${rolagem.chave}" não usa o modificador gravado: ela deriva o ` +
+          `número por uma fórmula que não é deste sistema.`,
+      ).toContain('+4');
     }
   });
 });
 
-describe('ficha de PF2e — a faixa do modificador é −5..+8', () => {
+describe('ficha de PF2e — a escala vai de −5 a +8, e é cobrada (RV-098)', () => {
   it('os limites declarados são os da regra', () => {
     expect([MODIFICADOR_MINIMO, MODIFICADOR_MAXIMO]).toEqual([-5, 8]);
   });
 
   it.each(ATRIBUTOS)('%s aceita −5 e +8 e recusa −6 e +9', (atributo) => {
-    const chave = chaveDoModificador(atributo);
-    const inicial = fichaInicial();
-
-    expect(validarDadosDaFicha('pathfinder2e', { ...inicial, [chave]: -5 }).ok).toBe(true);
-    expect(validarDadosDaFicha('pathfinder2e', { ...inicial, [chave]: 8 }).ok).toBe(true);
-    expect(erroAoSalvar({ ...inicial, [chave]: -6 })).toContain(chave);
-    expect(erroAoSalvar({ ...inicial, [chave]: 9 })).toContain(chave);
+    for (const valor of [-5, 8]) {
+      expect(validarAtributosDoSistema('pathfinder2e', comModificador(atributo, valor)).ok).toBe(
+        true,
+      );
+    }
+    for (const valor of [-6, 9]) {
+      const r = validarAtributosDoSistema('pathfinder2e', comModificador(atributo, valor));
+      expect(r.ok, `${atributo} = ${valor} passou`).toBe(false);
+    }
   });
 
-  it('destreza +9 é recusada em PT-BR dizendo qual é o teto', () => {
-    // Cenário de borda do card, com o nome exibível do atributo na mensagem: o
-    // usuário digitou "9" num campo rotulado "Destreza", não em "modificadorDestreza".
-    const erro = erroAoSalvar({ ...fichaInicial(), modificadorDestreza: 9 });
-    expect(erro).toContain('Modificador de Destreza');
-    expect(erro).toContain('o máximo é 8');
-    expect(erro).toContain('Pathfinder 2e');
-  });
-
-  it('abaixo do piso, fracionário e texto também são recusados em PT-BR', () => {
-    expect(erroAoSalvar({ ...fichaInicial(), modificadorForca: -6 })).toContain('o mínimo é -5');
-    expect(erroAoSalvar({ ...fichaInicial(), modificadorForca: 1.5 })).toContain('inteiro');
-    expect(erroAoSalvar({ ...fichaInicial(), modificadorForca: '3' })).toContain(
-      'informe um número',
-    );
-  });
-
-  it('a recusa não grava nada: o resultado inválido não traz ficha', () => {
-    const r = validarDadosDaFicha('pathfinder2e', { ...fichaInicial(), modificadorDestreza: 9 });
+  it('informar 18 num atributo de PF2e é 400 em PT-BR dizendo qual é a escala', () => {
+    // O cenário de borda do card: 18 é um valor de d20 clássico, não um
+    // modificador. A mensagem cita o nome exibível do atributo, o número que a
+    // pessoa digitou e a faixa — não um "atributos inválidos" seco.
+    const r = validarAtributosDoSistema('pathfinder2e', comModificador('forca', 18));
     expect(r.ok).toBe(false);
-    expect('dados' in r).toBe(false);
+    if (r.ok) return;
+    expect(r.erro).toContain('Força');
+    expect(r.erro).toContain('18');
+    expect(r.erro).toContain('de -5 a +8');
+    expect(r.erro).toContain('Pathfinder 2e');
+  });
+
+  it('a recusa não devolve atributo nenhum para gravar por engano', () => {
+    const r = validarAtributosDoSistema('pathfinder2e', comModificador('destreza', 9));
+    expect(r.ok).toBe(false);
+    expect('atributos' in r).toBe(false);
+  });
+
+  it('a mesma faixa em D&D 5e continua sendo a do d20 clássico', () => {
+    // A prova de que a escala é por sistema, e não uma faixa global trocada de
+    // lugar: 18 é válido em D&D 5e e recusado em PF2e, no mesmo campo.
+    expect(validarAtributosDoSistema('dnd5e', comValorEmDnd(18)).ok).toBe(true);
+    expect(validarAtributosDoSistema('dnd5e', comValorEmDnd(31)).ok).toBe(false);
+    expect(validarAtributosDoSistema('dnd5e', comValorEmDnd(0)).ok).toBe(false);
   });
 });
+
+/** Os seis atributos de D&D 5e num mesmo valor da escala 1..30. */
+function comValorEmDnd(valor: number): Atributos {
+  return {
+    forca: valor,
+    destreza: valor,
+    constituicao: valor,
+    inteligencia: valor,
+    sabedoria: valor,
+    carisma: valor,
+  };
+}
 
 describe('ficha de PF2e — graus de treinamento', () => {
   it('os cinco graus têm rótulo exibível, na ordem do menor para o maior', () => {
@@ -300,9 +358,10 @@ describe('ficha de PF2e — graus de treinamento', () => {
   });
 
   it('treinamento de uma chave que o sistema não conhece é recusado nomeando a chave', () => {
-    // As chaves são as 16 perícias fixas (RV-153); as defesas chegam no RV-155.
-    // Aceitar qualquer chave transformaria `treinamentos` numa lixeira sem dono.
-    // Percepção é o caso concreto: no PF2e ela **não** é perícia.
+    // As chaves são as 16 perícias fixas (RV-153). Aceitar qualquer chave
+    // transformaria `treinamentos` numa lixeira sem dono. Percepção é o caso
+    // concreto: no PF2e ela **não** é perícia — o grau dela é uma chave de topo
+    // (`grauPercepcao`, RV-155), e não uma entrada deste mapa.
     expect(erroAoSalvar({ ...fichaInicial(), treinamentos: { percepcao: 'treinado' } })).toContain(
       'percepcao',
     );

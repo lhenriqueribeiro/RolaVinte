@@ -20,6 +20,18 @@ Catálogo grande é Onda 3 e é o **último** card do épico (RV-157). Se o épi
 
 **Ressalva escrita na curadoria da v0.7.0, para a frase acima não ser lida como promessa cumprida:** "a mesa joga" é uma afirmação sobre *mecânica*, e ela continua verdadeira. O que a mecânica pronta **não** entrega é uma sessão: as migrations do repositório não estão aplicadas em ambiente nenhum ([RV-139](13-operacao.md) — sem a `0008`, a mesa de PF2e nem é criada) e a plataforma não está publicada, com todo convite caindo no stdout da API ([RV-132](13-operacao.md)). Os dois são Onda 1, nenhum dos dois é deste épico, e nenhum dos dois é resolvido por um card daqui. Ver a Sprint 3 em [sprints.md](sprints.md).
 
+**Atualização medida na curadoria da v0.8.0.** O épico chegou ao RV-156 e a ressalva acima se dividiu em duas
+metades de sortes diferentes. A metade do banco **fechou**: as dez migrations estão aplicadas e conferidas, uma
+mesa `pathfinder2e` foi criada de verdade e o grau de sucesso foi gravado no Postgres em uso. A metade do
+acesso **não**: sem o RV-132, a plataforma só existe em `localhost` e nenhum convite chega a ninguém, então
+"a mesa joga" hoje significa, literalmente, "o mestre joga sozinho na máquina dele". E a mecânica ganhou duas
+lacunas nomeadas dentro do próprio épico, nenhuma delas prevista quando o diagrama foi desenhado:
+[RV-160](#rv-160--grau-de-sucesso-só-para-checagem-rolagem-de-dano-não-tem-cd) (um dano com CD recebe grau de
+sucesso e o grau errado é gravado) e
+[RV-161](#rv-161--a-cd-precisa-chegar-às-rolagens-da-ficha-salvaguarda-percepção-e-perícia) (a CD não chega à
+salvaguarda, que é a checagem mais rolada da mesa). Com esses dois, o eixo `ficha → rolagem → grau` vale na
+sessão inteira e não só no ataque.
+
 ### 2. Licenciamento — decidido, não re-decidir
 
 Isto foi pesquisado e fechado. Não reabra. A decisão vive em [docs/licencas/pathfinder2e.md](../licencas/pathfinder2e.md), e desde o RV-150 ela é **verificada por teste** — `packages/shared/src/sistemas/pathfinder2e/licenca.test.ts` reprova conteúdo sem `fonte`, semente acima do teto e conteúdo que chegue antes da atribuição completa. O resumo abaixo continua valendo:
@@ -132,7 +144,9 @@ RV-151 motor de regras ┴─► RV-152 ficha ─┬─► RV-153 perícias ─�
 
 [RV-096](09-fichas.md#rv-096--amarrar-o-check-de-mesassistema-ao-sistemas_rpg) mora no E09 mas serve a este épico: é ele que impede o RV-152 de acrescentar `'pathfinder2e'` ao enum e esquecer a migration do `check`. Mesma lógica do RV-150 — fechar a classe de risco antes de exercitá-la. **Funcionou como projetado na v0.7.0:** o vermelho apareceu no momento em que o enum ganhou o valor, e a migration já estava em disco.
 
-**RV-159 não está no diagrama de propósito:** é reparo de um defeito entregue pelo RV-153, não dependência de ninguém. Ele está na Sprint 3 por vizinhança de arquivo com o RV-155, e o épico fecha sem ele — mas a ficha mente até que ele feche.
+**RV-159 não está no diagrama de propósito:** é reparo de um defeito entregue pelo RV-153, não dependência de ninguém. Ele estava na Sprint 3 por vizinhança de arquivo com o RV-155 — vizinhança que se dissolveu quando o RV-155 criou seção própria —, **não fechou**, e entra na Sprint 4. O épico fecha sem ele, mas a ficha mente até que ele feche.
+
+**RV-160 e RV-161 também ficam fora do diagrama, e pelo mesmo critério:** nasceram da entrega da Sprint 3, não do desenho do épico. A ordem entre eles, essa sim, é dependência de verdade e segue a regra de composição nº 1 — **RV-160 antes de RV-161**: enquanto qualquer expressão com CD receber grau, abrir mais portas de CD na ficha multiplica o número de lugares por onde o grau errado entra.
 
 **Convenção deste épico:** RV-150 e RV-151 não têm superfície HTTP — não existe autorização a testar neles. Nesses dois cards o cenário de autorização é substituído por um cenário `Guarda:`, que é a verificação automatizada que ocupa o mesmo lugar. Todos os demais cards têm cenário de autorização de verdade, com `403`/`401` provado por teste de contrato ([F4 da taxonomia](../agentes/taxonomia-de-falhas.md)).
 
@@ -341,6 +355,12 @@ Cenário: Borda — CD por nível fora da tabela
 > eles, os cenários "o botão genérico não aparece" e "atribuição montada" só se resolveriam com
 > `switch (sistema)` no componente, proibido pelo DoD. São **obrigatórios** — sem valor padrão — pelo
 > mesmo raciocínio do `Record` total do RV-091: sistema novo decide as duas coisas conscientemente.
+> **`usaAtributosComuns` foi removido pelo [RV-098](09-fichas.md#rv-098--atributo-não-pode-ter-duas-verdades-na-mesma-ficha)**:
+> era a pergunta errada. "As colunas comuns valem?" escondia o problema real — em que **escala** o número
+> está —, e a resposta `false` foi o que criou a segunda casa do atributo (coluna exigida e ignorada,
+> modificador em `dados`). No lugar dele entrou `atributos: EscalaDeAtributo`, e o bloco dos seis atributos
+> voltou a aparecer na ficha de PF2e, agora rolando o modificador gravado. `atribuicao` continua como
+> entregue aqui.
 > **`treinamentos` nasceu como objeto estrito vazio**, reservando o lugar e o caminho de escrita para que
 > RV-153 e RV-155 fossem tabela e nada mais. Aberto pelo RV-153 com as 16 chaves fixas.
 > **Identidade é texto livre, com teste exigindo que continue sendo** — enumerar ancestralidades seria
@@ -403,6 +423,12 @@ Cenário: Borda — modificador fora da faixa
   Então recebo 400 com mensagem em PT-BR
   E nada é gravado na ficha
 
+# SUPERADO PELO RV-098 (F11). Este cenário existia porque o modificador certo
+# morava em `dados` e a coluna comum era ignorada, então o botão rolaria `1d20+0`.
+# Desde o RV-098 o atributo tem uma casa só — a coluna comum, na escala declarada
+# pelo sistema —, o botão rola o modificador gravado e `usaAtributosComuns` não
+# existe mais. O que continua valendo é a proibição de derivar bônus de PF2e pela
+# fórmula `(valor − 10) / 2`, e há teste disso.
 Cenário: Borda — o botão genérico de atributo não aparece
   Dado uma ficha "pathfinder2e"
   Então o botão genérico "testar atributo" não é oferecido
@@ -541,7 +567,72 @@ Cenário: Borda — ação de treinado indisponível
 
 ### RV-154 — Grau de sucesso no chat
 
-**Épico:** E15 · **Depende de:** RV-151, RV-153 · **Tamanho:** M · **Onda:** 2
+**Épico:** E15 · **Depende de:** RV-151, RV-153 · **Tamanho:** M · **Onda:** 2 · **Status:** ✅ Concluído (v0.8.0)
+
+> **Decisões tomadas na entrega.**
+> **Como a CD chega — duas portas, uma gramática, nenhuma no caso de uso.** O card deixou isso aberto e a
+> resposta é: *quem digita* escreve o sufixo `cd N`, lido pelo parser do RV-074 em
+> [chat/comandos.ts](../../packages/shared/src/chat/comandos.ts) (`ComandoChat.rolagem` ganhou
+> `cd: number | null`); *quem não digita* — a ficha, ao clicar numa salvaguarda (RV-155) ou num ataque
+> (RV-156) — manda `cd` como **número** no corpo de `POST /mesas/:id/rolagens`. Montar `"1d20+6 cd 18"`
+> na ficha só para o servidor desmontar seria a segunda gramática que o RV-074 acabou de apagar do
+> `Chat.tsx`. As duas portas convergem para o mesmo `cd: number | null` **antes** de `RolarDados`, que por
+> isso não interpreta texto nenhum. Há teste de contrato provando que as duas produzem avaliação idêntica.
+> **Sem CD não há grau, e não existe CD padrão.** `/r 1d20` continua sendo exatamente a mensagem que era.
+> Isso vale também para o histórico: mensagem gravada antes desta migration volta sem avaliação e o chat a
+> renderiza como sempre.
+> **`avaliarRolagem` é obrigatório e anulável, e não opcional (`?`) como o Escopo pedia — F11.** Um `?`
+> deixaria todo sistema novo respondendo "não avalio" por **omissão**, quando "esta mesa aceita CD?" é
+> comportamento que o jogador percebe (ele recebe 400). Virou `avaliarRolagem: AvaliadorDeRolagem | null`,
+> igual a `atribuicao`, `familiasPericia` e `defesas` — mesma razão escrita nos três. D&D 5e declara `null`
+> **com o motivo no código**: lá o crítico é do ataque, não da checagem, e anunciar "Sucesso crítico" numa
+> mesa de D&D seria inventar regra.
+> **Nasceu um quarto campo que o Escopo não previa: `efeitoNatural`.** O Escopo dizia
+> `{ cd, grau, d20Natural }`, e com esses três o cenário de aceite "indica em texto que o 20 natural
+> melhorou um grau" **não é exprimível sem mentir**: um 20 natural contra CD baixa já entra como sucesso
+> crítico e o ajuste não tem para onde subir. O campo é `'melhorou' | 'piorou' | 'sem-efeito' | null`,
+> apurado no servidor comparando `grauSucesso` **com** e **sem** o dado natural — a mesma função, duas
+> perguntas, nenhuma aritmética nova. Gravado, e não deduzido na renderização, porque a avaliação é o
+> **registro do que foi anunciado**: uma errata de regra amanhã não pode reescrever o que o chat disse
+> ontem.
+> **Quais são os 20 e o 1 continua sendo segredo de `regras.ts`.** Para saber se um dado aciona o ajuste,
+> `avaliar-rolagem.ts` **pergunta ao motor** (`grauSucesso` numa checagem sintética exatamente na CD, que
+> cai no meio da escala e pode subir ou descer) em vez de escrever `=== 20 || === 1`. O DoD do RV-151
+> proíbe número de regra fora dele, e a alternativa seria a segunda cópia da regra.
+> **A faixa da CD (1..60) é limite de entrada, não regra de PF2e**, e por isso mora em
+> [chat/avaliacao.ts](../../packages/shared/src/chat/avaliacao.ts) com `cdValida`. Ela é consultada em
+> **três** lugares — parser do chat, `rolarDadosSchema` e o caso de uso — e isso é de propósito: três call
+> sites de uma regra só. A validação existir apenas nas bordas é o que o RV-156 furaria ao criar o próximo
+> caminho de escrita.
+> ~~**A migration `0010` NÃO foi aplicada**~~ (ver `descobertas`): aplicar no banco real é ação de operação, e
+> este card entrega a migration. Enquanto ela não rodar, rolar com CD contra o Supabase real falha no
+> `INSERT` — falha ruidosa, de propósito.
+> **Não fiz percurso manual no navegador**, pelo mesmo motivo: sem a `0010` o navegador mostraria o estado
+> pré-migration, e não o comportamento entregue. A ponta a ponta está coberta por 17 testes de contrato.
+>
+> **Resolvido na verificação independente da sprint: a `0010` foi aplicada e o comportamento foi medido
+> contra o Supabase real.** `/r 1d20+11 cd 18` numa mesa de PF2e gravou
+> `avaliacao {"cd":18,"grau":"sucesso","d20Natural":14}` na coluna nova; `/r 1d20+11` sem CD voltou
+> `avaliacao: null`; e a mesma rolagem com CD numa mesa de D&D 5e voltou **400 em PT-BR nomeando o sistema**,
+> pelas duas portas (corpo `{cd: 15}` e sufixo `cd 15`). Também foi exercitado o `mensagens_avaliacao_check`
+> da migration: um `update` pondo grau de sucesso numa mensagem de fala foi recusado pelo Postgres nomeando a
+> constraint — a segunda tranca defende de verdade, não é decorativa (F1). E o histórico com `avaliacao`
+> forçado a `null` volta 200 e renderiza inteiro, que é o cenário de borda do card provado no banco e não no
+> fake.
+>
+> **O limite que a verificação encontrou, e que este card não fecha: qualquer expressão com CD é avaliada,
+> inclusive um dano.** `RolarDados` chama o avaliador sem exigir que a expressão seja uma checagem, então
+> `/r 1d8+4 cd 18` volta 201 com `grau: falha-critica` e **grava** o grau errado. A separação
+> `acertos`/`danos` do RV-156 protege a ficha, mas ela protege pela **forma do chamador** (a tela não manda
+> `cd` no dano), não porque o domínio recuse — é a variante de F4. Virou o
+> [RV-160](#rv-160--grau-de-sucesso-só-para-checagem-rolagem-de-dano-não-tem-cd), e a decisão que ele precisa
+> tomar já está nomeada lá: exigir "um d20" e exigir "um d20 **identificável**" são regras diferentes, e a
+> segunda recusaria `1d20+1d6`, que este card avalia de propósito.
+>
+> **O que este card entregou e ninguém consumiu ainda:** o campo `cd` de `rolarDadosSchema` foi apontado, na
+> entrega, para o RV-155 (salvaguardas e Percepção) e o RV-156 (ataques). Só o RV-156 o consumiu. A CD
+> continua sem porta na ficha para perícia e salvaguarda — é o
+> [RV-161](#rv-161--a-cd-precisa-chegar-às-rolagens-da-ficha-salvaguarda-percepção-e-perícia).
 
 **História**
 > Como **jogador**, quero **informar a CD e o chat dizer o grau de sucesso**, para **a mesa parar de conferir na mão se 28 contra CD 18 foi crítico**.
@@ -556,19 +647,20 @@ Cenário: Borda — ação de treinado indisponível
   errado**: passariam a existir duas aritméticas, e a errata seria aplicada em uma só. Chame
   `grauSucesso({ total, cd, d20Natural: d20NaturalDe(resultado) })` — esse é o par canônico, e
   `d20Natural: null` significa "sem ajuste", não "não deu 20".
-- **Decisão de extensão — hook na definição do sistema, não `if` no use case.** `DefinicaoSistema` (RV-091) ganha `avaliarRolagem?(resultado, cd)`. `RolarDados` busca a definição pelo `mesa.sistema` no registro e chama o hook **se existir**. Zero `switch`. É o ponto de extensão canônico de [04-design-patterns.md](../../.claude/rules/04-design-patterns.md).
+- **Decisão de extensão — hook na definição do sistema, não `if` no use case.** `DefinicaoSistema` (RV-091) ganha `avaliarRolagem`. `RolarDados` busca a definição pelo `mesa.sistema` no registro e chama o hook quando ele não é `null`. Zero `switch`. É o ponto de extensão canônico de [04-design-patterns.md](../../.claude/rules/04-design-patterns.md). *(Entregue como campo **obrigatório e anulável**, e não com `?` opcional — F11, ver a nota de entrega.)*
 - **Decisão — a avaliação é campo próprio, não invade `ResultadoRolagem`.** `motor-dados.ts` é agnóstico de sistema e continua assim. A avaliação vira `MensagemDTO.avaliacao` em [dtos.ts](../../packages/shared/src/tipos/dtos.ts), persistida em coluna nova `mensagens.avaliacao jsonb` (nullable) — migration necessária. Nada de aninhar dentro do `rolagem jsonb`, que é o espelho exato de `ResultadoRolagem`.
 - **Decisão — o tipo `GrauSucesso` mora em `sistemas/pathfinder2e/regras.ts` e o DTO o referencia.** Hoje só o PF2e produz avaliação. Generalizar antes da segunda variação é ornamento (heurística de [04-design-patterns.md](../../.claude/rules/04-design-patterns.md)).
-- **Decisão — sistema que não avalia recusa a CD.** Em mesa `generico`, `... cd 15` devolve **400 em PT-BR** ("Este sistema não avalia grau de sucesso"). Descartar em silêncio é F6.
-- Sintaxe: sufixo `cd N` na expressão (`1d20+11 cd 18`). Se [RV-074 — registry de comandos de chat](07-chat.md) já estiver feito, entre como comando registrado; se não, o *parsing* fica em `rolarDadosSchema` ([jogo.ts](../../packages/shared/src/schemas/jogo.ts)). Nos dois casos, **fora** de `RolarDados`.
+- **Decisão — sistema que não avalia recusa a CD.** Em mesa `generico`, `... cd 15` devolve **400 em PT-BR**. Descartar em silêncio é F6. *(A frase entregue **nomeia o sistema**: "Mesas de Genérico não avaliam grau de sucesso: remova a CD da rolagem." — "este sistema" não diz qual é, e a mensagem precisa dizer o conserto, não só o problema.)*
+- Sintaxe: sufixo `cd N` na expressão (`1d20+11 cd 18`). Se [RV-074 — registry de comandos de chat](07-chat.md) já estiver feito, entre como comando registrado; se não, o *parsing* fica em `rolarDadosSchema` ([jogo.ts](../../packages/shared/src/schemas/jogo.ts)). Nos dois casos, **fora** de `RolarDados`. *(O RV-074 **está** feito, então o sufixo entrou no parser. E as duas coisas acabaram sendo necessárias, não alternativas: `rolarDadosSchema` também ganhou `cd` como número, porque a ficha do RV-155/RV-156 não digita texto — ver a nota de entrega.)*
 - **Armadilha F2 — órfão de contrato.** Campo novo no DTO sem consumidor no front é comentário. [cobertura-eventos-ws.test.ts](../../apps/web/src/features/jogo/cobertura-eventos-ws.test.ts) cobre *quais eventos* têm ouvinte, **não** o formato do payload — não conte com ele aqui.
 - **Armadilha — histórico.** Mensagens gravadas antes deste card voltam com `avaliacao: null`. O chat trata isso como "sem CD informada", não como erro.
 
 **Escopo**
-- `packages/shared/src/sistemas/tipos.ts` — `DefinicaoSistema.avaliarRolagem?`
-- `packages/shared/src/sistemas/pathfinder2e/definicao.ts` — implementa via `grauSucesso` + `d20NaturalDe`
-- `packages/shared/src/tipos/dtos.ts` — `MensagemDTO.avaliacao: { cd, grau, d20Natural } | null`
-- `apps/api/supabase/migrations/000X_avaliacao_mensagem.sql`
+- `packages/shared/src/sistemas/tipos.ts` — `DefinicaoSistema.avaliarRolagem: AvaliadorDeRolagem | null` (obrigatório — F11, ver a nota de entrega)
+- `packages/shared/src/chat/avaliacao.ts` — **arquivo novo na entrega**: `AvaliacaoRolagem`, a faixa da CD (`cdValida`), as mensagens de recusa e `descreverAvaliacao` (o vocabulário PT-BR do selo). Mora em `chat/` porque a única superfície que exibe grau é o chat, e porque `sistemas/tipos.ts` e `tipos/dtos.ts` precisavam os dois do tipo sem criar ciclo
+- `packages/shared/src/sistemas/pathfinder2e/avaliar-rolagem.ts` — **arquivo novo na entrega**: implementa via `grauSucesso` + `d20NaturalDe`, e `definicao.ts` só o pluga (uma linha)
+- `packages/shared/src/tipos/dtos.ts` — `MensagemDTO.avaliacao: { cd, grau, d20Natural, efeitoNatural } | null` (o quarto campo nasceu na entrega — F11)
+- `apps/api/supabase/migrations/0010_avaliacao_mensagem.sql`
 - [rolar-dados.ts](../../apps/api/src/aplicacao/jogo/rolar-dados.ts), [mensagem.ts](../../apps/api/src/dominio/jogo/mensagem.ts), [mapeadores.ts](../../apps/api/src/aplicacao/mapeadores.ts) e o mapper Supabase de mensagens
 - [Chat.tsx](../../apps/web/src/features/jogo/Chat.tsx) — selo do grau
 
@@ -628,7 +720,77 @@ Cenário: Borda — histórico antigo
 
 ### RV-155 — Defesas de PF2e: CA, salvaguardas, Percepção e CD de classe
 
-**Épico:** E15 · **Depende de:** RV-152 · **Tamanho:** M · **Onda:** 2
+**Épico:** E15 · **Depende de:** RV-152 · **Tamanho:** M · **Onda:** 2 · **Status:** ✅ Concluído (v0.8.0)
+
+> **Decisões tomadas na entrega.** A aritmética está em
+> [defesas.ts](../../packages/shared/src/sistemas/pathfinder2e/defesas.ts) e nenhuma linha dela soma
+> `+ nivel`: as quatro defesas chamam `bonusProficiencia` do RV-151, e há um teste que fica vermelho se
+> alguma delas se afastar dele em qualquer grau ou nível.
+> **Dois contratos novos, e nenhum `switch (sistema)`.** (1) `CampoFicha` ganhou o tipo `selecao` com
+> `opcoes` — os seis graus e o atributo-chave são escolhas, e sem isso a seção Defesas só existiria com
+> uma lista de opções escrita no JSX, divergindo do `schemaFicha` no primeiro valor novo; o teste do
+> registro passou a exigir que **toda** opção declarada seja aceita pelo schema e que um valor fora dela
+> seja recusado. (2) `DefinicaoSistema.defesas(ficha)` é obrigatório e devolve `DefesaFicha[]` — `[]` nos
+> outros sistemas, pela mesma disciplina de `familiasPericia`.
+> **O derivado não é campo.** CA, salvaguardas, Percepção, CD de classe e o PV sugerido são calculados a
+> cada leitura; `dados` guarda só o que é **informado** (seis graus, bônus de item e limite de Destreza da
+> armadura, atributo-chave da classe, as duas entradas de PV). Gravar o derivado seria a segunda verdade
+> que o RV-098 fechou para o atributo — o personagem sobe de nível e o número gravado continua o de
+> antes. Há guarda para isso no registro (para todo sistema) e um 400 de contrato que recusa `dados.ca`.
+> **Ausência ≠ zero no limite de Destreza.** `limiteDestrezaArmadura` é `number | null`, e `null` é a
+> armadura que não limita a Destreza — tratá-lo como `0` apagaria a Destreza de quem não veste armadura. O
+> campo esvaziado na interface (`''`) atravessa a pilha como ausência, e não como 400: há teste de
+> contrato disso, porque é o caminho que a tela usa de verdade.
+> **A CD de classe recusa-se a existir sem o atributo-chave.** Quem o define é a classe; escolher o maior
+> (ou a Força, por ser a primeira da lista) daria um número plausível e errado — do tipo que a mesa só
+> descobre quando o inimigo passa na CD. Sem ele o valor é `null` e a ficha diz o que falta, em PT-BR.
+> **`pvSugerido` entregue como derivado, com as entradas informadas à mão.** "Nenhum campo de PV novo"
+> continua valendo e está coberto por guarda: a ficha não declara `pvAtual`, `pvMax`, `pvSugerido` nem
+> forma equivalente. O que ela guarda são `pvDaAncestralidade` e `pvDaClassePorNivel`, que **não** são os
+> PV de ninguém — são constantes da ancestralidade e da classe, informadas à mão até o catálogo (RV-157),
+> exatamente como o bônus de item da armadura. A sugestão aparece como **linha derivada** na lista de
+> defesas (no PF2e os pontos de vida são um capítulo de defesa, ao lado de CA e salvaguardas), e é assim
+> que ela chega à tela sem que a ficha genérica pergunte qual é o sistema. Ficha sem as duas entradas não
+> sugere `0`: diz o que falta, porque "PV máximo sugerido: 0" parece resultado.
+> **`BASE_DEFESA = 10` mora em `defesas.ts`, e não em `regras.ts`** — o DoD do RV-151 pede que nenhum
+> número de regra fique fora de `regras.ts`, e esta é uma divergência consciente: `regras.ts` guarda o que
+> atravessa o sistema (proficiência, graus de sucesso, empilhamento) e as regras de **defesa** são deste
+> arquivo. O número está escrito uma vez, e é lido pela CA e pela CD de classe.
+> **A previsão do RV-153 de que as defesas entrariam em `TREINAVEIS` foi superada (F11).** Aquela lista é
+> também o `pericias` da definição, então Percepção dentro dela apareceria entre as perícias — o que os
+> dois cards proíbem. Os graus das defesas são chaves de topo de `dados` (`grauArmadura`, `grauFortitude`,
+> …), porque `CampoFicha.chave` endereça uma chave de topo e é assim que a seção renderiza. O comentário
+> em `definicao.ts` foi corrigido.
+> **Uma asserção de teste alheia mudou de forma, não de intenção:** `FichaPersonagem.pathfinder2e.test.tsx`
+> afirmava "Percepção não aparece em lugar nenhum da ficha"; desde este card ela **aparece**, nas defesas,
+> com dado próprio. A asserção passou a ser por seção (dentro do `fieldset` de perícias) e ganhou a
+> contraprova de que o botão de Percepção existe.
+>
+> **O que este card entregou pela metade, e a metade que falta virou card.** O cenário acrescentado na
+> curadoria da v0.7.0 — "rolar salvaguarda e Percepção em um clique" — foi cumprido ao pé da letra: a
+> salvaguarda publica `1d20+6` com o motivo pronto. Mas a entrega do RV-154, no mesmo lote, tinha nomeado
+> **este** card como o consumidor do campo `cd` de `rolarDadosSchema` para as salvaguardas, e isso não veio.
+> Consequência para a mesa: o mestre diz "CD 18", o jogador clica em Reflexos, e o chat mostra o total **sem
+> grau de sucesso** — na checagem mais rolada de uma sessão de PF2e, o eixo do épico
+> (`ficha → bônus certo → grau no chat`) para no meio. Só o ataque tem de onde tirar a CD hoje. Virou o
+> [RV-161](#rv-161--a-cd-precisa-chegar-às-rolagens-da-ficha-salvaguarda-percepção-e-perícia), que herda as
+> decisões deste card (a expressão e o motivo já vêm prontos de `defesasDoPersonagem`; a tela não faz
+> aritmética).
+>
+> **A `0009` e a `0010` foram aplicadas na verificação da sprint**, então o bloqueador registrado na entrega
+> — "as defesas só são editáveis em ficha criada depois da `0009`" — **não existe mais**: `PATCH` numa ficha
+> de PF2e antiga volta 200, e o schema preenche as onze chaves novas nos padrões (`destreinado`, `0`, `null`,
+> `[]`). Isso foi conferido contra o banco real, forçando `dados` para o formato pré-Sprint-3 e relendo pela
+> rota.
+>
+> **A aresta cosmética registrada na entrega continua de pé e não virou card:** ficha de PF2e gravada antes
+> deste card mostra o grau de defesa como *select* sem seleção (a chave ausente devolve `''`, que não é uma
+> das opções), até o primeiro salvamento. Não há perda de dado, o `detalhe` da defesa já exibe "proficiência
+> +0" e o valor efetivo está certo. As duas saídas plausíveis mexem em contrato (`CampoFicha` declarando qual
+> opção é o padrão) ou inventam valor na tela (cair na primeira opção por convenção de ordenação) — desproporcional
+> para um sintoma que dura um salvamento. Fica como contexto para quem pegar o [RV-092](09-fichas.md) ou o
+> [RV-159](#rv-159--adicionar-saber-recusado-precisa-dizer-o-motivo-em-vez-de-esvaziar-o-campo), que mexem nos
+> mesmos componentes.
 
 **História**
 > Como **jogador de PF2e**, quero **CA, as três salvaguardas, Percepção e a CD de classe calculadas na ficha**, para **responder "qual é a sua CA?" sem abrir o livro no meio do combate**.
@@ -714,7 +876,81 @@ Cenário: Borda — limite de Destreza ausente
 
 ### RV-156 — Ataques com penalidade de ataques múltiplos
 
-**Épico:** E15 · **Depende de:** RV-154, RV-155 · **Tamanho:** G · **Onda:** 2
+**Épico:** E15 · **Depende de:** RV-154, RV-155 · **Tamanho:** G · **Onda:** 2 · **Status:** ✅ Concluído (v0.8.0)
+
+> **Decisões tomadas na entrega.**
+> **Onde mora o contador: em lugar nenhum, e isso é verificado.** O card já indicava a escolha explícita, e
+> a entrega a levou até o fim — não existe contador de MAP no servidor, no banco, nem no navegador. A ordem
+> é argumento de `penalidadeAtaquesMultiplos(ordem, agil)`, e a interface oferece os três botões. Duas
+> guardas em disco provam a ausência em vez de prometê-la (`ataques.test.ts`): nenhum arquivo de
+> `apps/api/src` conhece o vocabulário deste card, e nenhuma migration fala de ataque. Um teste de front
+> clica **duas vezes no mesmo botão** e exige a mesma expressão — se a tela contasse, o segundo clique
+> sairia `-5` e ninguém saberia zerar. Quando o RV-062 existir, ele pré-seleciona o botão e nada disto muda.
+> **A tabela é `MAP_POR_ORDEM` em [regras.ts](../../packages/shared/src/sistemas/pathfinder2e/regras.ts)**,
+> com uma coluna para arma comum e outra para ágil, pela mesma disciplina do destreinado no RV-151. Há teste
+> exigindo que a ágil **não** seja "um a menos": a diferença é 1 no segundo golpe e 2 no terceiro, e derivar
+> um do outro casa por acidente num degrau e erra no outro.
+> **`ordem` é `number`, e não `1 | 2 | 3` como o Escopo escreveu — F11.** O próprio critério de aceite exige
+> `null` para ordem fora da faixa, e com o tipo estreito esse caminho só seria alcançável por `as`: uma
+> guarda que não dá para exercitar (F1). O Escopo abaixo foi corrigido. A tabela tem **três** entradas, e o
+> terceiro degrau se chama "3º ataque ou mais" — inventar uma entrada 4 sugeriria que o quarto golpe tem
+> penalidade própria, e ele usa a do terceiro.
+> **Contrato novo: `DefinicaoSistema.ataques: ModeloDeAtaques | null`** (obrigatório e anulável, como
+> `avaliarRolagem`). O modelo carrega os campos editáveis de um ataque — como `CampoFicha`, reusando o
+> renderizador genérico e o `never` dele —, o teto da lista, as três funções puras de edição e **todo o
+> texto de regra da seção**. D&D 5e declara `null` **com o motivo escrito**: lá não existe MAP (o ataque
+> repetido vem de Ação de Ataque Extra, sem penalidade), e reusar o modelo do PF2e aplicaria −5 a um golpe
+> que não sofre nada.
+> **`acertos` e `danos` são listas separadas no contrato, e a separação é a defesa.** Só o acerto aceita CD,
+> então a rolagem de dano não tem como carregar `cd` nem por esquecimento — em vez de uma lista só com um
+> `aceitaCd` que a tela pode ignorar. Há teste de front provando que o dano sai **sem** a chave `cd` mesmo
+> com a CA do alvo preenchida na tela, e teste de contrato provando que ele volta com `avaliacao: null`.
+> **A CA do alvo é efêmera e não é gravada.** Ela é do inimigo, não do personagem: vive no estado da seção,
+> viaja como o `cd` **número** de `rolarDadosSchema` (a segunda porta que o RV-154 abriu, agora com o
+> primeiro chamador de produção no front) e some ao fechar a ficha. Fora da faixa 1..60 a rolagem sai **sem**
+> CD, em vez de virar 400: quem digitou 200 não perde o golpe, só não vê o grau.
+> **Dano dobrado: a variante que o livro permite, dita em voz alta.** O motor de dados soma e subtrai termos
+> e **não multiplica um total**, então "role e dobre o total" — o padrão do livro — é inexprimível hoje. A
+> regra oferece uma alternativa com a concordância do mestre: rolar os dados duas vezes e dobrar os
+> modificadores, que é `1d8+4+1d8+4`. É essa que o botão usa, e o `detalhe` da rolagem **diz qual das duas
+> leituras foi usada**, porque a média é a mesma e o espalhamento não. As alternativas eram piores:
+> multiplicação na gramática do motor é card do E08 e mexeria no chat, na validação e na api de uma vez; e
+> "role o normal e dobre à mão" devolve ao jogador a conta que este épico existe para tirar dele. Expressão
+> de dano cuja versão dobrada não caiba no motor desabilita **só** a variante, com o motivo.
+> **Nome, bônus de acerto, dano e ágil são informados à mão**, como o bônus de item da armadura no RV-155 —
+> catálogo de armas é o RV-157. A expressão de dano é validada pelo **motor de dados** (`validarExpressao`),
+> e não por um regex próprio: o erro do motor entra na mensagem de 400, e não há segunda gramática de dados.
+> **A chave de um ataque é posicional** (`ataque:0`), ao contrário do `saber:Guerra` do RV-153: o nome muda a
+> cada tecla, e uma chave derivada dele remontaria a linha e tiraria o foco do campo no meio da palavra. Ela
+> não é gravada em lugar nenhum.
+> **As chaves das variantes de dano levam prefixo (`dano:normal`)** porque a guarda do registro — "nenhuma
+> rolagem de ataque é campo gravado da ficha" — acusou colisão com o campo `dano`. Sem o prefixo, a guarda
+> teria de ser afrouxada até não provar mais nada.
+>
+> **A guarda de ausência do contador foi exercitada por quem verificou, e defende.** Acrescentar uma linha com
+> `penalidadeAtaquesMultiplos` em `apps/api/src/aplicacao/jogo/rolar-dados.ts` deixou a suíte de `shared`
+> vermelha em 1 de 59, nomeando o arquivo culpado e o motivo. É a diferença entre uma decisão de arquitetura
+> escrita no card e uma decisão que o repositório sabe cobrar (F1).
+>
+> **A separação `acertos`/`danos` protege a ficha, e só a ficha.** O teste de contrato que "prova" que o dano
+> não tem grau prova que a **tela não manda** `cd` — o servidor avalia qualquer expressão que venha com CD, e
+> quem digitar `/r 1d8+4 cd 18` no chat recebe "Falha crítica" num dano, com o grau errado **gravado** em
+> `mensagens.avaliacao`. Medido contra a API em execução na verificação da sprint. Isto **não** invalida a
+> decisão deste card (a separação estrutural continua sendo a forma certa de a ficha não errar); o que falta é
+> a tranca do outro lado, e ela virou o
+> [RV-160](#rv-160--grau-de-sucesso-só-para-checagem-rolagem-de-dano-não-tem-cd) — card protetor da Sprint 4,
+> antes de o RV-161 abrir mais portas de CD.
+>
+> **A `0009` e a `0010` foram aplicadas na verificação da sprint**, então os dois bloqueadores registrados na
+> entrega — acerto com CA falhando no `INSERT`, e `PATCH` de ataques recusado por escala em ficha antiga —
+> **não existem mais** contra o banco em uso.
+>
+> **A leitura de dano dobrado continua sendo a variante da regra, e isso é decisão de produto pendente, não
+> defeito.** O motor de dados não multiplica um total, então "role e dobre o total" (o padrão do livro) é
+> inexprimível hoje e o botão usa "role os dados duas vezes e dobre os modificadores", dizendo qual leitura
+> usou. Não virou card: o trabalho real é um multiplicador na gramática do motor, que é o
+> [E08](08-dados.md) (RV-080…RV-084) e mexeria no chat, no VO `ExpressaoDados`, na validação e na api de uma
+> vez. Se um dia entrar, este parágrafo é o contexto.
 
 **História**
 > Como **jogador de PF2e**, quero **botões de ataque com −0 / −5 / −10 já aplicados**, para **não errar a conta do segundo golpe no meio do turno**.
@@ -728,9 +964,10 @@ Cenário: Borda — limite de Destreza ausente
 - A CD/CA alvo do acerto usa o mesmo caminho do RV-154 (`cd N`), então o grau de sucesso já vem de graça.
 
 **Escopo**
-- `packages/shared/src/sistemas/pathfinder2e/regras.ts` — `penalidadeAtaquesMultiplos(ordem: 1 | 2 | 3, agil: boolean): number | null`
-- `packages/shared/src/sistemas/pathfinder2e/definicao.ts` — seção de ataques: `{ nome, bonusAcerto, dano, agil }[]`
-- [FichaPersonagem.tsx](../../apps/web/src/features/personagens/FichaPersonagem.tsx) — três botões de acerto + botão de dano por ataque
+- `packages/shared/src/sistemas/pathfinder2e/regras.ts` — `penalidadeAtaquesMultiplos(ordem: number, agil: boolean): number | null` *(o Escopo dizia `ordem: 1 | 2 | 3`; corrigido na entrega — ver as decisões acima, F11)*
+- `packages/shared/src/sistemas/pathfinder2e/ataques.ts` — a lista `{ nome, bonusAcerto, dano, agil }[]`, o schema e as variantes de rolagem *(arquivo novo: a tabela não caberia em `definicao.ts`, que só a pluga)*
+- `packages/shared/src/sistemas/pathfinder2e/definicao.ts` — pluga o modelo de ataques no registro
+- [FichaPersonagem.tsx](../../apps/web/src/features/personagens/FichaPersonagem.tsx) + `SecaoAtaques.tsx` — três botões de acerto, dois de dano e a CA do alvo por ficha
 
 **Critérios de aceite**
 ```gherkin
@@ -1031,3 +1268,228 @@ Cenário: Borda — sistema sem família de perícia
       motivo correspondente que a interface consegue exibir.
 - [ ] Zero número de limite escrito no JSX.
 - [ ] O comentário de `acrescentarSaber` descreve o que o código faz.
+
+---
+
+### RV-160 — Grau de sucesso só para checagem: rolagem de dano não tem CD
+
+**Épico:** E15 · **Depende de:** RV-154 (✅) · **Tamanho:** P · **Onda:** 2 · **Faça este antes do RV-161**
+
+**História**
+> Como **jogador de PF2e**, quero **que o chat só anuncie grau de sucesso quando a rolagem for uma checagem**, para **não ver "Falha crítica" num dano de espada — e não ter esse veredito gravado no histórico da campanha**.
+
+**Contexto técnico**
+- **Defeito medido contra a API em execução na verificação independente da v0.8.0**, numa mesa de PF2e real:
+  `POST /mesas/:id/chat {texto:'/r 1d8+4 cd 18'}` → **201** com `avaliacao {"cd":18,"grau":"falha-critica"}`;
+  `/r 2d6+3 cd 20` → 201 com `grau "falha-critica"`;
+  `POST /mesas/:id/rolagens {expressao:'1d8+4', motivo:'Dano — Espada longa', cd:18}` → 201 com `grau "falha"`.
+- **Onde está.** [rolar-dados.ts](../../apps/api/src/aplicacao/jogo/rolar-dados.ts) chama `avaliar(avaliador, resultado, cd)`
+  para **qualquer** expressão que venha com CD; nada no caminho exige que a expressão seja uma checagem de
+  d20. O avaliador ([avaliar-rolagem.ts](../../packages/shared/src/sistemas/pathfinder2e/avaliar-rolagem.ts))
+  faz o que promete: compara `resultado.total` com a CD. Ele não tem como saber que aquele total é dano.
+- **Por que a suíte não pega — e por que o teste que parece cobrir isso não cobre.** O RV-156 modelou
+  `acertos` e `danos` como listas separadas justamente para a tela não ter como mandar `cd` num dano, e há um
+  teste de contrato em
+  [rotas-personagens-ataques-pf2e.test.ts](../../apps/api/src/apresentacao/http/rotas-personagens-ataques-pf2e.test.ts):302
+  provando `avaliacao: null` no dano. Ele passa porque **a ficha não manda** `cd`, não porque o servidor
+  recuse. É a variante de **F4** da [taxonomia](../agentes/taxonomia-de-falhas.md): a proteção mora na forma
+  do chamador, e some no primeiro chamador novo — que é literalmente a caixa de texto do chat, que já existe.
+- **Consequência que não se conserta depois.** A avaliação é, por decisão do RV-154, "o registro do que foi
+  anunciado" — gravada em `mensagens.avaliacao` e não deduzida na renderização. Um grau errado no histórico
+  não é corrigido por errata: fica lá.
+- **Decisão a tomar, com justificativa escrita no diff — e as duas candidatas não são equivalentes:**
+  1. **"A expressão precisa ter um termo de dados de 20 faces somado."** Aceita `1d20+11`, `1d20+1d6` e
+     `2d20kh1`; recusa `1d8+4`, `3d6` e `7`. Preserva o comportamento que o RV-154 escolheu de propósito:
+     `1d20+1d6` **é** avaliada, com `d20Natural: null` significando "sem ajuste do dado natural", não "não
+     avalio".
+  2. **"O d20 precisa ser identificável" (`d20NaturalDe(resultado) !== null`).** Mais simples de escrever e
+     **muda entrada aceita hoje**: recusaria `1d20+1d6`, contrariando o cenário `Guarda:` do RV-151 e a
+     decisão do RV-154. Se for esta, o card tem de dizer por que aquela decisão foi revertida.
+- **A regra não é um `if` dentro de `RolarDados`.** Quem sabe o que é uma checagem é o **sistema** —
+  `DefinicaoSistema.avaliarRolagem` é o ponto de extensão que o RV-154 abriu, e o predicado pertence a esse
+  lado da fronteira (o avaliador devolvendo "não é checagem", ou um irmão dele). Um `switch`/`if` de formato de
+  expressão no caso de uso é o que o DoD do RV-154 proíbe.
+- **Armadilha — o `20` é número de regra.** O DoD do RV-151 exige que nenhum número de regra de PF2e seja
+  escrito fora de `regras.ts`. "Faces 20" já está encapsulado em `d20NaturalDe`; se a saída 1 precisar de um
+  predicado novo, ele mora ao lado dela, em `regras.ts`, e não no shared genérico nem na api.
+- **Armadilha — recusar em silêncio é F6.** O RV-154 já decidiu isto para o outro caso ("mesa de D&D 5e recusa
+  CD com 400 nomeando o sistema, nenhuma mensagem criada"). Aceitar a rolagem e só omitir o selo faria o
+  jogador que digitou `cd 18` acreditar que informou a CD. **400 em PT-BR, dizendo o conserto**, e a mensagem
+  não é criada — mesma forma da recusa que já existe.
+- **Não há dado velho a migrar.** As únicas mensagens conhecidas com grau sobre expressão que não é checagem
+  são as 7 linhas de auditoria da verificação da v0.8.0 (mesas com prefixo `Dano `/`Auditoria `). Não reescreva
+  `mensagens.avaliacao` de linhas existentes: a decisão do RV-154 é que a avaliação registra o que foi
+  anunciado, e uma migration que reescreve o passado contradiz o card que criou a coluna.
+
+**Escopo**
+- `packages/shared/src/sistemas/pathfinder2e/regras.ts` e/ou
+  [avaliar-rolagem.ts](../../packages/shared/src/sistemas/pathfinder2e/avaliar-rolagem.ts) — o predicado de
+  "isto é uma checagem"
+- `packages/shared/src/chat/avaliacao.ts` — a mensagem de recusa em PT-BR, ao lado de `MENSAGEM_CD_INVALIDA` e
+  `mensagemSistemaSemAvaliacao` (é onde as outras duas já moram, e é o que evita a terceira grafia da mesma ideia)
+- [rolar-dados.ts](../../apps/api/src/aplicacao/jogo/rolar-dados.ts) — a recusa entra **antes** de rolar, junto
+  da que já existe para sistema sem avaliação
+- `packages/shared/src/sistemas/tipos.ts` — só se o contrato do avaliador precisar mudar de forma
+
+**Critérios de aceite**
+```gherkin
+Cenário: Dano com CD é recusado, e nada é gravado
+  Dado uma mesa "pathfinder2e"
+  Quando eu rolar "/r 1d8+4 cd 18"
+  Então recebo 400 em PT-BR dizendo que a CD só se aplica a uma checagem
+  E nenhuma mensagem é criada nem publicada na sala "mesa:{id}"
+
+Cenário: Checagem continua avaliada, pelas duas portas
+  Quando eu rolar "/r 1d20+11 cd 18"
+  E quando a ficha chamar POST /mesas/:id/rolagens com { expressao: "1d20+11", cd: 18 }
+  Então as duas produzem a mesma avaliação, com o grau no chat
+
+Cenário: A decisão do RV-154 sobre d20 ambíguo é preservada
+  Quando eu rolar "1d20+1d6 cd 18"
+  Então a rolagem é avaliada
+  E o dado natural não ajusta o grau (d20Natural nulo)
+
+Cenário: Sem CD, nada muda
+  Quando eu rolar "/r 1d8+4" sem CD
+  Então a mensagem sai exatamente como hoje, sem selo e sem erro
+
+Cenário: Autorização
+  Dado que não participo da mesa
+  Quando eu chamar a rota de rolagem com CD
+  Então recebo 403
+  E a recusa de autorização vem antes de qualquer avaliação
+
+Cenário: Borda — expressão sem dados
+  Quando eu rolar "/r 7 cd 10"
+  Então recebo 400 em PT-BR
+  E nenhuma mensagem é criada
+```
+
+**Testes obrigatórios**
+- Puro: o predicado sobre resultados vindos do **motor de dados real com RNG determinístico**, nunca sobre
+  `ResultadoRolagem` montado à mão — mesma disciplina do RV-151 e do RV-154, e pelo mesmo motivo (**F3**).
+  Cobrir `1d20+11`, `2d20kh1`, `1d20+1d6`, `1d8+4`, `2d6+3`, `3d6` e constante pura.
+- Use case com fakes: dano com CD devolve `Validacao` sem salvar nem publicar; checagem com CD continua
+  produzindo `avaliacao`.
+- Contrato `fastify.inject()`: as **duas** portas (sufixo `cd N` no `/chat` e `cd` número em `/rolagens`)
+  recusando o dano, com o histórico conferido vazio depois.
+- **Prove o vermelho antes de confiar:** reintroduza o defeito e veja o teste de contrato falhar com o sintoma
+  exato (`expected 400 to be 201` não serve — o teste precisa nomear o grau que não deveria existir).
+
+**DoD específico**
+- [ ] A recusa vive do lado do **sistema**, não como `if` de formato de expressão dentro de `RolarDados`.
+- [ ] Nenhum número de regra novo fora de `regras.ts`.
+- [ ] O teste de `rotas-personagens-ataques-pf2e.test.ts` que hoje passa por outro motivo ganha um irmão que
+      manda `cd` no dano de propósito.
+- [ ] Nenhuma linha existente de `mensagens.avaliacao` é reescrita.
+
+---
+
+### RV-161 — A CD precisa chegar às rolagens da ficha: salvaguarda, Percepção e perícia
+
+**Épico:** E15 · **Depende de:** RV-154 (✅), RV-155 (✅), RV-160 · **Tamanho:** M · **Onda:** 2
+
+**História**
+> Como **jogador de PF2e**, quero **informar a CD que o mestre acabou de anunciar quando clico na minha salvaguarda**, para **o chat dizer "Sucesso crítico" na checagem que eu mais rolo, e não só nos ataques**.
+
+**Contexto técnico**
+- **É a metade que faltou da Sprint 3, e o eixo do épico para exatamente aqui.** O RV-154 entregou a CD por
+  duas portas e nomeou, na própria entrega, quem consumiria a segunda: "o RV-155 (botão de dado das
+  salvaguardas e da Percepção) e o RV-156 (ataques)". Só o RV-156 consumiu. Hoje o mestre diz "CD 18", o
+  jogador clica em Reflexos, e o chat mostra o total **sem grau** — a mesa volta a comparar 28 com 18 de
+  cabeça, que é o trabalho que este épico existe para tirar dela. Salvaguarda é a checagem mais rolada de uma
+  sessão de PF2e (uma por magia de área, uma por perigo).
+- **A canalização já existe e está testada; falta a interface.** `rolarDadosSchema` aceita
+  `cd: number | null` ([jogo.ts](../../packages/shared/src/schemas/jogo.ts)); `useRolarDados`
+  ([api.ts](../../apps/web/src/features/jogo/api.ts)) aceita `cd?: number | null` e **só põe a chave no corpo
+  quando ela existe**, para que as rolagens que já existiam continuem mandando exatamente
+  `{ expressao, motivo }`. A expressão e o motivo das defesas já vêm prontos de `defesasDoPersonagem`
+  ([calculo.ts](../../packages/shared/src/sistemas/calculo.ts)) e das perícias de `expressaoDePericia` — **a
+  tela não faz aritmética nenhuma**, e não deve passar a fazer.
+- **O precedente a copiar é o campo de CA do alvo do RV-156**
+  ([SecaoAtaques.tsx](../../apps/web/src/features/personagens/SecaoAtaques.tsx):216-237), com as três decisões
+  que ele já tomou e que valem aqui: o campo é **efêmero** (a CD é da situação, não do personagem — gravá-la em
+  `dados` guardaria na minha ficha um dado que é do mestre); a faixa vem de `CD_MINIMA`/`CD_MAXIMA` e é testada
+  por `cdValida`; e **valor fora da faixa faz a rolagem sair sem CD, não 400** — quem digitou 200 não perde a
+  jogada, só não vê o grau.
+- **Decisão a tomar, com justificativa escrita:** onde mora o campo — **um por ficha** (a CD anunciada vale para
+  o que o jogador vai rolar agora), **um por seção** (defesas e perícias com campos independentes) ou **um por
+  linha**. Um por linha é o pior dos três: multiplica um campo que quase sempre tem o mesmo valor. Entre os
+  outros dois, decida e escreva o porquê; se for um por ficha, ele precisa ficar visível de onde se rola, não no
+  topo de uma página longa.
+- **Armadilha F6 — o campo não pode existir onde a CD é recusada.** Numa mesa de D&D 5e a CD devolve 400
+  nomeando o sistema (RV-154). Oferecer um campo de CD lá é prometer um grau que a API recusa. A existência do
+  campo tem de derivar de `definicao.avaliarRolagem !== null`, **nunca** de `switch (sistema)` — proibido pelo
+  DoD de todo card deste épico.
+- **Armadilha F9 — a faixa escrita duas vezes.** Se o campo aparecer em três seções, a faixa e o texto de ajuda
+  precisam sair de **um** componente (extraia o que hoje está inline em `SecaoAtaques.tsx`), senão a próxima
+  mudança de faixa acerta duas telas e esquece a terceira.
+- **Armadilha — somente leitura não é "sem botão de dado".** É a correção de escopo que o RV-155 recebeu e o
+  RV-156 aplicou: na ficha de outro jogador os campos não são editáveis, e o dado **continua rolável**. O campo
+  de CD é entrada de quem está rolando, então ele segue o dado, não a edição.
+- **Fora de escopo, de propósito, e por que:** o mestre **sugerir** ou **anunciar** a CD para a mesa exige saber
+  de quem é a vez e o que está acontecendo na cena — é combate ([RV-063](06-combate.md)) e não ficha. E a CD
+  sugerida por nível/grau (`cdPorNivel`, `CDS_SIMPLES` do RV-151, que seguem **sem consumidor de produção**) é
+  outra intenção de usuário: um card = uma intenção. Registre o handoff, não amplie.
+
+**Escopo**
+- [SecaoDefesas.tsx](../../apps/web/src/features/personagens/SecaoDefesas.tsx) e
+  [SecaoPericias.tsx](../../apps/web/src/features/personagens/SecaoPericias.tsx) — o campo e a CD viajando na
+  rolagem
+- [SecaoAtaques.tsx](../../apps/web/src/features/personagens/SecaoAtaques.tsx) — extrair o campo de CD para um
+  componente único, sem mudar o comportamento dele
+- [FichaPersonagem.tsx](../../apps/web/src/features/personagens/FichaPersonagem.tsx) — repassa `cd` a
+  `useRolarDados`, que já o aceita
+- Nada em `apps/api` e nada de migration: o caminho do servidor está entregue e testado
+
+**Critérios de aceite**
+```gherkin
+Cenário: Salvaguarda com a CD anunciada
+  Dado Reflexos +6 na ficha e a CD 18 informada
+  Quando eu clicar no dado de Reflexos
+  Então é publicada "1d20+6" com o motivo "Reflexos — Seelah" e a CD 18
+  E o chat exibe o grau de sucesso para todos, sem recarregar
+
+Cenário: Percepção e perícia pelo mesmo caminho
+  Dado a CD 20 informada
+  Então clicar no dado de Percepção e no de Furtividade publica as duas com a CD
+  E o componente não faz aritmética nenhuma
+
+Cenário: Sem CD, comportamento de hoje
+  Dado o campo de CD vazio
+  Quando eu clicar no dado de Reflexos
+  Então o corpo enviado é exatamente { expressao, motivo }, sem a chave "cd"
+  E a mensagem sai sem selo de grau
+
+Cenário: Sistema que não avalia não oferece o campo
+  Dado uma ficha de mesa "dnd5e"
+  Então nenhum campo de CD é renderizado na ficha
+  E nada muda no comportamento dela
+
+Cenário: Autorização
+  Dado que estou vendo a ficha de outro jogador
+  Então os campos da ficha continuam desabilitados
+  E o dado da salvaguarda continua rolável, com a CD que eu informar
+  E não-participante da mesa chamando a rota de rolagem recebe 403
+
+Cenário: Borda — CD fora da faixa
+  Quando eu digitar 0 ou 200 no campo de CD
+  Então a rolagem sai sem CD, em vez de falhar
+  E o limite exibido vem de CD_MINIMA/CD_MAXIMA, não de números no JSX
+```
+
+**Testes obrigatórios**
+- Front: clicar na salvaguarda com CD informada chama o hook com **o corpo exato** (expressão, motivo e `cd`);
+  com o campo vazio, o corpo **não tem** a chave `cd` — a asserção é de igualdade profunda, senão a chave
+  sobrando passa.
+- Front: ficha de mesa `dnd5e` sem campo de CD; ficha somente leitura com campos desabilitados **e** dado
+  rolável.
+- Front: valor fora da faixa produz rolagem sem CD (e não uma requisição que volta 400).
+- Contrato: já coberto pelo RV-154 — **não** duplique o teste de rota; se precisou de rota nova, o card está
+  errado.
+
+**DoD específico**
+- [ ] Zero aritmética de bônus no JSX: a expressão vem pronta do sistema.
+- [ ] Um único componente de campo de CD no front, consumido pelas três seções.
+- [ ] Nenhuma CD gravada em `personagens.dados`.
+- [ ] Zero `switch (sistema)`: a presença do campo deriva de `avaliarRolagem !== null`.

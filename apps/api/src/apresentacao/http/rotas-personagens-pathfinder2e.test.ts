@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  atributosIniciais,
   dadosIniciaisDaFicha,
   type CriarMesaEntrada,
   type MesaDTO,
@@ -23,19 +24,16 @@ import { criarAppDeTeste, type AppDeTeste, type SessaoDeTeste } from '../../test
  * traz o valor, ainda **não** foi aplicada em ambiente nenhum.
  */
 
+/**
+ * Sem `atributos` de propósito (RV-098): o padrão é da escala do sistema, e o
+ * `10` que estava aqui é valor de d20 clássico — fora da escala do PF2e (−5..+8),
+ * hoje recusado com 400.
+ */
 const FICHA_BASE = {
   nome: 'Seelah',
   classe: 'Paladina',
   nivel: 1,
   pvMax: 20,
-  atributos: {
-    forca: 10,
-    destreza: 10,
-    constituicao: 10,
-    inteligencia: 10,
-    sabedoria: 10,
-    carisma: 10,
-  },
   anotacoes: '',
 };
 
@@ -142,7 +140,10 @@ describe('mesa de Pathfinder 2e (RV-152)', () => {
 
     expect(seelah.sistema).toBe('pathfinder2e');
     expect(seelah.dados).toEqual(dadosIniciaisDaFicha('pathfinder2e'));
-    expect(seelah.dados['modificadorDestreza']).toBe(0);
+    // Os modificadores estão na coluna comum, na escala do sistema (RV-098): +0
+    // numa ficha nova, e não o 10 do d20 clássico.
+    expect(seelah.atributos).toEqual(atributosIniciais('pathfinder2e'));
+    expect(seelah.atributos.destreza).toBe(0);
     expect(seelah.nivel).toBe(1);
   });
 });
@@ -155,19 +156,20 @@ describe('PATCH /personagens/:id — ficha de PF2e (RV-152)', () => {
       ancestralidade: 'Humana',
       heranca: 'Versátil',
       antecedente: 'Guarda',
-      modificadorForca: 4,
-      modificadorCarisma: 2,
     };
+    // Os modificadores vão na coluna comum, que é onde eles moram (RV-098).
+    const atributos = { ...atributosIniciais('pathfinder2e'), forca: 4, carisma: 2 };
 
     const r = await ambiente.app.inject({
       method: 'PATCH',
       url: `/api/personagens/${seelah.id}`,
       headers: bruno.cabecalhos,
-      payload: { dados },
+      payload: { dados, atributos },
     });
 
     expect(r.statusCode).toBe(200);
     expect(r.json<PersonagemDTO>().dados).toEqual(dados);
+    expect(r.json<PersonagemDTO>().atributos).toEqual(atributos);
 
     const lista = await ambiente.app.inject({
       method: 'GET',
@@ -175,6 +177,7 @@ describe('PATCH /personagens/:id — ficha de PF2e (RV-152)', () => {
       headers: carla.cabecalhos,
     });
     expect(lista.json<PersonagemDTO[]>()[0]?.dados).toEqual(dados);
+    expect(lista.json<PersonagemDTO[]>()[0]?.atributos).toEqual(atributos);
   });
 
   it('modificador acima do teto devolve 400 em PT-BR e não grava nada', async () => {
@@ -184,14 +187,14 @@ describe('PATCH /personagens/:id — ficha de PF2e (RV-152)', () => {
       method: 'PATCH',
       url: `/api/personagens/${seelah.id}`,
       headers: bruno.cabecalhos,
-      payload: { dados: { ...dadosIniciaisDaFicha('pathfinder2e'), modificadorDestreza: 9 } },
+      payload: { atributos: { ...atributosIniciais('pathfinder2e'), destreza: 9 } },
     });
 
     expect(r.statusCode).toBe(400);
     const erro = r.json<{ erro: string }>().erro;
-    expect(erro).toContain('Modificador de Destreza');
-    expect(erro).toContain('o máximo é 8');
-    expect((await fichaDe(seelah.id, mesaId)).dados['modificadorDestreza']).toBe(0);
+    expect(erro).toContain('Destreza');
+    expect(erro).toContain('de -5 a +8');
+    expect((await fichaDe(seelah.id, mesaId)).atributos.destreza).toBe(0);
   });
 
   it('campo fora da definição devolve 400 nomeando o campo', async () => {
@@ -215,11 +218,11 @@ describe('PATCH /personagens/:id — ficha de PF2e (RV-152)', () => {
       method: 'PATCH',
       url: `/api/personagens/${seelah.id}`,
       headers: carla.cabecalhos,
-      payload: { dados: { ...dadosIniciaisDaFicha('pathfinder2e'), modificadorForca: 4 } },
+      payload: { atributos: { ...atributosIniciais('pathfinder2e'), forca: 4 } },
     });
 
     expect(r.statusCode).toBe(403);
-    expect((await fichaDe(seelah.id, mesaId)).dados['modificadorForca']).toBe(0);
+    expect((await fichaDe(seelah.id, mesaId)).atributos.forca).toBe(0);
   });
 
   it('o mestre edita a ficha de qualquer jogador da mesa', async () => {
@@ -229,11 +232,11 @@ describe('PATCH /personagens/:id — ficha de PF2e (RV-152)', () => {
       method: 'PATCH',
       url: `/api/personagens/${seelah.id}`,
       headers: mestre.cabecalhos,
-      payload: { dados: { ...dadosIniciaisDaFicha('pathfinder2e'), modificadorForca: 3 } },
+      payload: { atributos: { ...atributosIniciais('pathfinder2e'), forca: 3 } },
     });
 
     expect(r.statusCode).toBe(200);
-    expect(r.json<PersonagemDTO>().dados['modificadorForca']).toBe(3);
+    expect(r.json<PersonagemDTO>().atributos.forca).toBe(3);
   });
 });
 

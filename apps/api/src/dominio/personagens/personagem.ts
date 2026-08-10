@@ -1,4 +1,6 @@
 import {
+  atributosIniciais,
+  validarAtributosDoSistema,
   validarDadosDaFicha,
   type Atributos,
   type DadosFicha,
@@ -24,6 +26,15 @@ interface PropsPersonagem {
   nivel: number;
   pvAtual: number;
   pvMax: number;
+  /**
+   * Os seis atributos, **na escala do sistema da mesa** (RV-098).
+   *
+   * É o único lugar onde o atributo existe. Até o RV-098 o PF2e mantinha uma
+   * segunda cópia (o modificador) dentro de `dados`, e a ficha lia essa cópia
+   * enquanto a criação exigia e gravava esta coluna: quem informava Força 18 via
+   * o valor desaparecer. A escala (1..30 ou −5..+8) é declarada pela definição do
+   * sistema e conferida por `validarAtributosDoSistema` em toda escrita.
+   */
   atributos: Atributos;
   anotacoes: string;
   /**
@@ -58,7 +69,8 @@ export interface DadosCriacaoPersonagem {
   classe: string;
   nivel: number;
   pvMax: number;
-  atributos: Atributos;
+  /** Omitido nasce no padrão da escala do sistema (`atributosIniciais`, RV-098). */
+  atributos?: Atributos;
   anotacoes: string;
   /** Omitido nasce com os padrões do sistema (`dadosIniciaisDaFicha`). */
   dados?: DadosFicha;
@@ -84,8 +96,38 @@ export class Personagem extends Entidade {
     const ficha = validarDadosDaFicha(sistema, dados.dados);
     if (!ficha.ok) return falha(ErroDominio.validacao(ficha.erro));
 
-    const { id, dados: _dadosBrutos, ...resto } = dados;
-    return ok(new Personagem(id, { ...resto, nome, pvAtual: dados.pvMax, dados: ficha.dados }));
+    // O atributo informado na criação é conferido contra a escala do sistema e
+    // **gravado** (RV-098): exigir, guardar e ignorar era o defeito. Omitido,
+    // nasce no padrão daquela escala — nunca num 10 que só serve ao d20.
+    const atributos = Personagem.validarAtributos(dados.atributos, sistema);
+    if (!atributos.ok) return falha(atributos.erro);
+
+    const { id, dados: _dadosBrutos, atributos: _atributosBrutos, ...resto } = dados;
+    return ok(
+      new Personagem(id, {
+        ...resto,
+        nome,
+        pvAtual: dados.pvMax,
+        atributos: atributos.valor,
+        dados: ficha.dados,
+      }),
+    );
+  }
+
+  /**
+   * A escala do atributo é do sistema, e é conferida em toda escrita (RV-098).
+   *
+   * Fica no agregado, e não no caso de uso, porque é invariante da ficha: um
+   * personagem com Força 18 numa mesa de PF2e não é um estado que exista, venha a
+   * escrita de onde vier.
+   */
+  private static validarAtributos(
+    informados: Atributos | undefined,
+    sistema: SistemaRpg,
+  ): Result<Atributos> {
+    if (informados === undefined) return ok(atributosIniciais(sistema));
+    const validado = validarAtributosDoSistema(sistema, informados);
+    return validado.ok ? ok(validado.atributos) : falha(ErroDominio.validacao(validado.erro));
   }
 
   /**
@@ -173,6 +215,15 @@ export class Personagem extends Entidade {
       fichaNova = ficha.dados;
     }
 
+    // Mesma disciplina para o atributo (RV-098): validado antes de qualquer
+    // mutação, contra a escala do sistema da mesa.
+    let atributosNovos: Atributos | undefined;
+    if (campos.atributos !== undefined) {
+      const validado = validarAtributosDoSistema(sistema, campos.atributos);
+      if (!validado.ok) return falha(ErroDominio.validacao(validado.erro));
+      atributosNovos = validado.atributos;
+    }
+
     if (campos.nome !== undefined) {
       const nome = campos.nome.trim();
       if (nome.length < NOME_MINIMO || nome.length > NOME_MAXIMO) {
@@ -197,8 +248,8 @@ export class Personagem extends Entidade {
         return falha(ErroDominio.validacao('Nível deve ser 1..20.'));
       this.props.nivel = campos.nivel;
     }
-    if (campos.atributos !== undefined) this.props.atributos = campos.atributos;
     if (campos.anotacoes !== undefined) this.props.anotacoes = campos.anotacoes;
+    if (atributosNovos !== undefined) this.props.atributos = atributosNovos;
     if (fichaNova !== undefined) this.props.dados = fichaNova;
     return ok(undefined);
   }
@@ -208,9 +259,11 @@ export class Personagem extends Entidade {
    *
    * Passa por `criar` de propósito, em vez de clonar as props: a cópia nasce
    * sujeita às mesmas invariantes de uma ficha nova, inclusive a validação da
-   * ficha do sistema. Se a mesa trocou de sistema desde que o original foi
-   * gravado, a duplicação recusa com 400 em vez de propagar dados que aquela
-   * mesa já não sabe ler.
+   * ficha do sistema e da escala dos atributos (RV-098). Se a mesa trocou de
+   * sistema desde que o original foi gravado, a duplicação recusa com 400 em vez
+   * de propagar dados que aquela mesa já não sabe ler — e o mesmo vale para uma
+   * ficha de PF2e gravada antes da migration `0009`, cujo atributo está na escala
+   * do d20: melhor recusar dizendo o motivo que multiplicar o número errado.
    */
   duplicar(novoId: string, sistema: SistemaRpg): Result<Personagem> {
     return Personagem.criar(

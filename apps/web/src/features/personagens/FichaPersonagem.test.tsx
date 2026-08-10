@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
+  atributosIniciais,
   dadosIniciaisDaFicha,
   definicaoDoSistema,
   DEFINICOES_SISTEMA,
@@ -49,11 +50,38 @@ function personagem(campos: Partial<PersonagemDTO> = {}): PersonagemDTO {
   };
 }
 
-/** A ficha de um sistema, com os dados iniciais que aquela definição produz. */
+/**
+ * O valor que, **na escala daquele sistema**, produz o modificador pedido
+ * (RV-098).
+ *
+ * O teste diz o modificador que quer — −1 de Força, +3 de Destreza — e a escala
+ * responde com o número a gravar: 8 e 16 no d20 clássico, −1 e +3 no PF2e. Sem
+ * isto, a fixture teria de escrever valores de uma escala só, e o laço que
+ * percorre o registro estaria medindo a fórmula do d20 em todo sistema.
+ */
+function valorParaModificador(definicao: DefinicaoSistema, modificador: number): number {
+  const { minimo, maximo } = definicao.atributos;
+  for (let valor = minimo; valor <= maximo; valor += 1) {
+    if (definicao.atributos.modificador(valor) === modificador) return valor;
+  }
+  throw new Error(
+    `Nenhum valor da escala de "${definicao.chave}" produz o modificador ${modificador}.`,
+  );
+}
+
+/**
+ * A ficha de um sistema, com os dados iniciais daquela definição e os atributos
+ * na escala dela: Força −1 e Destreza +3, quaisquer que sejam os números.
+ */
 function fichaDoSistema(definicao: DefinicaoSistema, campos: Partial<PersonagemDTO> = {}) {
   return personagem({
     sistema: definicao.chave,
     dados: dadosIniciaisDaFicha(definicao.chave),
+    atributos: {
+      ...atributosIniciais(definicao.chave),
+      forca: valorParaModificador(definicao, -1),
+      destreza: valorParaModificador(definicao, 3),
+    },
     ...campos,
   });
 }
@@ -71,12 +99,39 @@ function rotulosDePericias(definicao: DefinicaoSistema): string[] {
 }
 
 /**
- * Os dois lados do `usaAtributosComuns` (RV-152/RV-153): há sistema que herda a
- * aritmética de atributo do d20 clássico e há sistema que guarda o modificador
- * na própria ficha e ignora aquelas colunas.
+ * Os rótulos das defesas derivadas daquele sistema (RV-155).
+ *
+ * Eles entram no laço pelos dois lados: o sistema **mostra** os seus e **não**
+ * mostra os de outro. Sem isto, o "Percepção" das defesas do PF2e seria lido como
+ * vazamento da perícia homônima de D&D 5e — dois sistemas podem ter o mesmo nome
+ * para coisas de naturezas diferentes, e é o `proprios` que resolve o empate.
  */
-const COM_ATRIBUTOS_COMUNS = DEFINICOES_SISTEMA.filter((d) => d.usaAtributosComuns);
-const SEM_ATRIBUTOS_COMUNS = DEFINICOES_SISTEMA.filter((d) => !d.usaAtributosComuns);
+function rotulosDeDefesas(definicao: DefinicaoSistema): string[] {
+  return definicao
+    .defesas({
+      nivel: 1,
+      atributos: atributosIniciais(definicao.chave),
+      dados: dadosIniciaisDaFicha(definicao.chave),
+    })
+    .map((defesa) => defesa.rotulo);
+}
+
+/**
+ * Os dois lados da escala de atributo (RV-098): há sistema que deriva o
+ * modificador de um valor (o d20 clássico, 1..30) e há sistema em que o número
+ * gravado **é** o modificador (o PF2e, −5..+8).
+ *
+ * Antes do RV-098 a diferença era um booleano `usaAtributosComuns`, e o bloco dos
+ * atributos era **escondido** no segundo caso — porque o número certo estava numa
+ * segunda cópia dentro de `dados`. Agora o número está num lugar só e a definição
+ * diz como interpretá-lo, então os dois lados aparecem na tela.
+ */
+const COM_MODIFICADOR_DERIVADO = DEFINICOES_SISTEMA.filter(
+  (d) => d.atributos.modificador(d.atributos.padrao + 2) !== d.atributos.padrao + 2,
+);
+const COM_MODIFICADOR_DIRETO = DEFINICOES_SISTEMA.filter(
+  (d) => d.atributos.modificador(d.atributos.padrao + 2) === d.atributos.padrao + 2,
+);
 
 beforeEach(() => {
   requisitarFalso.mockReset();
@@ -109,9 +164,15 @@ describe('a ficha renderiza a definição do sistema da mesa (RV-091)', () => {
         ...titulosDeSecoes(definicao),
         ...rotulosDeCampos(definicao),
         ...rotulosDePericias(definicao),
+        ...rotulosDeDefesas(definicao),
       ];
       const deOutros = DEFINICOES_SISTEMA.filter((d) => d.chave !== definicao.chave)
-        .flatMap((d) => [...titulosDeSecoes(d), ...rotulosDeCampos(d), ...rotulosDePericias(d)])
+        .flatMap((d) => [
+          ...titulosDeSecoes(d),
+          ...rotulosDeCampos(d),
+          ...rotulosDePericias(d),
+          ...rotulosDeDefesas(d),
+        ])
         .filter((rotulo) => !proprios.includes(rotulo));
 
       const { unmount } = renderizarComProvedores(
@@ -127,6 +188,12 @@ describe('a ficha renderiza a definição do sistema da mesa (RV-091)', () => {
       }
       for (const rotulo of [...rotulosDeCampos(definicao), ...rotulosDePericias(definicao)]) {
         expect(screen.getByLabelText(rotulo)).toBeInTheDocument();
+      }
+      // A defesa derivada não tem campo — ela aparece como texto, com o número ao
+      // lado. Exigi-la aqui é o que impede um sistema de declarar defesas que a
+      // tela não desenha (F2: contrato sem consumidor é comentário).
+      for (const rotulo of rotulosDeDefesas(definicao)) {
+        expect(screen.getByText(rotulo)).toBeInTheDocument();
       }
       for (const rotulo of deOutros) {
         expect(screen.queryByText(rotulo)).not.toBeInTheDocument();
@@ -162,29 +229,37 @@ describe('a ficha renderiza a definição do sistema da mesa (RV-091)', () => {
     expect(screen.getByText(/Sistema: D&D 5e/)).toBeInTheDocument();
   });
 
-  it('há sistema que usa os atributos comuns e sistema que não usa — os dois laços abaixo precisam disso', () => {
-    // Sem esta rede, o dia em que todo sistema usar (ou nenhum usar) os
-    // atributos comuns deixaria um dos dois testes sem nenhuma instância, e ele
-    // passaria verde sem verificar coisa alguma.
-    expect(COM_ATRIBUTOS_COMUNS.length).toBeGreaterThan(0);
-    expect(SEM_ATRIBUTOS_COMUNS.length).toBeGreaterThan(0);
+  it('há sistema com modificador derivado e sistema com modificador direto — os laços abaixo precisam dos dois', () => {
+    // Sem esta rede, o dia em que todo sistema usar a mesma escala deixaria um
+    // dos dois laços sem nenhuma instância, e ele passaria verde sem verificar
+    // coisa alguma.
+    expect(COM_MODIFICADOR_DERIVADO.length).toBeGreaterThan(0);
+    expect(COM_MODIFICADOR_DIRETO.length).toBeGreaterThan(0);
   });
 
-  it.each(COM_ATRIBUTOS_COMUNS.map((d) => [d.chave, d] as const))(
-    'o teste de atributo de %s usa o dado da definição, não um 1d20 escrito na tela',
+  it.each(DEFINICOES_SISTEMA.map((d) => [d.chave, d] as const))(
+    'o teste de atributo de %s usa o dado e a escala da definição, e nada escrito na tela',
     async (_chave, definicao) => {
-      // A perícia já saía com `definicao.dadoDeTeste` (via `expressaoDePericia`);
-      // o atributo tinha `1d20` fixo no componente. Num sistema que não é d20 as
-      // duas metades da mesma ficha rolariam dados diferentes — decisão por
-      // sistema tomada fora do registro, que é o que o RV-091 apaga.
+      // Duas coisas de uma vez. A primeira é do RV-091: o dado sai de
+      // `dadoDeTeste`, e não de um `1d20` fixo. A segunda é do RV-098: o bônus
+      // sai de `atributos.modificador`, e não da fórmula `(valor − 10) / 2` — que
+      // numa ficha de PF2e transformaria o modificador gravado em outro número.
+      // A fixture pede Força −1 em qualquer escala, então a expressão esperada é a
+      // mesma para todo sistema, com o valor gravado sendo diferente em cada um.
       const usuario = userEvent.setup();
       const { unmount } = renderizarComProvedores(
         <FichaPersonagem
-          // FOR 8 → modificador -1, um bônus que não é zero nem positivo.
           personagem={fichaDoSistema(definicao)}
           podeEditar
           aoFechar={() => undefined}
         />,
+      );
+
+      // A legenda diz qual é a escala: sem isso o jogador digita 18 num campo que
+      // vai até +8 e só descobre no 400.
+      expect(screen.getByText(definicao.atributos.descricao, { exact: false })).toBeInTheDocument();
+      expect(screen.getByLabelText('Valor de forca')).toHaveValue(
+        valorParaModificador(definicao, -1),
       );
 
       await usuario.click(screen.getAllByTitle(`Rolar ${definicao.dadoDeTeste}-1`)[0]!);
@@ -204,13 +279,11 @@ describe('a ficha renderiza a definição do sistema da mesa (RV-091)', () => {
     },
   );
 
-  it.each(SEM_ATRIBUTOS_COMUNS.map((d) => [d.chave, d] as const))(
-    'a ficha de %s não oferece o teste genérico de atributo, que rolaria +0 para sempre',
+  it.each(DEFINICOES_SISTEMA.map((d) => [d.chave, d] as const))(
+    'os limites do campo de atributo de %s são os da escala do sistema',
     (_chave, definicao) => {
-      // O sistema guarda o **modificador** na sua metade da ficha e ignora as
-      // colunas 1..30. Oferecer o botão genérico aqui seria prometer uma
-      // rolagem que o sistema não cumpre (F6) — e ainda deixaria seis campos
-      // editáveis que não entram em conta nenhuma.
+      // O `min`/`max` do input vem da escala, e não de um 1..30 escrito no JSX:
+      // um campo que aceita o que o servidor recusa é promessa falsa (F6).
       const { unmount } = renderizarComProvedores(
         <FichaPersonagem
           personagem={fichaDoSistema(definicao)}
@@ -219,11 +292,9 @@ describe('a ficha renderiza a definição do sistema da mesa (RV-091)', () => {
         />,
       );
 
-      expect(screen.queryByText('Atributos (clique no dado para testar)')).toBeNull();
-      expect(screen.queryByLabelText('Valor de destreza')).toBeNull();
-      expect(screen.queryAllByTitle(`Rolar ${definicao.dadoDeTeste}-1`)).toEqual([]);
-      // A metade comum que **é** deste sistema continua lá.
-      expect(screen.getByLabelText('Nível')).toHaveValue(3);
+      const campo = screen.getByLabelText('Valor de destreza');
+      expect(campo).toHaveAttribute('min', String(definicao.atributos.minimo));
+      expect(campo).toHaveAttribute('max', String(definicao.atributos.maximo));
 
       unmount();
     },

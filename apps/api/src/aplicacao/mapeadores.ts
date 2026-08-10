@@ -18,6 +18,8 @@ export function mensagemParaDTO(mensagem: Mensagem): MensagemDTO {
     conteudo: mensagem.conteudo,
     rolagem: mensagem.rolagem,
     motivo: mensagem.motivo,
+    // Grau de sucesso (RV-154); `null` em toda mensagem sem CD.
+    avaliacao: mensagem.avaliacao,
     criadoEm: mensagem.criadoEm.toISOString(),
     destinatarioId: mensagem.destinatarioId,
     destinatarioNome: mensagem.destinatarioNome,

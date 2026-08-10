@@ -31,6 +31,7 @@ const FALA: MensagemDTO = {
   criadoEm: '2026-08-09T12:00:00.000Z',
   destinatarioId: null,
   destinatarioNome: null,
+  avaliacao: null,
 };
 
 function mesaComPapel(meuPapel: 'mestre' | 'jogador'): MesaDetalheDTO {

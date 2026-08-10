@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { dadosIniciaisDaFicha, type Atributos, type SistemaRpg } from '@rolavinte/shared';
+import {
+  atributosIniciais,
+  dadosIniciaisDaFicha,
+  type Atributos,
+  type SistemaRpg,
+} from '@rolavinte/shared';
 import { Personagem } from './personagem';
 
 const MESA_ID = '00000000-0000-4000-9000-000000000001';
@@ -99,6 +104,88 @@ describe('Personagem — a ficha do sistema é validada, nunca aceita crua (RV-0
 
     expect(r.ok).toBe(true);
     expect(thorin.dados.ca).toBe(17);
+  });
+});
+
+/**
+ * O atributo tem uma casa só, e a escala é do sistema (RV-098).
+ *
+ * O defeito que estes testes trancam: a criação exigia `atributos`, gravava, e a
+ * ficha de PF2e lia outro lugar. Quem informava Força 18 numa mesa de Pathfinder
+ * via o valor desaparecer, e a perícia calculava como se fosse 0.
+ */
+describe('Personagem — a escala do atributo é do sistema (RV-098)', () => {
+  it('o que é informado na criação é o que fica gravado', () => {
+    const seelah = criarOuFalhar(
+      { atributos: { ...atributosIniciais('pathfinder2e'), destreza: 4 } },
+      'pathfinder2e',
+    );
+
+    expect(seelah.atributos.destreza).toBe(4);
+    // E nada de modificador escondido dentro da ficha do sistema.
+    expect('modificadorDestreza' in seelah.dados).toBe(false);
+  });
+
+  it('omitido nasce no padrão da escala daquele sistema, não num 10 fixo', () => {
+    expect(criarOuFalhar({ atributos: undefined }, 'pathfinder2e').atributos).toEqual({
+      forca: 0,
+      destreza: 0,
+      constituicao: 0,
+      inteligencia: 0,
+      sabedoria: 0,
+      carisma: 0,
+    });
+    expect(criarOuFalhar({ atributos: undefined }, 'dnd5e').atributos.forca).toBe(10);
+  });
+
+  it('18 numa mesa de PF2e é recusado com o motivo e a escala em PT-BR', () => {
+    // O cenário de borda do card: 18 é valor de d20 clássico, e a escala do PF2e
+    // vai de -5 a +8.
+    const r = criar(
+      { atributos: { ...atributosIniciais('pathfinder2e'), forca: 18 } },
+      'pathfinder2e',
+    );
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.erro.tipo).toBe('validacao');
+    expect(r.erro.mensagem).toContain('Força');
+    expect(r.erro.mensagem).toContain('de -5 a +8');
+  });
+
+  it('o mesmo 18 é aceito em D&D 5e — a escala é por sistema', () => {
+    expect(criarOuFalhar({ atributos: { ...ATRIBUTOS, forca: 18 } }).atributos.forca).toBe(18);
+    expect(criar({ atributos: { ...ATRIBUTOS, forca: 31 } }).ok).toBe(false);
+    expect(criar({ atributos: { ...ATRIBUTOS, forca: 0 } }).ok).toBe(false);
+  });
+
+  it('atualizar valida antes de mutar: a recusa não deixa o agregado meio editado', () => {
+    const seelah = criarOuFalhar({ atributos: atributosIniciais('pathfinder2e') }, 'pathfinder2e');
+
+    const bom = seelah.atualizar(
+      { atributos: { ...atributosIniciais('pathfinder2e'), sabedoria: 3 } },
+      'pathfinder2e',
+    );
+    expect(bom.ok).toBe(true);
+    expect(seelah.atributos.sabedoria).toBe(3);
+
+    const ruim = seelah.atualizar(
+      { nome: 'Outra', atributos: { ...atributosIniciais('pathfinder2e'), sabedoria: 9 } },
+      'pathfinder2e',
+    );
+    expect(ruim.ok).toBe(false);
+    expect(seelah.nome).toBe('Thorin');
+    expect(seelah.atributos.sabedoria).toBe(3);
+  });
+
+  it('atualizar sem `atributos` não mexe neles', () => {
+    const seelah = criarOuFalhar(
+      { atributos: { ...atributosIniciais('pathfinder2e'), forca: 2 } },
+      'pathfinder2e',
+    );
+
+    expect(seelah.atualizar({ pvAtual: 10 }, 'pathfinder2e').ok).toBe(true);
+    expect(seelah.atributos.forca).toBe(2);
   });
 });
 

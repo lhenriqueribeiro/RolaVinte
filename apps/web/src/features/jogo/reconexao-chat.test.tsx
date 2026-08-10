@@ -61,6 +61,7 @@ const HISTORICO: MensagemDTO[] = [
     criadoEm: '2026-08-09T12:00:00.000Z',
     destinatarioId: null,
     destinatarioNome: null,
+    avaliacao: null,
   },
 ];
 

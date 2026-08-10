@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CD_MAXIMA, CD_MINIMA, MENSAGEM_CD_INVALIDA } from '../chat/avaliacao';
 
 export const enviarMensagemSchema = z.object({
   mesaId: z.string().uuid(),
@@ -15,6 +16,22 @@ export const rolarDadosSchema = z.object({
    * proteção é o 403 do caso de uso, não o comando estar escondido na UI.
    */
   oculta: z.boolean().default(false),
+  /**
+   * CD da checagem (RV-154), quando quem rola é a **ficha** e não uma pessoa
+   * digitando: a salvaguarda clicada já sabe o número, e mandá-lo como número
+   * evita montar `"1d20+6 cd 18"` para o servidor desmontar de novo — duas
+   * gramáticas para o mesmo dado, que é o defeito que o RV-074 apagou do chat.
+   *
+   * `null`/ausente = sem CD, e portanto **sem grau de sucesso**: não existe CD
+   * padrão. A faixa é a mesma do sufixo `cd N` do chat, da mesma constante.
+   */
+  cd: z
+    .number()
+    .int(MENSAGEM_CD_INVALIDA)
+    .min(CD_MINIMA, MENSAGEM_CD_INVALIDA)
+    .max(CD_MAXIMA, MENSAGEM_CD_INVALIDA)
+    .nullable()
+    .default(null),
 });
 export type RolarDadosEntrada = z.infer<typeof rolarDadosSchema>;
 

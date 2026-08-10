@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { modificadorAtributo } from '../schemas/personagens';
-import { formatarBonus } from './generico';
+import { ESCALA_D20_CLASSICA, formatarBonus } from './generico';
 import type {
   DadosFicha,
   DefinicaoSistema,
@@ -140,8 +139,11 @@ function bonusPericia(ficha: FichaCalculavel, periciaChave: string): number | nu
   if (!pericia) return null;
   const grau = grauDePericia(ficha, periciaChave) ?? 'destreinado';
   const multiplicador = MULTIPLICADOR_POR_GRAU[grau] ?? 0;
+  // O modificador sai da **escala declarada** (RV-098), e não de uma chamada
+  // direta a `modificadorAtributo`: a fórmula do d20 é uma escolha deste sistema,
+  // e quem a troca troca a escala, num lugar só.
   return (
-    modificadorAtributo(ficha.atributos[pericia.atributo]) +
+    ESCALA_D20_CLASSICA.modificador(ficha.atributos[pericia.atributo]) +
     multiplicador * bonusProficienciaDnd5e(ficha.nivel)
   );
 }
@@ -183,15 +185,17 @@ export const SISTEMA_DND5E: DefinicaoSistema = {
   familiasPericia: [],
   grausPericia: GRAUS_PERICIA_DND5E,
   dadoDeTeste: '1d20',
-  // Os atributos 1..30 e a fórmula `(valor - 10) / 2` são de D&D 5e: aqui a
-  // metade comum da ficha vale integralmente. Nada a atribuir (RV-152).
-  usaAtributosComuns: true,
+  // Os atributos 1..30 e a fórmula `(valor - 10) / 2` são de D&D 5e: a escala do
+  // d20 clássico vale integralmente aqui (RV-098), e **nada muda** para as fichas
+  // já gravadas. Nada a atribuir (RV-152).
+  atributos: ESCALA_D20_CLASSICA,
   atribuicao: null,
   rolagensPadrao: [
     {
       chave: 'iniciativa',
       rotulo: 'Iniciativa',
-      expressao: (ficha) => `1d20${formatarBonus(modificadorAtributo(ficha.atributos.destreza))}`,
+      expressao: (ficha) =>
+        `1d20${formatarBonus(ESCALA_D20_CLASSICA.modificador(ficha.atributos.destreza))}`,
     },
   ],
   bonusPericia,
@@ -199,4 +203,23 @@ export const SISTEMA_DND5E: DefinicaoSistema = {
   definirGrauDePericia,
   // D&D 5e não modela ação de perícia com pré-requisito de treinamento (RV-153).
   acoesDePericia: () => [],
+  // Nenhuma defesa **derivada** (RV-155): a CA de D&D 5e é campo informado da
+  // seção Combate, e as salvaguardas são o RV-092. `[]` é a resposta certa, e não
+  // um "não implementado" — a interface não desenha bloco nenhum.
+  defesas: () => [],
+  /**
+   * Sem modelo de ataques por ora (RV-156): os ataques de D&D 5e são o RV-092, e a
+   * penalidade de ataques múltiplos **não existe** neste sistema — ele resolve
+   * ataques repetidos por Ação de Ataque Extra, sem penalidade. Reusar o modelo do
+   * PF2e aqui aplicaria −5 a um golpe que não sofre nada.
+   */
+  ataques: null,
+  /**
+   * D&D 5e **não** avalia grau de sucesso, e isto é decisão, não pendência
+   * (RV-154): aqui o d20 contra a CD dá sucesso ou falha, e o crítico é do
+   * ataque, não da checagem. Os quatro graus e o ajuste do 20/1 natural são
+   * mecânica de Pathfinder 2e — anunciar "Sucesso crítico" numa mesa de D&D
+   * seria inventar uma regra que a mesa não joga.
+   */
+  avaliarRolagem: null,
 };

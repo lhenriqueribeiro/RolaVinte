@@ -3,9 +3,11 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   acrescentarSaber,
+  atributosIniciais,
   chaveDeSaber,
   dadosIniciaisDaFicha,
   definicaoDoSistema,
+  type Atributos,
   type DadosFicha,
   type PersonagemDTO,
 } from '@rolavinte/shared';
@@ -39,11 +41,14 @@ vi.mock('@/lib/api', () => ({
 const definicao = definicaoDoSistema('pathfinder2e');
 
 /**
- * Seelah, nível 5. As colunas comuns vão **altas** de propósito: no d20 clássico
- * elas dariam +5, e neste sistema não valem nada. Qualquer queda para
- * `modificadorAtributo()` apareceria como um bônus inflado nos números abaixo.
+ * Seelah, nível 5, com Destreza +4 e Inteligência +1 (RV-098).
+ *
+ * Os modificadores vão na coluna comum `atributos`, na escala do sistema
+ * (−5..+8), que desde o RV-098 é a **única** casa do atributo. Se algum dia a
+ * fórmula do d20 for aplicada aqui, `(4 − 10) / 2` daria −3 e todos os números
+ * deste arquivo cairiam junto.
  */
-function seelah(dados: DadosFicha, nivel = 5): PersonagemDTO {
+function seelah(dados: DadosFicha, nivel = 5, atributos = MODIFICADORES_DE_SEELAH): PersonagemDTO {
   return {
     id: 'p1',
     mesaId: MESA_ID,
@@ -54,27 +59,22 @@ function seelah(dados: DadosFicha, nivel = 5): PersonagemDTO {
     nivel,
     pvAtual: 40,
     pvMax: 40,
-    atributos: {
-      forca: 20,
-      destreza: 20,
-      constituicao: 20,
-      inteligencia: 20,
-      sabedoria: 20,
-      carisma: 20,
-    },
+    atributos,
     anotacoes: '',
     sistema: 'pathfinder2e',
     dados,
   };
 }
 
-/** Ficha com Destreza +4, Inteligência +1 e Sabedoria +0 gravados. */
+const MODIFICADORES_DE_SEELAH: Atributos = {
+  ...atributosIniciais('pathfinder2e'),
+  destreza: 4,
+  inteligencia: 1,
+};
+
+/** A metade do sistema da ficha de Seelah — sem modificador nenhum (RV-098). */
 function fichaDeSeelah(): DadosFicha {
-  return {
-    ...dadosIniciaisDaFicha('pathfinder2e'),
-    modificadorDestreza: 4,
-    modificadorInteligencia: 1,
-  };
+  return dadosIniciaisDaFicha('pathfinder2e');
 }
 
 function comGrau(dados: DadosFicha, pericia: string, grau: string): DadosFicha {
@@ -147,7 +147,7 @@ describe('perícias de PF2e na ficha (RV-153)', () => {
     expect(screen.getByRole('button', { name: 'Rolar Furtividade (1d20+32)' })).toBeInTheDocument();
   });
 
-  it('Percepção não aparece entre as perícias', () => {
+  it('Percepção não aparece entre as perícias — ela é defesa (RV-155)', () => {
     renderizarComProvedores(
       <FichaPersonagem
         personagem={seelah(fichaDeSeelah())}
@@ -156,8 +156,17 @@ describe('perícias de PF2e na ficha (RV-153)', () => {
       />,
     );
 
-    expect(screen.queryByLabelText('Percepção')).toBeNull();
-    expect(screen.queryByText('Percepção')).toBeNull();
+    // A asserção era global até o RV-155 ("Percepção não aparece em lugar nenhum"),
+    // e passou a ser por seção: desde aquele card a Percepção **existe** na ficha,
+    // nas defesas, com dado próprio. O que continua proibido é ela estar entre as
+    // perícias, e é isso que se verifica — dentro do `fieldset` de perícias.
+    const pericias = screen.getByRole('group', { name: /Perícias/ });
+    expect(within(pericias).queryByLabelText('Percepção')).toBeNull();
+    expect(within(pericias).queryByText('Percepção')).toBeNull();
+
+    // E a contraprova, para o teste não passar por a Percepção ter desaparecido da
+    // ficha inteira: ela está nas defesas, com botão de dado.
+    expect(screen.getByRole('button', { name: /^Rolar Percepção/ })).toBeInTheDocument();
   });
 
   it('a ação de treinado aparece indisponível com o motivo, e não some da tela', async () => {
@@ -288,7 +297,7 @@ describe('Saber é uma família na ficha (RV-153)', () => {
     renderizarComProvedores(
       <FichaPersonagem
         personagem={{
-          ...seelah(dadosIniciaisDaFicha('dnd5e')),
+          ...seelah(dadosIniciaisDaFicha('dnd5e'), 5, atributosIniciais('dnd5e')),
           sistema: 'dnd5e',
         }}
         podeEditar

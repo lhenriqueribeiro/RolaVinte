@@ -1,3 +1,4 @@
+import type { AvaliacaoRolagem } from '../chat/avaliacao';
 import type { ResultadoRolagem } from '../dados/motor-dados';
 import type { Atributos } from '../schemas/personagens';
 import type { SistemaRpg } from '../schemas/mesas';
@@ -67,6 +68,15 @@ export interface PersonagemDTO {
   nivel: number;
   pvAtual: number;
   pvMax: number;
+  /**
+   * Os seis atributos, **na escala do sistema** (RV-098) — e o único lugar onde
+   * eles existem.
+   *
+   * O número aqui só ganha sentido junto de `sistema`: 16 numa ficha de D&D 5e é
+   * o valor que vale +3; 4 numa ficha de PF2e já é o +4. Quem for somar um bônus
+   * passa por `definicaoDoSistema(sistema).atributos.modificador(...)` em vez de
+   * supor a fórmula do d20.
+   */
   atributos: Atributos;
   anotacoes: string;
   /**
@@ -163,4 +173,18 @@ export interface MensagemDTO {
    */
   destinatarioId: string | null;
   destinatarioNome: string | null;
+  /**
+   * Grau de sucesso da rolagem contra a CD informada (RV-154); `null` quando não
+   * houve CD — que é a maioria absoluta das mensagens.
+   *
+   * **É campo próprio, e não um pedaço de `rolagem`.** `ResultadoRolagem` é o
+   * espelho exato do que o motor de dados produz, e o motor é agnóstico de
+   * sistema: ele não sabe o que é uma CD e não vai passar a saber. A avaliação
+   * mora ao lado, na coluna `mensagens.avaliacao` (migration `0010`).
+   *
+   * Quem lê precisa tolerar a **ausência** do campo, e não só o `null`: mensagem
+   * gravada antes deste card e payload em cache de uma versão anterior chegam sem
+   * ele. O chat trata os dois como "sem CD informada".
+   */
+  avaliacao: AvaliacaoRolagem | null;
 }

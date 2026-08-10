@@ -169,11 +169,14 @@ async function iniciar(): Promise<void> {
       rolarDados.executar(ctx.usuarioId, ctx.mesaId, {
         expressao: comando.expressao,
         motivo: comando.motivo,
+        // A CD do sufixo `cd N`, já lida pelo parser (RV-154). `null` = sem CD.
+        cd: comando.cd,
       }),
     'rolagem-oculta': (ctx, comando) =>
       rolarDados.executar(ctx.usuarioId, ctx.mesaId, {
         expressao: comando.expressao,
         motivo: comando.motivo,
+        cd: comando.cd,
         oculta: true,
       }),
     sussurro: (ctx, comando) =>

@@ -3,10 +3,14 @@ import { formatarBonus } from './generico';
 import { definicaoDoSistema } from './registro';
 import type {
   AcaoDePericia,
+  AtaqueDaFicha,
   DadosFicha,
+  DefesaFicha,
   FamiliaPericia,
   FichaCalculavel,
+  ModeloDeAtaques,
   PericiaFicha,
+  RolagemDeAtaque,
 } from './tipos';
 
 export { formatarBonus };
@@ -98,10 +102,17 @@ export function expressaoDePericia(
 }
 
 /**
- * Motivo que acompanha a rolagem no chat: `Furtividade — Thorin`.
+ * Motivo que acompanha uma rolagem de ficha no chat: `Furtividade — Thorin`.
  *
- * Mora aqui, e não no componente, para que api e web escrevam a mesma frase. O
- * separador é travessão, como no resto da interface.
+ * Mora aqui, e não no componente, para que api e web escrevam a mesma frase e o
+ * separador (travessão, como no resto da interface) esteja escrito uma vez.
+ */
+function motivoDeRolagem(rotulo: string, nomePersonagem: string): string {
+  return `${rotulo} — ${nomePersonagem}`;
+}
+
+/**
+ * Motivo que acompanha a rolagem de perícia no chat: `Furtividade — Thorin`.
  */
 export function motivoDeRolagemDePericia(
   sistema: SistemaRpg,
@@ -119,5 +130,102 @@ export function motivoDeRolagemDePericia(
       null,
     );
   if (rotulo === null || rotulo === undefined) return null;
-  return `${rotulo} — ${nomePersonagem}`;
+  return motivoDeRolagem(rotulo, nomePersonagem);
+}
+
+/**
+ * Uma defesa derivada com o que a tela precisa para **rolá-la** (RV-155).
+ *
+ * O que este nível acrescenta a `DefesaFicha` é a ponte com o motor de dados: a
+ * expressão (`1d20+6`, com o dado que o sistema declara) e o motivo do chat
+ * (`Reflexos — Seelah`). Fica aqui, e não no componente, pelo mesmo motivo de
+ * `expressaoDePericia`: a tela não monta expressão nem faz aritmética, e api e web
+ * chegam à mesma frase.
+ *
+ * `expressao` e `motivo` são `null` no que **não se rola** — CA e CD de classe são
+ * números-alvo. Botão de dado numa CA seria a promessa falsa da F6: o clique
+ * publicaria uma rolagem que não significa nada.
+ */
+export interface DefesaCalculada extends DefesaFicha {
+  /** Expressão pronta para o motor de dados; `null` quando a defesa não se rola. */
+  readonly expressao: string | null;
+  /** Motivo que acompanha a rolagem no chat; `null` quando a defesa não se rola. */
+  readonly motivo: string | null;
+}
+
+/**
+ * As defesas do personagem, prontas para exibir e rolar. `[]` no sistema que não
+ * as modela.
+ *
+ * É por aqui que o RV-158 acha a Percepção para a iniciativa — a mesma conta que a
+ * ficha mostra, sem uma segunda soma no caso de uso do combate.
+ */
+export function defesasDoPersonagem(
+  personagem: PersonagemCalculavel,
+  nomePersonagem: string,
+): readonly DefesaCalculada[] {
+  const definicao = definicaoDoSistema(personagem.sistema);
+  return definicao.defesas(personagem).map((defesa) => {
+    const { valor, rolavel } = defesa;
+    if (!rolavel || valor === null) return { ...defesa, expressao: null, motivo: null };
+    return {
+      ...defesa,
+      expressao: `${definicao.dadoDeTeste}${formatarBonus(valor)}`,
+      motivo: motivoDeRolagem(defesa.rotulo, nomePersonagem),
+    };
+  });
+}
+
+/**
+ * Uma variante de rolagem de ataque com o motivo do chat pronto (RV-156).
+ *
+ * O motivo é montado aqui, e não em `sistemas/pathfinder2e/ataques.ts`, pelo mesmo
+ * motivo das defesas e das perícias: o travessão que separa a rolagem do nome do
+ * personagem está escrito **uma vez** neste arquivo, e é ele que faz o chat de uma
+ * mesa de PF2e falar igual ao de uma mesa de D&D.
+ */
+export interface RolagemDeAtaqueCalculada extends RolagemDeAtaque {
+  /** `Espada longa (2º ataque (-5)) — Seelah`; `null` quando não há o que rolar. */
+  readonly motivo: string | null;
+}
+
+/** Um ataque com as suas variantes prontas para o chat (RV-156). */
+export interface AtaqueCalculado extends Omit<AtaqueDaFicha, 'acertos' | 'danos'> {
+  /** As variantes de acerto. **São as únicas que aceitam CD** (a CA do alvo). */
+  readonly acertos: readonly RolagemDeAtaqueCalculada[];
+  /** As variantes de dano. Nunca recebem CD: dano não é checado contra CD. */
+  readonly danos: readonly RolagemDeAtaqueCalculada[];
+}
+
+/** O modelo de ataques do sistema, ou `null` no sistema que não os modela. */
+export function modeloDeAtaques(sistema: SistemaRpg): ModeloDeAtaques | null {
+  return definicaoDoSistema(sistema).ataques;
+}
+
+function comMotivo(rolagem: RolagemDeAtaque, nomePersonagem: string): RolagemDeAtaqueCalculada {
+  return {
+    ...rolagem,
+    motivo: rolagem.expressao === null ? null : motivoDeRolagem(rolagem.descricao, nomePersonagem),
+  };
+}
+
+/**
+ * Os ataques do personagem, prontos para exibir e rolar. `[]` no sistema que não
+ * modela ataques.
+ *
+ * A aritmética da penalidade de ataques múltiplos é do sistema (`regras.ts` +
+ * `ataques.ts`); aqui só se acrescenta o motivo. A tela não soma nada — se ela
+ * somasse, a mesma penalidade estaria escrita em dois lugares.
+ */
+export function ataquesDoPersonagem(
+  personagem: PersonagemCalculavel,
+  nomePersonagem: string,
+): readonly AtaqueCalculado[] {
+  const modelo = definicaoDoSistema(personagem.sistema).ataques;
+  if (modelo === null) return [];
+  return modelo.ataques(personagem).map((ataque) => ({
+    ...ataque,
+    acertos: ataque.acertos.map((rolagem) => comMotivo(rolagem, nomePersonagem)),
+    danos: ataque.danos.map((rolagem) => comMotivo(rolagem, nomePersonagem)),
+  }));
 }

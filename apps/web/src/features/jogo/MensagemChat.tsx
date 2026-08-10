@@ -1,4 +1,10 @@
-import type { MensagemDTO, TermoAvaliado } from '@rolavinte/shared';
+import {
+  descreverAvaliacao,
+  type AvaliacaoRolagem,
+  type MensagemDTO,
+  type TermoAvaliado,
+  type TomDoGrau,
+} from '@rolavinte/shared';
 
 /**
  * Uma entrada do chat (RV-070, RV-071).
@@ -88,6 +94,45 @@ function SeloPrivacidade({ aviso }: { aviso: AvisoPrivacidade }) {
   );
 }
 
+/**
+ * Moldura do selo de grau (RV-154). A cor é **redundante** com o texto: quem não
+ * separa verde de vermelho e quem ouve a tela leem "Sucesso crítico" do mesmo
+ * jeito. O rótulo nunca é substituído por cor, ícone ou tamanho (regra do RV-084
+ * e DoD deste card).
+ */
+const ESTILO_POR_TOM: Record<TomDoGrau, string> = {
+  otimo: 'border-sucesso/70 bg-sucesso/15 text-sucesso',
+  bom: 'border-sucesso/40 bg-sucesso/5 text-sucesso',
+  ruim: 'border-perigo/30 bg-perigo/5 text-perigo/90',
+  pessimo: 'border-perigo/70 bg-perigo/15 text-perigo',
+};
+
+/**
+ * O grau de sucesso da rolagem contra a CD.
+ *
+ * Zero aritmética aqui: `descreverAvaliacao` (em `@rolavinte/shared`) devolve
+ * rótulo, CD e a frase do 20/1 natural já prontos, e este componente só escolhe
+ * classes. Comparar total com CD aqui criaria a segunda aritmética que o card
+ * proíbe pelo nome — e a errata de amanhã seria aplicada num lugar só.
+ */
+function SeloGrau({ avaliacao }: { avaliacao: AvaliacaoRolagem }) {
+  const descricao = descreverAvaliacao(avaliacao);
+  return (
+    <div className="mt-1">
+      <p
+        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-semibold ${ESTILO_POR_TOM[descricao.tom]}`}
+      >
+        <span aria-hidden>{descricao.icone}</span>
+        {descricao.rotulo}
+        <span className="font-normal opacity-80">· {descricao.contraCd}</span>
+      </p>
+      {descricao.detalheNatural && (
+        <p className="mt-0.5 text-[11px] text-texto-2">{descricao.detalheNatural}</p>
+      )}
+    </div>
+  );
+}
+
 export function MensagemChat({
   mensagem,
   usuarioId,
@@ -98,6 +143,20 @@ export function MensagemChat({
 }) {
   const minha = mensagem.autorId !== null && mensagem.autorId === usuarioId;
   const aviso = avisoPrivacidade(mensagem, usuarioId);
+  /**
+   * `?? null` e não `mensagem.avaliacao` direto: mensagem gravada antes do
+   * RV-154 — e payload em cache de uma versão anterior do cliente — chega **sem
+   * a chave**, não com `null`. O tipo diz `AvaliacaoRolagem | null`, o runtime
+   * entrega `undefined`, e um histórico antigo não pode quebrar a tela.
+   *
+   * **Não "simplifique" esta linha.** Medido em experimento: sozinha ela é
+   * inerte (a checagem abaixo é por veracidade, e `undefined` já é falso). O que
+   * ela faz é tornar o tipo **verdadeiro**, para que um `avaliacao !== null`
+   * escrito depois esteja certo. Trocar as duas coisas juntas — tirar o `??` e
+   * usar `!== null` — derruba a mensagem antiga com
+   * `Cannot read properties of undefined (reading 'grau')`, e há teste disso.
+   */
+  const avaliacao = mensagem.avaliacao ?? null;
   const hora = new Date(mensagem.criadoEm).toLocaleTimeString('pt-BR', {
     hour: '2-digit',
     minute: '2-digit',
@@ -114,6 +173,7 @@ export function MensagemChat({
         </p>
         <p className="my-0.5 font-titulo text-2xl text-ouro">🎲 {mensagem.rolagem.total}</p>
         <DetalheRolagem termos={mensagem.rolagem.termos} />
+        {avaliacao && <SeloGrau avaliacao={avaliacao} />}
       </div>
     );
   }

@@ -1,6 +1,7 @@
 import {
   mensagemEhRestrita,
   mensagemVisivelPara,
+  type AvaliacaoRolagem,
   type ResultadoRolagem,
   type TipoMensagem,
 } from '@rolavinte/shared';
@@ -16,6 +17,15 @@ interface PropsMensagem {
   conteudo: string;
   rolagem: ResultadoRolagem | null;
   motivo: string | null;
+  /**
+   * Grau de sucesso contra a CD informada (RV-154). `null` sempre que não houve
+   * CD — o que inclui **toda** fala, todo sussurro e a rolagem livre (`/r 1d20`),
+   * que continua sendo a rolagem que sempre foi.
+   *
+   * Só as duas fábricas de rolagem aceitam este dado: uma fala com grau de
+   * sucesso é estado impossível, e o banco também o recusa (check da `0010`).
+   */
+  avaliacao: AvaliacaoRolagem | null;
   /** Preenchido só no sussurro (RV-070). Rolagem oculta é visível só ao autor. */
   destinatarioId: string | null;
   destinatarioNome: string | null;
@@ -23,6 +33,23 @@ interface PropsMensagem {
 }
 
 const TAMANHO_MAXIMO_CONTEUDO = 2000;
+
+/**
+ * O que as duas fábricas de rolagem recebem. Extraído para um lugar só porque a
+ * assinatura passou a ter um campo opcional (`avaliacao`, RV-154) e três cópias
+ * dela divergiriam na primeira mudança.
+ */
+export interface DadosRolagem {
+  id: string;
+  mesaId: string;
+  autorId: string;
+  autorNome: string;
+  rolagem: ResultadoRolagem;
+  motivo: string;
+  /** Grau de sucesso já apurado pelo sistema da mesa; ausente = sem CD. */
+  avaliacao?: AvaliacaoRolagem | null;
+  agora: Date;
+}
 
 /**
  * Uma entrada do chat da mesa.
@@ -71,6 +98,7 @@ export class Mensagem extends Entidade {
         conteudo: conteudo.valor,
         rolagem: null,
         motivo: null,
+        avaliacao: null,
         destinatarioId: null,
         destinatarioNome: null,
         criadoEm: dados.agora,
@@ -104,6 +132,7 @@ export class Mensagem extends Entidade {
         conteudo: conteudo.valor,
         rolagem: null,
         motivo: null,
+        avaliacao: null,
         destinatarioId: dados.destinatarioId,
         destinatarioNome: dados.destinatarioNome,
         criadoEm: dados.agora,
@@ -111,15 +140,7 @@ export class Mensagem extends Entidade {
     );
   }
 
-  static criarRolagem(dados: {
-    id: string;
-    mesaId: string;
-    autorId: string;
-    autorNome: string;
-    rolagem: ResultadoRolagem;
-    motivo: string;
-    agora: Date;
-  }): Mensagem {
+  static criarRolagem(dados: DadosRolagem): Mensagem {
     return Mensagem.montarRolagem(dados, 'rolagem');
   }
 
@@ -128,30 +149,11 @@ export class Mensagem extends Entidade {
    * Não tem destinatário — quem rola é quem vê, e mais ninguém. A autorização
    * ("é o mestre?") é do caso de uso, que reusa a guarda do agregado `Mesa`.
    */
-  static criarRolagemOculta(dados: {
-    id: string;
-    mesaId: string;
-    autorId: string;
-    autorNome: string;
-    rolagem: ResultadoRolagem;
-    motivo: string;
-    agora: Date;
-  }): Mensagem {
+  static criarRolagemOculta(dados: DadosRolagem): Mensagem {
     return Mensagem.montarRolagem(dados, 'rolagem-oculta');
   }
 
-  private static montarRolagem(
-    dados: {
-      id: string;
-      mesaId: string;
-      autorId: string;
-      autorNome: string;
-      rolagem: ResultadoRolagem;
-      motivo: string;
-      agora: Date;
-    },
-    tipo: 'rolagem' | 'rolagem-oculta',
-  ): Mensagem {
+  private static montarRolagem(dados: DadosRolagem, tipo: 'rolagem' | 'rolagem-oculta'): Mensagem {
     return new Mensagem(dados.id, {
       mesaId: dados.mesaId,
       autorId: dados.autorId,
@@ -160,6 +162,9 @@ export class Mensagem extends Entidade {
       conteudo: dados.rolagem.expressao,
       rolagem: dados.rolagem,
       motivo: dados.motivo.trim() || null,
+      // Quem avalia é a definição do sistema da mesa, no caso de uso: a entidade
+      // guarda o veredito, não a regra. Ausente = rolagem sem CD (RV-154).
+      avaliacao: dados.avaliacao ?? null,
       destinatarioId: null,
       destinatarioNome: null,
       criadoEm: dados.agora,
@@ -191,6 +196,9 @@ export class Mensagem extends Entidade {
   }
   get motivo(): string | null {
     return this.props.motivo;
+  }
+  get avaliacao(): AvaliacaoRolagem | null {
+    return this.props.avaliacao;
   }
   get destinatarioId(): string | null {
     return this.props.destinatarioId;

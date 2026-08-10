@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cdValida, MENSAGEM_CD_INVALIDA } from './avaliacao';
 
 /**
  * Registry de comandos de chat (RV-074).
@@ -36,8 +37,8 @@ export type TipoComandoComBarra = Exclude<TipoComandoExecutavel, 'fala'>;
  */
 export type ComandoChat =
   | { tipo: 'fala'; conteudo: string }
-  | { tipo: 'rolagem'; expressao: string; motivo: string }
-  | { tipo: 'rolagem-oculta'; expressao: string; motivo: string }
+  | { tipo: 'rolagem'; expressao: string; motivo: string; cd: number | null }
+  | { tipo: 'rolagem-oculta'; expressao: string; motivo: string; cd: number | null }
   | { tipo: 'sussurro'; destinatario: string; conteudo: string }
   | { tipo: 'desconhecido'; nome: string; aviso: string }
   | { tipo: 'incompleto'; nome: string; aviso: string };
@@ -68,8 +69,61 @@ function separarExpressaoEMotivo(argumento: string): { expressao: string; motivo
   };
 }
 
+/**
+ * O sufixo `cd N` de uma checagem (RV-154), separado da expressão de dados.
+ *
+ * **Como a CD chega, e por que assim.** Uma pessoa digitando no chat escreve
+ * `/r 1d20+11 cd 18`, então o sufixo é gramática do comando e é aqui que ele é
+ * lido — junto do `#` do motivo, no único lugar do repositório que interpreta a
+ * linha do chat. Quem **não** é pessoa (a ficha, ao clicar numa salvaguarda)
+ * manda a CD como número no corpo de `POST /mesas/:id/rolagens`: montar
+ * `"1d20+6 cd 18"` só para o servidor desmontar de novo seria uma segunda
+ * gramática, e é exatamente o defeito que o RV-074 veio apagar do `Chat.tsx`.
+ * As duas pontas convergem no mesmo `cd: number | null` antes de chegar ao caso
+ * de uso, que por isso não faz *parsing* nenhum.
+ *
+ * A âncora é o fim da expressão porque nenhuma expressão de dados válida termina
+ * em `cd <algo>` — o motor só conhece dígitos, `d`, sinais e `kh`/`kl`. Sem
+ * âncora, `cd` no meio de um motivo viraria CD.
+ *
+ * O `(?:^|\s+)` cobre `/r cd 18`, em que a pessoa digitou só a CD: o sufixo é
+ * separado, a expressão fica vazia e o aviso cobra a expressão. Sem ele a linha
+ * viraria uma rolagem da "expressão" `cd 18`, e o erro que voltaria seria
+ * "expressão inválida" — verdadeiro e inútil. Exigir espaço **ou** início mantém
+ * `1d20cd18` fora do casamento, que é o que garante que nenhuma expressão real
+ * perca um pedaço.
+ */
+const RE_SUFIXO_CD = /(?:^|\s+)cd\s*(\S*)\s*$/i;
+
+interface ExpressaoComCd {
+  expressao: string;
+  /** `null` = sem CD, e portanto sem grau de sucesso. Nunca uma CD padrão. */
+  cd: number | null;
+  /** Preenchido quando havia sufixo de CD e ele não é um número aceitável. */
+  problema: string | null;
+}
+
+function separarCd(expressao: string): ExpressaoComCd {
+  const achado = RE_SUFIXO_CD.exec(expressao);
+  if (!achado) return { expressao, cd: null, problema: null };
+
+  const bruto = achado[1] ?? '';
+  const semSufixo = expressao.slice(0, achado.index).trim();
+  if (!/^-?\d+$/.test(bruto)) {
+    return {
+      expressao: semSufixo,
+      cd: null,
+      problema: bruto === '' ? MENSAGEM_CD_AUSENTE : MENSAGEM_CD_INVALIDA,
+    };
+  }
+  const cd = Number(bruto);
+  if (!cdValida(cd)) return { expressao: semSufixo, cd: null, problema: MENSAGEM_CD_INVALIDA };
+  return { expressao: semSufixo, cd, problema: null };
+}
+
 function analisarRolagem(definicao: DefinicaoComando, argumento: string): ComandoChat {
-  const { expressao, motivo } = separarExpressaoEMotivo(argumento);
+  const { expressao: comSufixo, motivo } = separarExpressaoEMotivo(argumento);
+  const { expressao, cd, problema } = separarCd(comSufixo);
   if (!expressao) {
     return {
       tipo: 'incompleto',
@@ -77,9 +131,12 @@ function analisarRolagem(definicao: DefinicaoComando, argumento: string): Comand
       aviso: `Informe a expressão de dados. Exemplo: ${definicao.uso}`,
     };
   }
+  // CD estragada não vira rolagem sem grau: quem digitou a CD quer o grau, e
+  // rolar em silêncio esconderia o erro de digitação (F8 — pulo silencioso).
+  if (problema) return { tipo: 'incompleto', nome: definicao.nome, aviso: problema };
   return definicao.tipo === 'rolagem-oculta'
-    ? { tipo: 'rolagem-oculta', expressao, motivo }
-    : { tipo: 'rolagem', expressao, motivo };
+    ? { tipo: 'rolagem-oculta', expressao, motivo, cd }
+    : { tipo: 'rolagem', expressao, motivo, cd };
 }
 
 /**
@@ -123,12 +180,16 @@ function analisarSussurro(definicao: DefinicaoComando, argumento: string): Coman
   return { tipo: 'sussurro', destinatario: partes.destinatario, conteudo: partes.conteudo };
 }
 
+/** Sufixo escrito sem o número: `/r 1d20+11 cd`. */
+export const MENSAGEM_CD_AUSENTE = 'Informe a CD depois de "cd". Ex.: /r 1d20+11 cd 18';
+
 const COMANDO_ROLAGEM: DefinicaoComando = {
   tipo: 'rolagem',
   nome: 'rolar',
   aliases: ['r'],
-  uso: '/r <expressão> [# motivo]',
-  descricao: 'Rola dados na mesa. Ex.: /r 2d20kh1+5 # ataque com vantagem',
+  uso: '/r <expressão> [cd N] [# motivo]',
+  descricao:
+    'Rola dados na mesa. Ex.: /r 2d20kh1+5 # ataque com vantagem. Com "cd N", a mesa vê o grau de sucesso.',
   analisar: (argumento) => analisarRolagem(COMANDO_ROLAGEM, argumento),
 };
 
@@ -145,7 +206,7 @@ const COMANDO_ROLAGEM_OCULTA: DefinicaoComando = {
   tipo: 'rolagem-oculta',
   nome: 'oculto',
   aliases: ['go', 'gm'],
-  uso: '/oculto <expressão> [# motivo]',
+  uso: '/oculto <expressão> [cd N] [# motivo]',
   descricao: 'Rolagem secreta do mestre: o resultado não chega aos jogadores.',
   analisar: (argumento) => analisarRolagem(COMANDO_ROLAGEM_OCULTA, argumento),
 };

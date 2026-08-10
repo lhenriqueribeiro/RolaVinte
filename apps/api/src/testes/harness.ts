@@ -201,11 +201,13 @@ export function criarAppDeTeste(opcoes: OpcoesAppDeTeste = {}): AppDeTeste {
       rolarDados.executar(ctx.usuarioId, ctx.mesaId, {
         expressao: comando.expressao,
         motivo: comando.motivo,
+        cd: comando.cd,
       }),
     'rolagem-oculta': (ctx, comando) =>
       rolarDados.executar(ctx.usuarioId, ctx.mesaId, {
         expressao: comando.expressao,
         motivo: comando.motivo,
+        cd: comando.cd,
         oculta: true,
       }),
     sussurro: (ctx, comando) =>

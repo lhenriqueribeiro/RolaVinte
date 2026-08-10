@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { SistemaRpg } from '../schemas/mesas';
 import { modificadorAtributo } from '../schemas/personagens';
-import type { DadosFicha, DefinicaoSistema, FichaCalculavel } from './tipos';
+import type { DadosFicha, DefinicaoSistema, EscalaDeAtributo, FichaCalculavel } from './tipos';
 
 /**
  * Ficha genérica (RV-091) — o piso de todo sistema que ainda não tem ficha
@@ -25,6 +25,28 @@ export function formatarBonus(valor: number): string {
   return valor < 0 ? String(valor) : `+${valor}`;
 }
 
+/** Menor e maior valor de atributo do d20 clássico, e o valor de uma ficha nova. */
+const VALOR_MINIMO_D20 = 1;
+const VALOR_MAXIMO_D20 = 30;
+const VALOR_PADRAO_D20 = 10;
+
+/**
+ * A escala de atributo do d20 clássico (RV-098): valor de 1 a 30, e o bônus sai
+ * da fórmula `(valor − 10) / 2`.
+ *
+ * Vale para a ficha genérica, para D&D 5e e para qualquer sistema que herde a
+ * aritmética do d20 — é a escala que a plataforma sempre pressupôs, agora dita em
+ * voz alta em vez de estar embutida no schema de `atributos`. Um sistema com
+ * escala própria (o PF2e é o primeiro) declara a sua na própria definição.
+ */
+export const ESCALA_D20_CLASSICA: EscalaDeAtributo = Object.freeze({
+  descricao: `valor de ${VALOR_MINIMO_D20} a ${VALOR_MAXIMO_D20}`,
+  minimo: VALOR_MINIMO_D20,
+  maximo: VALOR_MAXIMO_D20,
+  padrao: VALOR_PADRAO_D20,
+  modificador: modificadorAtributo,
+});
+
 /**
  * Iniciativa d20 — a única rolagem que a ficha genérica sabe oferecer.
  *
@@ -33,7 +55,7 @@ export function formatarBonus(valor: number): string {
  * aqui não acrescenta suposição nova.
  */
 function iniciativaD20(ficha: FichaCalculavel): string {
-  return `1d20${formatarBonus(modificadorAtributo(ficha.atributos.destreza))}`;
+  return `1d20${formatarBonus(ESCALA_D20_CLASSICA.modificador(ficha.atributos.destreza))}`;
 }
 
 /**
@@ -55,9 +77,9 @@ export function definicaoGenericaPara(chave: SistemaRpg, nome: string): Definica
     familiasPericia: [],
     grausPericia: [],
     dadoDeTeste: '1d20',
-    // A ficha genérica é a do d20 clássico: os atributos comuns valem, e não há
-    // material licenciado a atribuir (RV-152).
-    usaAtributosComuns: true,
+    // A ficha genérica é a do d20 clássico: valor de 1 a 30 com o modificador
+    // derivado (RV-098). Nada de material licenciado a atribuir (RV-152).
+    atributos: ESCALA_D20_CLASSICA,
     atribuicao: null,
     rolagensPadrao: [{ chave: 'iniciativa', rotulo: 'Iniciativa', expressao: iniciativaD20 }],
     // Sem perícias: a ficha genérica não presume a lista de nenhum sistema. As
@@ -68,6 +90,19 @@ export function definicaoGenericaPara(chave: SistemaRpg, nome: string): Definica
     grauDePericia: () => null,
     definirGrauDePericia: (dados: DadosFicha) => dados,
     acoesDePericia: () => [],
+    // Nenhuma defesa derivada (RV-155): a ficha genérica não presume a fórmula de
+    // CA nem de salvaguarda de sistema nenhum. Derivar por conta própria daria um
+    // número plausível numa mesa que joga outra regra.
+    defesas: () => [],
+    // Nenhum modelo de ataques (RV-156): a ficha genérica não presume a economia de
+    // ações de sistema nenhum, e a penalidade de ataques múltiplos é regra de PF2e —
+    // oferecer três botões de golpe aqui aplicaria a penalidade de um sistema a uma
+    // mesa que joga outro.
+    ataques: null,
+    // Nenhum grau de sucesso: sem sistema declarado, "28 contra CD 18" não tem
+    // resposta certa. Informar uma CD numa mesa destas é 400 em PT-BR (RV-154),
+    // e não uma rolagem que engole o número em silêncio.
+    avaliarRolagem: null,
   };
 }
 

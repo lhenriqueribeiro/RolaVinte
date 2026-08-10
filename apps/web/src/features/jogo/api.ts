@@ -59,12 +59,28 @@ export function useEnviarComandoChat(mesaId: string) {
   });
 }
 
+/**
+ * Rolagem disparada pela **ficha** — perícia, salvaguarda, ataque (RV-090/RV-155/RV-156).
+ *
+ * `cd` é a CD da checagem, e é o campo que `rolarDadosSchema` aceita como **número**
+ * (RV-154): a ficha já sabe o número, e montar `"1d20+4 cd 18"` para o servidor
+ * desmontar de novo recriaria a segunda gramática que o RV-074 apagou do chat. Só
+ * viaja quando existe — ausente significa "sem CD, e portanto sem grau de sucesso",
+ * e é o caso da esmagadora maioria das rolagens, inclusive **toda** rolagem de dano.
+ */
 export function useRolarDados(mesaId: string) {
   return useMutation({
-    mutationFn: (entrada: { expressao: string; motivo?: string }) =>
+    mutationFn: (entrada: { expressao: string; motivo?: string; cd?: number | null }) =>
       requisitar<MensagemDTO>(`/mesas/${mesaId}/rolagens`, {
         metodo: 'POST',
-        corpo: { expressao: entrada.expressao, motivo: entrada.motivo ?? '' },
+        corpo: {
+          expressao: entrada.expressao,
+          motivo: entrada.motivo ?? '',
+          // A chave só entra no corpo quando há CD: mandá-la como `null` seria
+          // idêntico para a api, mas faria toda rolagem sem CD carregar um campo que
+          // não diz nada — e mudaria o corpo de rolagens que já existiam.
+          ...(entrada.cd === undefined || entrada.cd === null ? {} : { cd: entrada.cd }),
+        },
       }),
   });
 }

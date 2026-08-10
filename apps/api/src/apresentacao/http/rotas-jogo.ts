@@ -131,6 +131,9 @@ export function registrarRotasJogo(app: FastifyInstance, deps: Deps): void {
         // `oculta` é do cliente e não é confiável: quem decide se pode é o caso
         // de uso, com a guarda do mestre no agregado `Mesa` (RV-071).
         oculta: entrada.oculta,
+        // CD da checagem (RV-154): esta rota é a que a **ficha** usa, então a CD
+        // chega como número. O sufixo `cd N` é gramática do chat e é lido lá.
+        cd: entrada.cd,
       }),
       201,
     );

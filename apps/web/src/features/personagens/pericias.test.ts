@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  atributosIniciais,
   dadosIniciaisDaFicha,
   definicaoDoSistema,
   DEFINICOES_SISTEMA,
@@ -96,13 +97,15 @@ describe('linhas de perícia da ficha (RV-090)', () => {
   it('nenhuma linha nasce incompleta em nenhum sistema registrado', () => {
     // Rede: se o registro ficasse vazio, os laços acima passariam sem verificar
     // nada. Aqui se exige que exista sistema e que toda linha esteja completa.
+    // Os atributos vêm da escala de cada sistema (RV-098): mandar 16 para uma
+    // ficha de PF2e seria escrever um valor que aquela escala não aceita.
     expect(DEFINICOES_SISTEMA.length).toBeGreaterThan(0);
     for (const definicao of DEFINICOES_SISTEMA) {
       const linhas = linhasDePericia(
         {
           sistema: definicao.chave,
           nivel: 5,
-          atributos: ATRIBUTOS_PADRAO,
+          atributos: atributosIniciais(definicao.chave),
           dados: dadosIniciaisDaFicha(definicao.chave),
         },
         'Thorin',

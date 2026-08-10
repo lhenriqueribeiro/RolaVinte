@@ -26,6 +26,7 @@ const MENSAGEM: MensagemDTO = {
   conteudo: 'plano secreto',
   rolagem: null,
   motivo: null,
+  avaliacao: null,
   destinatarioId: DESTINATARIO_ID,
   destinatarioNome: 'Mestre',
   criadoEm: '2026-08-09T12:00:00.000Z',

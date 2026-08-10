@@ -33,6 +33,9 @@ export class CriarPersonagem {
 
     // O sistema é da mesa (RV-091). É ele que decide o que a ficha aceita em
     // `dados`, e o agregado recusa campo fora da definição — 400, não silêncio.
+    // Desde o RV-098 vale o mesmo para `atributos`: o que o cliente informar é
+    // conferido contra a escala do sistema e gravado; omitido, o agregado usa o
+    // padrão daquela escala. Nada de campo exigido aqui e ignorado na leitura.
     const personagem = Personagem.criar(
       {
         id: this.geradorId.gerar(),

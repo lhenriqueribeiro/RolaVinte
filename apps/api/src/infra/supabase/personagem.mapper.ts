@@ -10,6 +10,17 @@ export interface RowPersonagem {
   nivel: number;
   pv_atual: number;
   pv_max: number;
+  /**
+   * `personagens.atributos` — os seis atributos na escala do sistema da mesa
+   * (RV-098).
+   *
+   * O mapper **não** converte escala, e não poderia: quem sabe qual é o sistema é
+   * a `Mesa`, e o `Personagem` de propósito não a guarda. A consolidação dos
+   * modificadores que o PF2e mantinha em `dados` é da migration `0009`, que faz o
+   * `join` com `mesas` e por isso sabe o que está lendo. Aqui a linha atravessa
+   * como está: `reconstituir` não revalida, então uma ficha gravada antes da
+   * `0009` continua **legível** — e é na próxima escrita que a escala é cobrada.
+   */
   atributos: Atributos;
   anotacoes: string;
   /**

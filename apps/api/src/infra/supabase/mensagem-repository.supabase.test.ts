@@ -263,6 +263,7 @@ function linha(parcial: Partial<RowMensagem> & Pick<RowMensagem, 'id' | 'criado_
     conteudo: 'olá',
     rolagem: null,
     motivo: null,
+    avaliacao: null,
     destinatario_id: null,
     destinatario_nome: null,
     ...parcial,

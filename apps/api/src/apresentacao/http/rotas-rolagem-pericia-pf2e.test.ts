@@ -36,18 +36,24 @@ import { criarAppDeTeste, type AppDeTeste, type SessaoDeTeste } from '../../test
  * 403). O texto do card foi corrigido junto com esta entrega (F11).
  */
 
+/**
+ * Seelah, nível 5, com Destreza +4 e Inteligência +1 na coluna comum — que é onde
+ * o atributo de PF2e mora desde o RV-098, na escala do sistema (−5..+8). Antes
+ * disso os modificadores iam em `dados` e estes 20 iam para a coluna, que ninguém
+ * lia.
+ */
 const FICHA_BASE = {
   nome: 'Seelah',
   classe: 'Paladina',
   nivel: 5,
   pvMax: 40,
   atributos: {
-    forca: 20,
-    destreza: 20,
-    constituicao: 20,
-    inteligencia: 20,
-    sabedoria: 20,
-    carisma: 20,
+    forca: 0,
+    destreza: 4,
+    constituicao: 0,
+    inteligencia: 1,
+    sabedoria: 0,
+    carisma: 0,
   },
   anotacoes: '',
 };
@@ -107,15 +113,7 @@ async function mesaComSeelah(dadosExtra: (dados: DadosFicha) => DadosFicha = (d)
 
   const definicao = definicaoDoSistema('pathfinder2e');
   const dados = dadosExtra(
-    definicao.definirGrauDePericia(
-      {
-        ...dadosIniciaisDaFicha('pathfinder2e'),
-        modificadorDestreza: 4,
-        modificadorInteligencia: 1,
-      },
-      'furtividade',
-      'treinado',
-    ),
+    definicao.definirGrauDePericia(dadosIniciaisDaFicha('pathfinder2e'), 'furtividade', 'treinado'),
   );
 
   const ficha = await ambiente.app.inject({

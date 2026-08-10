@@ -81,9 +81,13 @@ O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.
 - ✅ Excluir e duplicar ficha (dono ou mestre), com confirmação acessível — a cópia continua pertencendo ao dono do original e o token vinculado sobrevive no mapa, desvinculado
 - ✅ Histórico do chat paginado por cursor na API (`?antesDe`&`antesDeId`&`limite`), com a visibilidade de sussurro e rolagem oculta preservada em toda página — a rolagem infinita na tela ainda não existe
 - ✅ Fronteira de licenciamento do Pathfinder 2e verificada por teste: teto de semente, atribuição obrigatória junto do dado e conteúdo barrado enquanto o documento de licença estiver incompleto
-- ✅ Ficha de Pathfinder 2e que calcula sozinha: modificadores de atributo em −5..+8 gravados direto (o sistema ignora as colunas 1..30), 16 perícias somando modificador + proficiência e rolando em um clique com o motivo no chat, e as ações que exigem treinamento listadas como indisponíveis com o motivo escrito
+- ✅ Ficha de Pathfinder 2e que calcula sozinha: 16 perícias somando modificador + proficiência e rolando em um clique com o motivo no chat, e as ações que exigem treinamento listadas como indisponíveis com o motivo escrito
+- ✅ Atributo com **uma casa só** em todo sistema: o número fica na coluna comum e o que varia por sistema é a **escala** declarada na definição (1..30 com bônus `(valor − 10) / 2` no d20 clássico, −5..+8 no PF2e) — valor fora da escala é recusado em PT-BR nomeando atributo, valor e faixa, e nenhum sistema pode declarar na ficha um campo com nome de coluna comum
 - ✅ Saber de PF2e como família de perícias: o jogador cria quantas especializações quiser ("Saber (Guerra)" treinado e "Saber (Náutico)" destreinado convivem com bônus diferentes), cada uma em sua linha, sem nenhum caso especial de sistema na tela
-- ✅ Motor de regras de PF2e em funções puras: proficiência com o destreinado **sem somar o nível**, grau de sucesso com o 20/1 natural deslocando **um grau** (não decidindo o resultado), CDs simples e por nível, e empilhamento de modificadores por tipo — pronto para o grau de sucesso no chat, que ainda não está ligado
+- ✅ Motor de regras de PF2e em funções puras: proficiência com o destreinado **sem somar o nível**, grau de sucesso com o 20/1 natural deslocando **um grau** (não decidindo o resultado), CDs simples e por nível, e empilhamento de modificadores por tipo
+- ✅ Grau de sucesso no chat: `/r 1d20+11 cd 18` numa mesa de PF2e sai como "Sucesso crítico · contra CD 18" para todos, com o ajuste do 20/1 natural explicado em texto (nada só por cor) — a CD chega pelo sufixo `cd N` de quem digita ou como número de quem clica na ficha, sem CD padrão em lugar nenhum, e sistema que não avalia grau recusa a CD dizendo o nome do sistema
+- ✅ Defesas de PF2e calculadas na ficha: CA (com bônus de item e limite de Destreza, em que "sem limite" é diferente de "limite 0"), Fortitude, Reflexos, Vontade, Percepção e CD de classe — as roláveis rolam em um clique, nenhum número derivado é gravado, e a CD de classe se recusa a existir sem o atributo-chave em vez de escolher um por conta própria
+- ✅ Ataques de PF2e com penalidade de ataques múltiplos: três botões de acerto (`1d20+9` / `-5` / `-10`, ou `-4` / `-8` com arma ágil) e dois de dano, com a CA do alvo virando grau de sucesso no chat — o dano nunca é checado contra CD, o crítico dobra em botão próprio e **a plataforma não conta os seus ataques**: a ordem é escolha explícita do jogador
 - ✅ Atribuição OGL 1.0a / Community Use da Paizo exibida na ficha de Pathfinder, montada a partir do dado da definição do sistema — nenhuma tela escreve o texto legal à mão
 - ✅ Lista de sistemas de RPG amarrada ao banco: o `check` de `mesas.sistema` é extraído das migrations em disco e comparado com o enum nas duas direções, offline — sistema novo sem migration (ou migration sem sistema) derruba a suíte com o SQL da próxima migration já escrito na mensagem
 - ✅ Reconexão resiliente: queda de rede não pede F5 — a mesa avisa o estado, bloqueia a escrita com o motivo escrito (sem perder o texto digitado) e ressincroniza os caches ao voltar
@@ -95,9 +99,9 @@ O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.
 
 ## Backlog
 
-O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/backlog/README.md) — 15 épicos e 98 cards (38 concluídos), organizados em três ondas (mesa jogável → paridade com o Roll20 → operação). Os cards novos nascem das descobertas de cada entrega, então a contagem cresce junto com o que já foi feito. A **ordem de execução** vive em [docs/backlog/sprints.md](docs/backlog/sprints.md): objetivo, cards fechados e versão de cada sprint.
+O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/backlog/README.md) — 15 épicos e 106 cards (42 concluídos), organizados em três ondas (mesa jogável → paridade com o Roll20 → operação). Os cards novos nascem das descobertas de cada entrega, então a contagem cresce junto com o que já foi feito. A **ordem de execução** vive em [docs/backlog/sprints.md](docs/backlog/sprints.md): objetivo, cards fechados e versão de cada sprint.
 
-O histórico de versões, com o que mudou e o que ainda não funciona, está em [docs/release-notes/](docs/release-notes/README.md) — a mais recente é a [v0.7.0](docs/release-notes/v0.7.0.md).
+O histórico de versões, com o que mudou e o que ainda não funciona, está em [docs/release-notes/](docs/release-notes/README.md) — a mais recente é a [v0.8.0](docs/release-notes/v0.8.0.md).
 
 ## Arquitetura
 
