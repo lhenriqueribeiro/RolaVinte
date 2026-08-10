@@ -14,7 +14,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run lint && npm run check --workspaces --if-present",
+    "docs:verificar": "node scripts/verificar-docs.mjs",
+    "check": "npm run lint && npm run docs:verificar && npm run check --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {

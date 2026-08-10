@@ -238,26 +238,47 @@ Cenário: Produção continua exigindo banco
 **História**
 > Como **mantenedor**, quero **um caminho único e verificável para aplicar migrations**, para **que ambientes não divirjam silenciosamente**.
 
-**Escopo**
-- `apps/api/supabase/README.md`: ordem, imutabilidade, uso do Supabase CLI
-- `apps/api/scripts/verificar-migrations.ts`: valida numeração sequencial e nomes
-- `package.json` da api: script `migrations:verificar` incluído no `check`
+> **Escopo reduzido em 2026-08-10, e a razão importa.** Este card foi escrito antes da primeira linha de
+> código de produção, propondo um script de hashes. Duas partes do que ele pedia já existem, construídas
+> por necessidade e não por ele: o verificador compara os arquivos em disco com a tabela
+> `migrations_aplicadas`, e o aplicador roda as pendentes, cada uma na própria transação. O que **ninguém
+> cobre ainda** é o que sobrou no escopo abaixo. Quem acusou a defasagem foi o verificador de
+> documentação, ao notar que o card citava um comando inexistente — a divergência estava aqui há oito
+> versões.
+
+**O que já existe (não refaça)**
+- Comparação disco × banco, derivada dos arquivos, denunciando pendente e órfã.
+- Aplicação das pendentes em transação por migration, registrando cada uma.
+
+**Escopo — só o que falta**
+- Guarda de **numeração**: dois arquivos com o mesmo prefixo `NNNN_`, ou salto na sequência.
+- Guarda de **imutabilidade**: migration já registrada como aplicada cujo conteúdo em disco mudou. É o defeito mais perigoso da família, porque dois ambientes no mesmo commit passam a ter schemas diferentes sem nada acusar.
+- A guarda entra no `check` da raiz, junto das outras.
 
 **Critérios de aceite**
 ```gherkin
 Cenário: Numeração duplicada é detectada
-  Dado dois arquivos "0002_a.sql" e "0002_b.sql"
-  Quando eu rodar "npm run migrations:verificar"
-  Então o comando falha indicando a duplicidade
+  Dado dois arquivos de migration com o mesmo prefixo "0002_"
+  Quando a guarda de migrations rodar
+  Então ela falha nomeando os dois arquivos
 
 Cenário: Migration aplicada foi alterada
-  Dado que o hash registrado de "0001_esquema_inicial.sql" mudou
-  Quando eu rodar a verificação
-  Então o comando falha lembrando que migrations aplicadas são imutáveis
+  Dado que o conteúdo de uma migration já registrada como aplicada mudou em disco
+  Quando a guarda rodar
+  Então ela falha lembrando que migration aplicada é imutável, e nomeia o arquivo
+
+Cenário: Borda — a guarda de numeração não precisa de banco
+  Dado um ambiente sem credencial de banco
+  Então a guarda de numeração ainda roda, porque é offline
+  E a de imutabilidade avisa que não pôde ser verificada, em vez de passar em silêncio
 ```
 
+**Testes obrigatórios**
+- A guarda precisa ter falhado ao menos uma vez em cada cenário: duplique um prefixo, altere uma migration registrada, confirme os dois vermelhos e desfaça.
+- Precedente a reusar: `apps/api/src/testes/check-de-sistemas.ts` já lê e interpreta o SQL das migrations sem banco.
+
 **DoD específico**
-- [ ] Arquivo de hashes versionado (`supabase/migrations/.hashes.json`).
+- [ ] Nenhum comando é citado neste card como se já existisse.
 
 ---
 

@@ -35,7 +35,7 @@ Cada fase termina com uma versão publicada, o backlog atualizado e as descobert
 
 ## Regras de particionamento
 
-Este repositório **não é git**: sem worktree, sem branch, sem merge. Vários agentes escrevem no mesmo sistema de arquivos ao mesmo tempo. Estas regras são o que substitui o controle de versão.
+O repositório **é** git, mas os agentes de uma sprint **não têm isolamento**: todos escrevem na mesma árvore de trabalho, sem worktree por agente e sem merge. Quem sobrescreve, apaga. Estas regras são o que substitui o isolamento que não existe.
 
 **1. Particione por posse de arquivo, nunca por card.** Dois cards que tocam o mesmo arquivo são um único agente, mesmo que sejam cinco cards.
 
