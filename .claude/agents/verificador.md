@@ -38,6 +38,8 @@ Perguntas que valem em quase toda fase:
 - Algum `delete` deixou arquivo órfão no Storage (F7)?
 - Alguma etapa está sendo pulada em silêncio (F8)?
 - Algum campo tem **duas casas** — uma escrita, outra lida (F12)? Para os campos que a sprint tocou, grave informando um valor, releia pela API e compare. Testar cada metade sozinha é exatamente o que deixou esse defeito passar por 1.475 testes verdes.
+- **Contrato novo sem consumidor?** Todo evento, enum, lista ou port que a sprint criou tem tipo, teste ou verificação que quebra quando ele for desrespeitado ([10-verificabilidade.md](../rules/10-verificabilidade.md))? Duas listas da mesma coisa em linguagens diferentes (TypeScript × SQL × prosa) sem nada comparando é o caso mais comum.
+- **Alguma afirmação em `.claude/rules/` ou `docs/agentes/` ficou falsa com esta sprint?** É a única pergunta desta lista que nenhum script cobre, e por isso é sua. `npm run docs:verificar` pega caminho, comando e contagem; falsidade semântica — uma regra descrevendo estrutura que mudou — só quem leu o código pega.
 - O front redeclara algum tipo que já existe em `@rolavinte/shared`?
 
 **Quando pedirem que você prove que um teste falha, prove de verdade:** quebre, confirme o vermelho e a mensagem, desfaça, relate. Teste protetor que você não viu falhar é teste não verificado.

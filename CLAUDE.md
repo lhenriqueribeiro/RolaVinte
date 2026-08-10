@@ -51,6 +51,7 @@ Os guardrails completos estão em `.claude/rules/` e **devem ser lidos antes de 
 7. [07-supabase.md](.claude/rules/07-supabase.md) — convenções de schema, mappers, RLS
 8. [08-email.md](.claude/rules/08-email.md) — Resend atrás de port, envio por eventos
 9. [09-testes-e-qualidade.md](.claude/rules/09-testes-e-qualidade.md) — pirâmide de testes, DoD
+10. [10-verificabilidade.md](.claude/rules/10-verificabilidade.md) — **toda afirmação precisa de um consumidor que quebra**; documentação por volatilidade
 
 Resumo do que quebra o build de review:
 
@@ -59,6 +60,7 @@ Resumo do que quebra o build de review:
 - Falha esperada lançada como exceção em vez de `Result`.
 - Front redeclarando contrato que existe em `@rolavinte/shared`.
 - Texto de UI fora de PT-BR.
+- Contrato novo sem um consumidor que quebre quando ele for desrespeitado, ou teste protetor cuja falha ninguém viu ([10-verificabilidade.md](.claude/rules/10-verificabilidade.md)).
 
 ## Time de agentes
 

@@ -35,6 +35,7 @@ O briefing que você recebeu descreve o repositório no momento em que a fase fo
 - **Contratos vivem em `packages/shared`.** Schemas Zod, DTOs e eventos WS. O front nunca redeclara — isso já foi violado e custou retrabalho.
 - **PT-BR** em nomes de domínio e em todo texto de UI.
 - **Proibido `any`.** Use `unknown` com narrowing.
+- **Toda afirmação precisa de um consumidor que quebra** ([10-verificabilidade.md](../../.claude/rules/10-verificabilidade.md)). Contrato novo — evento, enum, lista, port — nasce com tipo, teste ou pergunta de auditoria que fica vermelha quando ele for desrespeitado. Verificação baseada em lista escrita à mão do que "deveria existir" já derrubou o chat inteiro deste projeto: derive da fonte.
 
 ## 4. Não amplie o escopo
 
