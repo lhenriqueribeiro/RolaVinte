@@ -69,6 +69,55 @@ export interface PericiaFicha {
 }
 
 /**
+ * Uma ação de perícia e se **esta** ficha pode usá-la (RV-153).
+ *
+ * Existe porque a regra "esta ação exige treinamento" é do sistema, e não da
+ * tela. Escondê-la com um `if` no componente seria decidir por sistema fora do
+ * registro e, pior, deixar o jogador sem saber que a ação existe — a interface
+ * mostra a ação **indisponível com o motivo escrito**, nunca só oculta.
+ */
+export interface AcaoDePericia {
+  readonly nome: string;
+  readonly disponivel: boolean;
+  /** Por que está indisponível, em PT-BR. `null` quando está disponível. */
+  readonly motivo: string | null;
+}
+
+/**
+ * Perícia que é uma **família**: o personagem cria quantas instâncias quiser,
+ * cada uma com sua especialização e seu próprio grau (RV-153).
+ *
+ * O caso que obrigou o contrato é o Saber de Pathfinder 2e — "Saber (Guerra)"
+ * treinado e "Saber (Náutico)" destreinado convivem na mesma ficha, com bônus
+ * diferentes. Como entrada fixa do mapa de treinamentos isso não cabe: a lista
+ * é do personagem, não do sistema.
+ *
+ * A chave de uma instância carrega a especialização (`saber:Guerra`), e é por
+ * isso que `rotuloDeInstancia` consegue responder **sem** a ficha: o motivo que
+ * acompanha a rolagem no chat é montado a partir da chave.
+ */
+export interface FamiliaPericia {
+  readonly chave: string;
+  /** Nome da família, em PT-BR: `Saber`. */
+  readonly rotulo: string;
+  /** Rótulo do campo que cria uma instância: `Especialização`. */
+  readonly rotuloEspecializacao: string;
+  readonly ajuda?: string;
+  /** As instâncias que **esta** ficha tem, na ordem de exibição. */
+  instancias(ficha: FichaCalculavel): readonly PericiaFicha[];
+  /** Rótulo exibível da chave (`Saber (Guerra)`); `null` se a chave não é desta família. */
+  rotuloDeInstancia(periciaChave: string): string | null;
+  /**
+   * Cópia de `dados` com uma especialização nova. Pura. Entrada que o sistema
+   * recusa (vazia, repetida, acima do teto) devolve `dados` inalterado — quem
+   * diz o que é válido é o `schemaFicha`, na hora de salvar.
+   */
+  acrescentar(dados: DadosFicha, especializacao: string): DadosFicha;
+  /** Cópia de `dados` sem aquela instância. Pura. */
+  remover(dados: DadosFicha, periciaChave: string): DadosFicha;
+}
+
+/**
  * Grau de treinamento de uma perícia, como valor exibível.
  *
  * É uma lista por sistema de propósito: D&D 5e tem três degraus e o Pathfinder
@@ -95,6 +144,21 @@ export interface RolagemPadrao {
   expressao(ficha: FichaCalculavel): string;
 }
 
+/**
+ * Atribuição de licença que precisa viajar **junto** do conteúdo do sistema
+ * (RV-150/RV-152).
+ *
+ * Um aviso no rodapé do site não cobre uma ficha aberta direto por link, e um
+ * `if (sistema === 'pathfinder2e')` na tela para decidir se o aviso aparece é o
+ * `switch` que o registro existe para apagar. Então a atribuição é **dado da
+ * definição**: quem renderiza monta o aviso quando ela não é `null`, sem saber
+ * de que sistema se trata.
+ */
+export interface AtribuicaoDeSistema {
+  readonly texto: string;
+  readonly links: readonly { readonly rotulo: string; readonly href: string }[];
+}
+
 export interface DefinicaoSistema {
   /** Igual à chave sob a qual a definição está registrada — o teste confere. */
   readonly chave: SistemaRpg;
@@ -103,10 +167,42 @@ export interface DefinicaoSistema {
   readonly schemaFicha: SchemaFicha;
   readonly secoes: readonly SecaoFicha[];
   readonly pericias: readonly PericiaFicha[];
+
+  /**
+   * Perícias de família, cujas instâncias saem da ficha e não desta lista
+   * (RV-153). `[]` em todo sistema que não tem nenhuma — que é o normal.
+   *
+   * É obrigatório e sem padrão pelo mesmo motivo dos outros campos deste
+   * contrato: um sistema novo declara `[]` e fica evidente que a decisão foi
+   * tomada, em vez de herdar silêncio.
+   */
+  readonly familiasPericia: readonly FamiliaPericia[];
+
   readonly grausPericia: readonly GrauPericia[];
   /** Dado usado nos testes do sistema (`1d20` nos sistemas d20). */
   readonly dadoDeTeste: string;
   readonly rolagensPadrao: readonly RolagemPadrao[];
+
+  /**
+   * Se as seis colunas comuns `personagens.atributos` (1..30, lidas por
+   * `modificadorAtributo`) valem neste sistema.
+   *
+   * Existe porque Pathfinder 2e guarda o **modificador** direto na sua metade da
+   * ficha e ignora aquelas colunas: oferecer ali o teste genérico de atributo
+   * rolaria `+0` para sempre — uma promessa que o sistema não cumpre (F6 da
+   * taxonomia). Quem renderiza a metade comum da ficha consulta este campo em
+   * vez de perguntar qual é o sistema.
+   *
+   * É obrigatório e não tem padrão de propósito: sistema novo precisa dizer, em
+   * uma palavra, se herda a aritmética de atributo do d20 clássico.
+   */
+  readonly usaAtributosComuns: boolean;
+
+  /**
+   * Atribuição obrigatória ao exibir conteúdo deste sistema. `null` quando não
+   * há nada a atribuir — que é o caso de todo sistema sem material licenciado.
+   */
+  readonly atribuicao: AtribuicaoDeSistema | null;
 
   /**
    * Bônus total da perícia, pronto para somar ao dado. `null` quando a perícia
@@ -128,4 +224,10 @@ export interface DefinicaoSistema {
    * decide o que é válido é o `schemaFicha`, na hora de salvar.
    */
   definirGrauDePericia(dados: DadosFicha, periciaChave: string, grau: string): DadosFicha;
+
+  /**
+   * As ações daquela perícia, já resolvidas contra **esta** ficha (RV-153).
+   * `[]` quando a perícia não existe ou o sistema não modela ações.
+   */
+  acoesDePericia(ficha: FichaCalculavel, periciaChave: string): readonly AcaoDePericia[];
 }

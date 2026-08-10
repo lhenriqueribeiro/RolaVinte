@@ -179,8 +179,14 @@ export const SISTEMA_DND5E: DefinicaoSistema = {
     },
   ],
   pericias: PERICIAS_DND5E,
+  // Nenhuma perícia de família aqui: as 18 são de chave fixa (RV-153).
+  familiasPericia: [],
   grausPericia: GRAUS_PERICIA_DND5E,
   dadoDeTeste: '1d20',
+  // Os atributos 1..30 e a fórmula `(valor - 10) / 2` são de D&D 5e: aqui a
+  // metade comum da ficha vale integralmente. Nada a atribuir (RV-152).
+  usaAtributosComuns: true,
+  atribuicao: null,
   rolagensPadrao: [
     {
       chave: 'iniciativa',
@@ -191,4 +197,6 @@ export const SISTEMA_DND5E: DefinicaoSistema = {
   bonusPericia,
   grauDePericia,
   definirGrauDePericia,
+  // D&D 5e não modela ação de perícia com pré-requisito de treinamento (RV-153).
+  acoesDePericia: () => [],
 };

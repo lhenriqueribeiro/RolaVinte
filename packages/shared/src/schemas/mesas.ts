@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-export const SISTEMAS_RPG = ['dnd5e', 'tormenta20', 'ordem-paranormal', 'generico'] as const;
+export const SISTEMAS_RPG = [
+  'dnd5e',
+  'pathfinder2e',
+  'tormenta20',
+  'ordem-paranormal',
+  'generico',
+] as const;
 export type SistemaRpg = (typeof SISTEMAS_RPG)[number];
 
 export const criarMesaSchema = z.object({

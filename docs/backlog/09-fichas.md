@@ -317,7 +317,34 @@ Cenário: Limite de lote
 
 ### RV-096 — Amarrar o CHECK de `mesas.sistema` ao `SISTEMAS_RPG`
 
-**Épico:** E09 · **Depende de:** RV-091 · **Tamanho:** P · **Onda:** 2 · **Card protetor: faça antes de [RV-152](15-pathfinder2e.md#rv-152--ficha-de-pathfinder-2e-sobre-a-strategy-de-sistema)**
+**Épico:** E09 · **Depende de:** RV-091 · **Tamanho:** P · **Onda:** 2 · **Card protetor: faça antes de [RV-152](15-pathfinder2e.md#rv-152--ficha-de-pathfinder-2e-sobre-a-strategy-de-sistema)** · **Status:** ✅ Concluído (v0.7.0)
+
+> **Decisões tomadas na entrega.** A extração é **parsing de SQL**, e não a lista TypeScript
+> compartilhada que o card autorizava como alternativa: migration é arquivo estático e imutável, então
+> um gerador só poderia produzir a *próxima* — a comparação com o disco continuaria necessária de
+> qualquer jeito. O regex ganhou três defesas contra a fragilidade que a Armadilha 2 temia, e cada uma
+> tem teste próprio sobre SQL sintético: comentários removidos por um scanner que **respeita literais
+> de string** (sem isso a própria prosa da `0008` seria lida como declaração — F1 na veia), eventos de
+> `check`/`drop constraint` registrados **em ordem** (remoção sem recriação devolve "sem restrição", não
+> a lista antiga) e o SQL sugerido na mensagem de falha é relido pela própria extração, para não mandar
+> quem lê para um segundo vermelho.
+> **A extração vive em [check-de-sistemas.ts](../../apps/api/src/testes/check-de-sistemas.ts), separada
+> do teste** — extrator exportado de um `.test.ts` não seria testável com SQL sintético.
+> **Limites conhecidos, escritos no cabeçalho do arquivo:** casa `sistema in (...)` sem amarrar à tabela
+> `mesas` (hoje só ela tem a coluna); remoção do constraint por um nome que não mencione `sistema` passa
+> despercebida; e restrição escrita como `= any(array[...])` ou enum nativo seria reportada como
+> "nenhuma restrição vigente". Os três falham **ruidosamente**, não em silêncio.
+> **A `0008` já nasceu com `'pathfinder2e'`**, por instrução da sprint (evitar que dois agentes
+> concorrentes disputassem número de migration). Isso exigiu uma lista de exceção de um item só,
+> `SISTEMAS_ANTECIPADOS_NO_CHECK`, com um teste que fica vermelho no dia em que o valor entrar no enum.
+> **A reserva venceu e foi apagada na mesma sprint**, pelo agente do RV-152 — a guarda é estritamente
+> bidirecional hoje, e o DoD "nenhuma lista de sistemas fora de `SISTEMAS_RPG` e do SQL" está cumprido.
+> **Prova de que a guarda reprova, medida duas vezes** (implementação e verificação independente): valor
+> só no enum → vermelho nomeando o sistema, o arquivo do `check` vigente e o SQL pronto da `0009`; valor
+> só no SQL → vermelho nomeando o valor órfão. Nenhum dos dois é F1.
+> **A fila de migrations não aplicadas passou de três para quatro** — a `0008` é agora **pré-requisito
+> de funcionamento**, não precaução: desde o RV-152 o dashboard oferece "Pathfinder 2e" e o `INSERT`
+> falha sem ela. Os documentos que listavam nominalmente `0005`–`0007` foram corrigidos nesta curadoria.
 
 **História**
 > Como **mantenedor**, quero **que acrescentar um sistema de RPG sem a migration correspondente derrube a suíte**, para **não descobrir o CHECK desatualizado quando um mestre criar a primeira mesa do sistema novo**.
@@ -415,6 +442,12 @@ Cenário: Borda — valor no banco que o enum não conhece
 - **O jogador não tem saída pela tela**: os campos que ele precisaria apagar deixaram de ser
   renderizados, porque `secoes` agora é a do sistema novo. Duplicar a ficha também é recusado. O único
   contorno é o mestre desfazer a troca.
+- **A v0.7.0 piorou a aposta, sem tocar neste card.** Agora são **cinco** sistemas para trocar, e a ficha
+  de `pathfinder2e` é de longe a mais cara de perder: identidade, seis modificadores, 16 graus de
+  treinamento e a lista de Saberes, tudo dentro de `dados`. Trocar uma mesa de PF2e para `generico`
+  (cujo `schemaFicha` é `z.object({}).strict()`) congela **toda** ficha do grupo de uma vez. Se a saída
+  escolhida for a (b), migrar, é esta a combinação que precisa de teste: PF2e → genérico é o caso de
+  perda máxima.
 - É a mesma forma do [RV-036](03-cenas.md#rv-036--encolher-o-grid-não-pode-abandonar-tokens-fora-do-mapa):
   **limite alterado sem olhar o que já existe do lado de fora**. Aquele card resolveu recusando com 409
   e dizendo quantas peças ficariam fora — é o precedente mais barato a seguir.

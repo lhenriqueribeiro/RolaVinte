@@ -31,27 +31,50 @@ Esta era a sprint que **desbloqueia o Pathfinder**, e ela desbloqueou: a ficha d
 
 **A sprint deixou o produto um pouco pior em dois pontos, e isso está escrito no [README](README.md#roadmap-por-ondas):** a fila de migrations não aplicadas foi de uma para três (a `0007` derruba todo select de personagem contra o banco real), e o padrão do chat caiu de 100 para 50 mensagens sem que a tela ganhasse como pedir a próxima página.
 
-## Sprint 2 — Pathfinder calcula · `v0.7.0` · ▶ próxima
+## Sprint 2 — Pathfinder calcula · [`v0.7.0`](../release-notes/v0.7.0.md) · ✅ concluída
 
 > **Objetivo:** a ficha de PF2e existe e calcula sozinha os números que o jogador somaria à mão.
 
+Cumprido pela metade que o objetivo nomeia: a ficha existe, e o número que sai dela é o certo. A outra metade do épico — **comparar** esse número com uma CD — é a Sprint 3, e hoje não existe em lugar nenhum do produto (ver a nota sobre contrato órfão abaixo).
+
+| Ordem | Card | Como fechou |
+|---|---|---|
+| 1 | [RV-096](09-fichas.md) | ✅ Guarda offline que lê `supabase/migrations/*.sql`, extrai o `check` vigente de `mesas.sistema` e o compara com `SISTEMAS_RPG` **nas duas direções**. Provada com vermelho real por dois agentes diferentes (valor só no enum → nomeia o sistema e imprime o SQL da próxima migration; valor só no SQL → nomeia o valor órfão). A `0008` nasceu junto, já com `'pathfinder2e'` |
+| 2 | [RV-151](15-pathfinder2e.md) | ✅ 93 testes com todo valor esperado escrito à mão, cinco experimentos de vermelho registrados. **Entregou motor sem consumidor de produção**, por desenho — o consumidor é o RV-154 |
+| 3 | [RV-152](15-pathfinder2e.md) | ✅ `'pathfinder2e'` no registro, ficha com identidade e os seis modificadores diretos, `usaAtributosComuns` e `atribuicao` como dados do contrato em vez de `if` na tela. **Fechou parcial e foi completado no card seguinte**: as duas linhas de interface ficaram em handoff explícito e o agente do RV-153 as executou — sem elas, a ficha de PF2e oferecia seis botões rolando `1d20+0` de colunas que o sistema ignora |
+| 4 | [RV-153](15-pathfinder2e.md) | ✅ 16 perícias + Saber como **família de perícia no contrato** (`FamiliaPericia`), não como caso especial. Um defeito escapou e virou [RV-159](15-pathfinder2e.md) |
+| 5 | [RV-073](07-chat.md) | 🚧 **Não fechou pela segunda vez.** `useMensagens` continua um `useQuery` pedindo a primeira página — conferido no código no fecho da sprint. Continua `Parcial`, e a regressão de 100 → 50 mensagens segue de pé |
+
+**O RV-096 nesta sprint é o exemplo de que sprint não é contrato.** Ele não existia quando a Sprint 2 foi planejada: nasceu como *descoberta da execução da Sprint 1*, foi julgado bloqueador do E15 na curadoria da v0.6.0 e entrou aqui como **primeiro item**, na frente de cards que já estavam na página. A regra de composição nº 1 é o que decidiu a posição — o card que fecha a classe de risco vem antes do que a exercita — e o retorno foi medido dentro da própria sprint: quando o RV-152 acrescentou `'pathfinder2e'` ao enum, o vermelho apareceu exatamente onde deveria, com a instrução do que fazer. Sem ele, a divergência só apareceria no primeiro `INSERT` real, meses depois.
+
+**Nasceu um card da execução** (critério de corte aplicado sobre 29 descobertas — 19 dos implementadores, 10 da verificação independente): [RV-159](15-pathfinder2e.md) — adicionar um Saber repetido, longo demais ou acima do teto é um no-op silencioso na ficha (o botão fica habilitado, o clique esvazia o campo e nada é salvo). Nenhum outro achado virou card; quatro viraram contexto novo dentro de cards existentes (RV-154, RV-155, RV-157, RV-158).
+
+**A sprint deixou o produto um pouco pior em dois pontos, como a anterior:** a fila de migrations não aplicadas foi de três para **quatro** (a `0008` deixou de ser precaução e virou pré-requisito — o dashboard oferece "Pathfinder 2e" e o `INSERT` falha sem ela), e o RV-073 escorregou de novo, então a regressão do chat completa duas sprints de pé.
+
+**Contrato órfão que a Sprint 3 precisa fechar:** `grauSucesso`, `d20NaturalDe`, `somarModificadores`, `cdPorNivel` e `CDS_SIMPLES` têm zero call sites em produção. A aritmética está certa e invisível — um 20 natural não desloca grau nenhum na tela nem no chat. Está anotado no contexto do RV-154, junto com o risco concreto: reimplementar a comparação com a CD no componente é barato e criaria duas aritméticas.
+
+## Sprint 3 — Pathfinder na mesa · `v0.8.0` · ▶ próxima
+
+> **Objetivo:** rolar em PF2e produz um grau de sucesso no chat, atacar respeita a penalidade de ataques múltiplos — e a mesa consegue, enfim, sentar para jogar.
+
 | Ordem | Card | Por que está aqui |
 |---|---|---|
-| 1 | [RV-096](09-fichas.md) | **Protetor, movido da Sprint 1 para cá.** Nasceu na v0.6.0 e é **bloqueador do E15**: o RV-152 acrescenta `'pathfinder2e'` a `SISTEMAS_RPG`, e o `check (sistema in …)` de `mesas.sistema` é a única lista de sistemas que não é verificada por nada — o esquecimento compila, passa no lint, passa na suíte inteira (que roda com fakes) e só estoura no primeiro `INSERT` real. Pela regra de composição nº 1, o card que fecha a classe de risco vem antes do que a exercita; entrar depois seria descobrir o buraco pelo mesmo caminho que o RV-139 descobriu o dele |
-| 2 | [RV-151](15-pathfinder2e.md) | Motor de regras no shared: aritmética pura antes de qualquer tela |
-| 3 | [RV-152](15-pathfinder2e.md) | Ficha de PF2e como entrada nova no registro — e primeiro consumidor de `<AvisoLicenca>` |
-| 4 | [RV-153](15-pathfinder2e.md) | Perícias com rolagem em um clique; fornece a tabela, não a conta |
-| 5 | [RV-073](07-chat.md) | **Metade de interface, arrastada da Sprint 1.** Entra aqui e não numa sprint de chat porque hoje é **regressão visível**: o chat mostra 50 mensagens onde mostrava 100, sem caminho para o resto. Não compete por arquivo nenhum com os quatro acima (`features/jogo` × `features/personagens` e `sistemas/`), então cabe em paralelo sem ferir a regra nº 2 |
+| 1 | [RV-139](13-operacao.md) | **Proposta da curadoria, e o item que decide se esta sprint significa alguma coisa.** São **quatro** migrations não aplicadas (`0005`, `0006`, `0007`, `0008`), e a `0008` é a que faz `'pathfinder2e'` caber na coluna: contra o banco real, criar a mesa falha no primeiro `INSERT`, e a aba de personagens e o chat inteiro já estavam fora do ar antes disso. É o único item das três sprints que a suíte **não** consegue provar — todos os testes rodam com fakes. Entra primeiro pela regra nº 1: fechar a classe de risco (F10) antes que a sprint inteira a exercite |
+| 2 | [RV-154](15-pathfinder2e.md) | Grau de sucesso no chat — primeiro consumidor de metade do RV-151 |
+| 3 | [RV-155](15-pathfinder2e.md) | CA, salvaguardas, Percepção e CD de classe, **roláveis em um clique** (cenário acrescentado na curadoria — ver abaixo) |
+| 4 | [RV-156](15-pathfinder2e.md) | Ataques com MAP; depende dos dois acima |
+| 5 | [RV-159](15-pathfinder2e.md) | **Defeito entregue na v0.7.0**, não bloqueador do E15. Entra aqui pela regra nº 2: mexe em `SecaoPericias.tsx`, `tipos.ts` e `pericias.ts` — exatamente os arquivos do RV-155. Fora desta sprint, viraria conflito de escrita |
+| 6 | [RV-073](07-chat.md) | **Terceira tentativa.** O argumento "não compete por arquivo nenhum, cabe em paralelo" já falhou duas vezes: o card acabou sendo o item que sobra quando a sprint aperta. Desta vez ele **não é apêndice de uma sprint de Pathfinder** — é um estágio próprio, com agente próprio, ou sai da sprint e vira a primeira coisa da seguinte. Se em três horas o grupo passa de 50 mensagens (passa), o chat perde metade do histórico em toda sessão de PF2e que esta sprint promete viabilizar |
 
-Os cards 2 a 4 são sequenciais entre si (o épico tem ordem rígida) e todos tocam `packages/shared/src/sistemas/pathfinder2e/` — **um agente**, pela regra nº 2.
+**Nenhum card novo desta curadoria é bloqueador do PF2e** — o RV-159 é reparo de defeito, não pré-requisito. O que **é** bloqueador e não era card novo é o RV-139, e é por isso que a curadoria propõe movê-lo para cá em vez de deixá-lo sem sprint.
 
-## Sprint 3 — Pathfinder na mesa · `v0.8.0`
+**Uma correção de escopo dentro do RV-155:** o enunciado previa as defesas como bloco "somente leitura", o que deixaria a mesa clicando no dado da Furtividade e digitando a jogada de Reflexos à mão — sendo que salvaguarda é a checagem **mais rolada** de uma sessão de PF2e. Somente leitura passou a significar "não editável", não "sem botão de dado". O cenário está escrito no card.
 
-> **Objetivo:** rolar em PF2e produz um grau de sucesso no chat, e atacar respeita a penalidade de ataques múltiplos.
+Fechando esta sprint com o RV-139 dentro dela, **uma mesa de Pathfinder joga de verdade** — nos limites registrados abaixo. Sem o RV-139, fecha uma sprint em que tudo funciona menos o produto. O catálogo (RV-157) continua sendo conforto, não requisito.
 
-`RV-154` (grau de sucesso no chat) · `RV-155` (CA, salvaguardas, Percepção, CD de classe) · `RV-156` (ataques com MAP)
+**O que a mesa ainda faz na mão depois desta sprint, e por que está tudo bem:** ordem de iniciativa e turnos (Sprint 4 — hoje se resolve com papel, como em qualquer VTT antes do tracker), condições e aplicação de dano (RV-064/RV-065, Sprint 4 — o PV já é único e editável, e a barra sobre o token acompanha), magias e itens (RV-157, com o livro ao lado), e ficha de NPC/monstro (RV-095 — o mestre rola pelo chat com `1d20+13 cd 22`, que o RV-154 já avalia). Nada disso impede uma sessão: são coisas que toda mesa fazia antes de existir VTT.
 
-Fechando esta sprint, **uma mesa de Pathfinder joga** — o catálogo (RV-157) é conforto, não requisito.
+**O que impede, e é a segunda proposta desta curadoria: [RV-132](13-operacao.md) está tarde demais.** Sem deploy e sem `RESEND_API_KEY`, a plataforma existe em `localhost` e nenhum convite chega a ninguém — os outros quatro jogadores não têm como entrar, e o `ConviteDTO` não expõe o token nem para o mestre copiar à mão. Ele é o **segundo item da Onda 1** e está agendado para a **Sprint 6 (`v1.0.0`)**: pelo plano atual, a primeira mesa de Pathfinder com cinco pessoas de verdade acontece três sprints depois de o Pathfinder ficar pronto. A curadoria não o move sozinha — é escopo grande e a decisão é do humano —, mas registra a leitura: **ou o RV-132 sobe para a Sprint 4, ou "a mesa joga" continua significando "o mestre joga sozinho na máquina dele".**
 
 ## Sprint 4 — Combate · `v0.9.0`
 
@@ -70,6 +93,8 @@ Fechando esta sprint, **uma mesa de Pathfinder joga** — o catálogo (RV-157) �
 > **Objetivo:** roda para grupos reais toda sexta à noite, sem alguém de plantão.
 
 `RV-130` (observabilidade) · `RV-132` (deploy) · `RV-131` (backup e retenção) · `RV-134` (teste de carga)
+
+> **Contestado na curadoria da v0.7.0:** o `RV-132` é o segundo item da Onda 1 e está aqui, três sprints depois de a plataforma ficar jogável. Ver a nota ao fim da Sprint 3.
 
 ---
 
@@ -90,7 +115,11 @@ Cards abertos que não entram nas seis primeiras sprints e **por quê**:
 | [E15](15-pathfinder2e.md) | RV-157 | Catálogo é o último card do épico, por decisão de licenciamento |
 | Diversos | RV-025, RV-026, RV-028, RV-029, RV-043 … RV-046, RV-110, RV-111, RV-113, RV-114 | Ver o épico de cada um |
 
-Sprint não é contrato: card novo nascido de uma entrega pode entrar na seguinte se for `bloqueador`. Foi o que aconteceu com o [RV-096](09-fichas.md), nascido na Sprint 1 e promovido a primeiro item da Sprint 2 por bloquear o E15.
+Sprint não é contrato, e isso vale nas duas direções.
+
+**Card entra.** [RV-096](09-fichas.md) não existia quando a Sprint 2 foi escrita: nasceu da execução da Sprint 1, foi julgado bloqueador do E15 na curadoria da v0.6.0 e entrou como **primeiro item** da Sprint 2, na frente de cards já planejados. Fechou dentro dela e cobrou o próprio preço no mesmo lote. Na v0.7.0 o mesmo mecanismo produziu o [RV-159](15-pathfinder2e.md), que entra na Sprint 3 — por vizinhança de arquivo, não por bloqueio —, e trouxe o [RV-139](13-operacao.md) de "sprint nenhuma" para o primeiro lugar da Sprint 3.
+
+**Card sai.** [RV-073](07-chat.md) foi planejado na Sprint 1, arrastado para a Sprint 2 e não fechou nas duas. Um card que atravessa duas sprints inteiras sem sair do lugar não está sendo despriorizado — está sendo tratado como folga. Ou vira estágio com agente próprio, ou sai da página até que seja a prioridade de alguém.
 
 ## Histórico
 

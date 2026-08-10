@@ -8,6 +8,7 @@
     "start": "tsx --env-file-if-exists=.env src/main.ts",
     "supabase:sql": "node scripts/sql-de-instalacao.mjs",
     "supabase:verificar": "node --env-file-if-exists=.env scripts/verificar-supabase.mjs",
+    "supabase:migrar": "node --env-file-if-exists=.env scripts/migrar-supabase.mjs",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc --noEmit"
@@ -29,7 +30,9 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.13.1",
+    "@types/pg": "^8.21.0",
     "eslint": "^10.8.1",
+    "pg": "^8.23.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"

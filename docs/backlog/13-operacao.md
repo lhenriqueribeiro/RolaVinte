@@ -486,6 +486,18 @@ Cenário: Borda — schema desatualizado falha de forma legível
   o script já foi reescrito para **derivar do diretório** (último commit da v0.6.0), e a `0007` se
   registra em `migrations_aplicadas` — então o verificador a denuncia sozinho, sem ninguém editar
   lista nenhuma. O que falta aqui é **executar**: aplicar as três em ordem e registrar a saída.
+- **São quatro, não três, e a quarta é a que impede um sistema inteiro de existir (curadoria da
+  v0.7.0).** A [`0008_sistemas_check_pathfinder2e.sql`](../../apps/api/supabase/migrations/0008_sistemas_check_pathfinder2e.sql)
+  recria o `check` de `mesas.sistema` incluindo `'pathfinder2e'`. Desde o RV-152 o valor está em
+  `SISTEMAS_RPG`, e o select de criar mesa itera o enum: o dashboard **já oferece "Pathfinder 2e"** e,
+  sem esta migration, escolhê-lo devolve erro de constraint no primeiro `INSERT` — o sintoma exato que
+  o RV-096 nasceu para matar. **Este bullet existe porque a checklist escrita à mão logo abaixo diz
+  "as três" e não pode ser seguida à risca**: é a mesma classe de falha (F1, lista à mão que
+  desatualiza) que o próprio card diagnosticou no `VERIFICACOES`, reaparecendo dentro do card. Quem
+  executar deve confiar no que `npm run supabase:verificar -w @rolavinte/api` deriva do diretório, não
+  em nomes de arquivo escritos em prosa — aqui, no README do backlog ou em `sprints.md`. **Se ao pegar
+  este card a saída do verificador listar mais arquivos do que os quatro nomeados, ela está certa e o
+  texto está velho.**
 - **A causa é a forma da guarda, não o esquecimento.** A lista `VERIFICACOES` em
   [verificar-supabase.mjs](../../apps/api/scripts/verificar-supabase.mjs) é escrita à mão, migration por
   migration, enquanto o irmão dele (`sql-de-instalacao.mjs`) **lê o diretório** e por isso não
@@ -510,8 +522,10 @@ Cenário: Borda — schema desatualizado falha de forma legível
   arquivo. Migration aplicada é imutável — divergência encontrada vira `0006`, não edição da `0005`.
 
 **Escopo**
-- Aplicação de `0005_chat.sql`, `0006_registro_de_migrations.sql` e `0007_fichas_por_sistema.sql`, **em
-  ordem**, no ambiente `yewjuijqqenmckhxrnrc` (e em qualquer outro em uso)
+- Aplicação de **todas** as migrations pendentes que o verificador listar, **em ordem**, no ambiente
+  `yewjuijqqenmckhxrnrc` (e em qualquer outro em uso). Na curadoria da v0.7.0 eram quatro:
+  `0005_chat.sql`, `0006_registro_de_migrations.sql`, `0007_fichas_por_sistema.sql` e
+  `0008_sistemas_check_pathfinder2e.sql` — confira a lista derivada do disco antes de começar, não esta
 - `apps/api/scripts/verificar-supabase.mjs`: checklist derivada de `supabase/migrations/`
 - `apps/api/scripts/*.test.mjs` ou `apps/api/src/testes/`: teste offline de que migration sem
   verificação correspondente derruba a suíte
@@ -548,9 +562,14 @@ Cenário: Borda — sem credencial, a falha é legível
 - A verificação contra o banco real continua manual; registre no PR o ambiente, a data e a saída.
 
 **DoD específico**
-- [ ] `0005_chat.sql`, `0006_registro_de_migrations.sql` e `0007_fichas_por_sistema.sql` aplicadas, com
-      chat funcionando ponta a ponta contra o banco real (fala, rolagem, sussurro entre duas contas e
-      `/oculto` do mestre invisível ao jogador) **e** a aba de personagens abrindo — a `0007` é
-      pré-requisito de todo select de personagem, não só da ficha por sistema.
+- [ ] Todas as migrations pendentes aplicadas (quatro na curadoria da v0.7.0: `0005_chat.sql`,
+      `0006_registro_de_migrations.sql`, `0007_fichas_por_sistema.sql` e
+      `0008_sistemas_check_pathfinder2e.sql`), com chat funcionando ponta a ponta contra o banco real
+      (fala, rolagem, sussurro entre duas contas e `/oculto` do mestre invisível ao jogador), a aba de
+      personagens abrindo — a `0007` é pré-requisito de todo select de personagem, não só da ficha por
+      sistema — **e uma mesa `pathfinder2e` criada de verdade**, que é o que prova a `0008` e o que
+      nenhum teste desta suíte consegue provar, porque todos rodam com fakes.
+- [ ] `npm run supabase:verificar -w @rolavinte/api` sem nenhuma pendência, com a saída colada no PR:
+      é a lista derivada do diretório que vale, não a escrita neste card.
 - [ ] A checklist do verificador não depende de alguém lembrar de editá-la.
 - [ ] O que o script **não** cobre (check constraints, policies de Storage) está escrito na saída dele.

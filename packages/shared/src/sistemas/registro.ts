@@ -1,6 +1,7 @@
 import { SISTEMAS_RPG, type SistemaRpg } from '../schemas/mesas';
 import { SISTEMA_DND5E } from './dnd5e';
 import { definicaoGenericaPara, SISTEMA_GENERICO } from './generico';
+import { SISTEMA_PATHFINDER2E } from './pathfinder2e/definicao';
 import type { DadosFicha, DefinicaoSistema } from './tipos';
 
 /**
@@ -21,6 +22,7 @@ import type { DadosFicha, DefinicaoSistema } from './tipos';
  */
 const REGISTRO: Record<SistemaRpg, DefinicaoSistema> = {
   dnd5e: SISTEMA_DND5E,
+  pathfinder2e: SISTEMA_PATHFINDER2E,
   tormenta20: definicaoGenericaPara('tormenta20', 'Tormenta 20'),
   'ordem-paranormal': definicaoGenericaPara('ordem-paranormal', 'Ordem Paranormal'),
   generico: SISTEMA_GENERICO,

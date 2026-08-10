@@ -1,17 +1,21 @@
 import {
+  acoesDePericia,
   bonusPericia,
   definicaoDoSistema,
   expressaoDePericia,
   formatarBonus,
   grauDePericia,
   motivoDeRolagemDePericia,
+  type AcaoDePericia,
+  type FamiliaPericia,
   type GrauPericia,
+  type PericiaFicha,
   type PersonagemCalculavel,
   type SistemaRpg,
 } from '@rolavinte/shared';
 
 /**
- * A seção de perícias da ficha, já resolvida (RV-090).
+ * A seção de perícias da ficha, já resolvida (RV-090, estendida no RV-153).
  *
  * Existe como função pura por dois motivos. O primeiro é o de sempre: conta
  * testada sem navegador. O segundo é específico deste card — as quatro funções
@@ -22,6 +26,11 @@ import {
  *
  * Um sistema sem perícias devolve lista vazia — é a resposta certa, não um erro:
  * a ficha genérica simplesmente não mostra a seção.
+ *
+ * **Perícias de família** (o Saber de PF2e) entram por `periciasDaFicha`: elas
+ * pertencem ao personagem, não ao sistema, e por isso saem da ficha e não da
+ * definição. O componente não sabe disso — recebe linhas iguais às outras, com
+ * `familia` preenchida para oferecer o "Remover".
  */
 export interface LinhaDePericia {
   chave: string;
@@ -35,13 +44,30 @@ export interface LinhaDePericia {
   expressao: string;
   /** Motivo que acompanha a rolagem no chat: `Furtividade — Thorin`. */
   motivo: string;
+  /** Ações da perícia, com disponibilidade já resolvida contra o grau. */
+  acoes: readonly AcaoDePericia[];
+  /** Chave da família quando a linha é uma instância (`saber`); `null` nas fixas. */
+  familia: string | null;
+}
+
+/** Perícias da definição mais as instâncias das famílias, com a origem marcada. */
+function periciasComOrigem(
+  ficha: PersonagemCalculavel,
+): { pericia: PericiaFicha; familia: string | null }[] {
+  const definicao = definicaoDoSistema(ficha.sistema);
+  return [
+    ...definicao.pericias.map((pericia) => ({ pericia, familia: null })),
+    ...definicao.familiasPericia.flatMap((familia) =>
+      familia.instancias(ficha).map((pericia) => ({ pericia, familia: familia.chave })),
+    ),
+  ];
 }
 
 export function linhasDePericia(
   ficha: PersonagemCalculavel,
   nomePersonagem: string,
 ): LinhaDePericia[] {
-  return definicaoDoSistema(ficha.sistema).pericias.flatMap((pericia) => {
+  return periciasComOrigem(ficha).flatMap(({ pericia, familia }) => {
     const bonus = bonusPericia(ficha, pericia.chave);
     const expressao = expressaoDePericia(ficha, pericia.chave);
     const motivo = motivoDeRolagemDePericia(ficha.sistema, pericia.chave, nomePersonagem);
@@ -56,6 +82,8 @@ export function linhasDePericia(
         bonusFormatado: formatarBonus(bonus),
         expressao,
         motivo,
+        acoes: acoesDePericia(ficha, pericia.chave),
+        familia,
       },
     ];
   });
@@ -64,4 +92,9 @@ export function linhasDePericia(
 /** Os graus que o sistema oferece, na ordem declarada pela definição. */
 export function grausDoSistema(sistema: SistemaRpg): readonly GrauPericia[] {
   return definicaoDoSistema(sistema).grausPericia;
+}
+
+/** As famílias de perícia do sistema — `[]` em quase todos. */
+export function familiasDoSistema(sistema: SistemaRpg): readonly FamiliaPericia[] {
+  return definicaoDoSistema(sistema).familiasPericia;
 }

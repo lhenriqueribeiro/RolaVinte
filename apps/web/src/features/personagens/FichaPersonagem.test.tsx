@@ -70,6 +70,14 @@ function rotulosDePericias(definicao: DefinicaoSistema): string[] {
   return definicao.pericias.map((pericia) => pericia.rotulo);
 }
 
+/**
+ * Os dois lados do `usaAtributosComuns` (RV-152/RV-153): há sistema que herda a
+ * aritmética de atributo do d20 clássico e há sistema que guarda o modificador
+ * na própria ficha e ignora aquelas colunas.
+ */
+const COM_ATRIBUTOS_COMUNS = DEFINICOES_SISTEMA.filter((d) => d.usaAtributosComuns);
+const SEM_ATRIBUTOS_COMUNS = DEFINICOES_SISTEMA.filter((d) => !d.usaAtributosComuns);
+
 beforeEach(() => {
   requisitarFalso.mockReset();
   requisitarFalso.mockResolvedValue(undefined);
@@ -154,7 +162,15 @@ describe('a ficha renderiza a definição do sistema da mesa (RV-091)', () => {
     expect(screen.getByText(/Sistema: D&D 5e/)).toBeInTheDocument();
   });
 
-  it.each(DEFINICOES_SISTEMA.map((d) => [d.chave, d] as const))(
+  it('há sistema que usa os atributos comuns e sistema que não usa — os dois laços abaixo precisam disso', () => {
+    // Sem esta rede, o dia em que todo sistema usar (ou nenhum usar) os
+    // atributos comuns deixaria um dos dois testes sem nenhuma instância, e ele
+    // passaria verde sem verificar coisa alguma.
+    expect(COM_ATRIBUTOS_COMUNS.length).toBeGreaterThan(0);
+    expect(SEM_ATRIBUTOS_COMUNS.length).toBeGreaterThan(0);
+  });
+
+  it.each(COM_ATRIBUTOS_COMUNS.map((d) => [d.chave, d] as const))(
     'o teste de atributo de %s usa o dado da definição, não um 1d20 escrito na tela',
     async (_chave, definicao) => {
       // A perícia já saía com `definicao.dadoDeTeste` (via `expressaoDePericia`);
@@ -185,6 +201,55 @@ describe('a ficha renderiza a definição do sistema da mesa (RV-091)', () => {
       unmount();
       requisitarFalso.mockReset();
       requisitarFalso.mockResolvedValue(undefined);
+    },
+  );
+
+  it.each(SEM_ATRIBUTOS_COMUNS.map((d) => [d.chave, d] as const))(
+    'a ficha de %s não oferece o teste genérico de atributo, que rolaria +0 para sempre',
+    (_chave, definicao) => {
+      // O sistema guarda o **modificador** na sua metade da ficha e ignora as
+      // colunas 1..30. Oferecer o botão genérico aqui seria prometer uma
+      // rolagem que o sistema não cumpre (F6) — e ainda deixaria seis campos
+      // editáveis que não entram em conta nenhuma.
+      const { unmount } = renderizarComProvedores(
+        <FichaPersonagem
+          personagem={fichaDoSistema(definicao)}
+          podeEditar
+          aoFechar={() => undefined}
+        />,
+      );
+
+      expect(screen.queryByText('Atributos (clique no dado para testar)')).toBeNull();
+      expect(screen.queryByLabelText('Valor de destreza')).toBeNull();
+      expect(screen.queryAllByTitle(`Rolar ${definicao.dadoDeTeste}-1`)).toEqual([]);
+      // A metade comum que **é** deste sistema continua lá.
+      expect(screen.getByLabelText('Nível')).toHaveValue(3);
+
+      unmount();
+    },
+  );
+
+  it.each(DEFINICOES_SISTEMA.map((d) => [d.chave, d] as const))(
+    'a ficha de %s monta o aviso de licença quando, e só quando, a definição traz atribuição',
+    (_chave, definicao) => {
+      // A regra é "a atribuição acompanha o conteúdo": quem decide é o dado da
+      // definição, não a tela. O texto vem do componente — reescrevê-lo aqui
+      // reprovaria na varredura de `AvisoLicenca.test.tsx`.
+      const { unmount } = renderizarComProvedores(
+        <FichaPersonagem
+          personagem={fichaDoSistema(definicao)}
+          podeEditar
+          aoFechar={() => undefined}
+        />,
+      );
+
+      const avisos = screen.queryAllByRole('contentinfo');
+      expect(avisos).toHaveLength(definicao.atribuicao === null ? 0 : 1);
+      if (definicao.atribuicao !== null) {
+        expect(avisos[0]).toHaveTextContent(definicao.atribuicao.texto);
+      }
+
+      unmount();
     },
   );
 });

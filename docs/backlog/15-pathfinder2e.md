@@ -18,6 +18,8 @@ ficha  →  rolagem com o bônus certo  →  chat com o grau de sucesso
 
 Catálogo grande é Onda 3 e é o **último** card do épico (RV-157). Se o épico parar em RV-156, a mesa já joga.
 
+**Ressalva escrita na curadoria da v0.7.0, para a frase acima não ser lida como promessa cumprida:** "a mesa joga" é uma afirmação sobre *mecânica*, e ela continua verdadeira. O que a mecânica pronta **não** entrega é uma sessão: as migrations do repositório não estão aplicadas em ambiente nenhum ([RV-139](13-operacao.md) — sem a `0008`, a mesa de PF2e nem é criada) e a plataforma não está publicada, com todo convite caindo no stdout da API ([RV-132](13-operacao.md)). Os dois são Onda 1, nenhum dos dois é deste épico, e nenhum dos dois é resolvido por um card daqui. Ver a Sprint 3 em [sprints.md](sprints.md).
+
 ### 2. Licenciamento — decidido, não re-decidir
 
 Isto foi pesquisado e fechado. Não reabra. A decisão vive em [docs/licencas/pathfinder2e.md](../licencas/pathfinder2e.md), e desde o RV-150 ela é **verificada por teste** — `packages/shared/src/sistemas/pathfinder2e/licenca.test.ts` reprova conteúdo sem `fonte`, semente acima do teto e conteúdo que chegue antes da atribuição completa. O resumo abaixo continua valendo:
@@ -128,7 +130,9 @@ RV-151 motor de regras ┴─► RV-152 ficha ─┬─► RV-153 perícias ─�
        protege o enum                                                                  └─► RV-158 iniciativa
 ```
 
-[RV-096](09-fichas.md#rv-096--amarrar-o-check-de-mesassistema-ao-sistemas_rpg) mora no E09 mas serve a este épico: é ele que impede o RV-152 de acrescentar `'pathfinder2e'` ao enum e esquecer a migration do `check`. Mesma lógica do RV-150 — fechar a classe de risco antes de exercitá-la.
+[RV-096](09-fichas.md#rv-096--amarrar-o-check-de-mesassistema-ao-sistemas_rpg) mora no E09 mas serve a este épico: é ele que impede o RV-152 de acrescentar `'pathfinder2e'` ao enum e esquecer a migration do `check`. Mesma lógica do RV-150 — fechar a classe de risco antes de exercitá-la. **Funcionou como projetado na v0.7.0:** o vermelho apareceu no momento em que o enum ganhou o valor, e a migration já estava em disco.
+
+**RV-159 não está no diagrama de propósito:** é reparo de um defeito entregue pelo RV-153, não dependência de ninguém. Ele está na Sprint 3 por vizinhança de arquivo com o RV-155, e o épico fecha sem ele — mas a ficha mente até que ele feche.
 
 **Convenção deste épico:** RV-150 e RV-151 não têm superfície HTTP — não existe autorização a testar neles. Nesses dois cards o cenário de autorização é substituído por um cenário `Guarda:`, que é a verificação automatizada que ocupa o mesmo lugar. Todos os demais cards têm cenário de autorização de verdade, com `403`/`401` provado por teste de contrato ([F4 da taxonomia](../agentes/taxonomia-de-falhas.md)).
 
@@ -216,7 +220,34 @@ Cenário: Borda — semente vazia é estado válido
 
 ### RV-151 — Motor de regras PF2e no `@rolavinte/shared`
 
-**Épico:** E15 · **Depende de:** RV-150 · **Tamanho:** G · **Onda:** 2
+**Épico:** E15 · **Depende de:** RV-150 · **Tamanho:** G · **Onda:** 2 · **Status:** ✅ Concluído (v0.7.0)
+
+> **Decisões tomadas na entrega.**
+> **A exceção do destreinado é dado, não `if`.** `PROFICIENCIA_POR_GRAU` é um
+> `Record<GrauTreinamento, { somaNivel: boolean; acrescimo: number }>`: escrita como
+> `if (grau === 'destreinado')`, a regra ficaria escondida no meio de uma conta; como coluna, ela é
+> visível para quem lê a tabela, e grau novo **não compila** sem declarar as duas coisas.
+> **`bonusProficiencia` não limita o nível a 1..20** de propósito — criatura e CD de encontro passam
+> disso, e cortar aqui devolveria número errado sem avisar. Quem precisa da faixa valida antes (é o
+> `schemaFicha` do RV-152).
+> **`d20NaturalDe` também recusa d20 subtraído** (`30-1d20` → `null`), o que o card não pedia: um d20
+> subtraído não é uma checagem, e ajustar o crítico ali seria inventar regra.
+> **`cdPorNivel` recusa nível fracionário** em vez de truncar — truncar seria escolher uma CD por conta
+> própria. E a **CD por nível é tabela literal, não fórmula**: a curva é +1 por nível com +1 extra a
+> cada três até o 20 e +2 do 21 em diante, e uma fórmula que casa até o 20 e erra depois é pior que
+> transcrever, porque erra em silêncio.
+> **Bônus e penalidade do mesmo tipo não se cancelam** — entram os dois (maior bônus + pior penalidade
+> daquele tipo). Tem teste próprio, porque é onde um `reduce` "corrigido pela metade" ainda erra.
+> **Os testes de `d20NaturalDe` rodam sobre o motor de dados real** com RNG determinístico, e não sobre
+> `ResultadoRolagem` montado à mão: um fixture escrito pelo implementador casaria com a leitura dele do
+> formato, não com o que o motor produz (F3). Há uma asserção que valida o próprio dublê antes.
+> **`penalidadeAtaquesMultiplos` não foi criada aqui** — continua escopo do RV-156, neste mesmo arquivo.
+> **Este card entrega motor sem consumidor de produção, e isso é por desenho.** Só `bonusProficiencia`
+> chega ao produto (via `definicao.ts`); `grauSucesso`, `d20NaturalDe`, `somarModificadores`, `cdPorNivel`,
+> `CDS_SIMPLES` e `MARGEM_CRITICA` têm **zero** call sites fora dos testes — varredura da verificação
+> independente. O consumidor é o **RV-154**, e o risco nomeado está escrito lá: quando ele for
+> implementado, é barato reimplementar a comparação com a CD no componente e passar a existir duas
+> aritméticas. Não faça isso.
 
 **História**
 > Como **mantenedor**, quero **a aritmética do PF2e como funções puras num único arquivo**, para **que ficha, chat e combate cheguem ao mesmo número e uma errata seja um patch de uma linha**.
@@ -226,7 +257,7 @@ Cenário: Borda — semente vazia é estado válido
 - Nada aqui é conteúdo: são tabelas de mecânica (OGC). Ainda assim o arquivo abre com o cabeçalho de atribuição do RV-150.
 - **Armadilha 1 — destreinado não soma o nível.** `bonusProficiencia(12, 'destreinado')` é `0`, não `12`. Errar isto infla silenciosamente toda perícia não treinada de todo personagem.
 - **Armadilha 2 — ordem do ajuste natural.** O 20/1 natural desloca **um grau**, aplicado *depois* da comparação com a CD, e nunca é sucesso/falha automático. Um teste que só verifica "20 natural ⇒ sucesso" passa e está errado.
-- **Armadilha 3 — qual é o d20?** `ResultadoRolagem.termos[].dados[].valor` existe, mas em `1d20+1d6` a pergunta "qual foi o d20 natural?" é ambígua. **Decisão: nunca adivinhe.** `d20NaturalDe(resultado)` devolve o valor **só** quando existe exatamente um termo de faces 20 com exatamente um dado não descartado; em qualquer outro caso devolve `null`, e sem d20 identificável **não há ajuste**. Em `2d20kh1` o dado mantido é o natural (o descartado não conta).
+- **Armadilha 3 — qual é o d20?** `ResultadoRolagem.termos[].dados[].valor` existe, mas em `1d20+1d6` a pergunta "qual foi o d20 natural?" é ambígua. **Decisão: nunca adivinhe.** `d20NaturalDe(resultado)` devolve o valor **só** quando a expressão tem exatamente **um** termo de dados (constantes não contam — `1d20+11`, que é o formato de toda checagem, funciona), esse termo é de faces 20, está somado e não subtraído, e sobra exatamente um dado não descartado; em qualquer outro caso devolve `null`, e sem d20 identificável **não há ajuste**. Em `2d20kh1` o dado mantido é o natural (o descartado não conta). *(Redação precisada na entrega do RV-151, por F11: a original dizia "exatamente um termo de faces 20 com exatamente um dado não descartado", o que faria `1d20+1d6` devolver o d20 — contradizendo o cenário `Guarda:` deste mesmo card. Vale o cenário.)*
 - **Armadilha 4 — empilhamento por tipo.** Dois bônus de item não somam; vale o maior. Um `reduce` ingênuo dá o número errado e ninguém percebe até a mesa reclamar.
 - `packages/shared` não tem `Result` (é o padrão do domínio da api, ver [01-arquitetura.md](../../.claude/rules/01-arquitetura.md)). Siga a convenção que já existe em `validarExpressao`: falha esperada volta como valor, não como exceção. `cdPorNivel` fora de 0..25 devolve `null`.
 
@@ -300,7 +331,32 @@ Cenário: Borda — CD por nível fora da tabela
 
 ### RV-152 — Ficha de Pathfinder 2e sobre a strategy de sistema
 
-**Épico:** E15 · **Depende de:** RV-091 (✅), RV-151, RV-096 · **Tamanho:** G · **Onda:** 2
+**Épico:** E15 · **Depende de:** RV-091 (✅), RV-151, RV-096 · **Tamanho:** G · **Onda:** 2 · **Status:** ✅ Concluído (v0.7.0)
+
+> **Decisões tomadas na entrega.** As três correções de enunciado (F11) já estão escritas no **Escopo** e
+> no primeiro cenário; o que segue são as decisões que o card não determinava.
+> **Dois campos novos e obrigatórios no contrato, em vez de um `if` na tela.** `DefinicaoSistema` ganhou
+> `usaAtributosComuns: boolean` (PF2e = `false`, porque guarda o modificador direto e ignora as colunas
+> 1..30) e `atribuicao: AtribuicaoDeSistema | null` (PF2e = `ATRIBUICAO_PF2E`, os demais `null`). Sem
+> eles, os cenários "o botão genérico não aparece" e "atribuição montada" só se resolveriam com
+> `switch (sistema)` no componente, proibido pelo DoD. São **obrigatórios** — sem valor padrão — pelo
+> mesmo raciocínio do `Record` total do RV-091: sistema novo decide as duas coisas conscientemente.
+> **`treinamentos` nasceu como objeto estrito vazio**, reservando o lugar e o caminho de escrita para que
+> RV-153 e RV-155 fossem tabela e nada mais. Aberto pelo RV-153 com as 16 chaves fixas.
+> **Identidade é texto livre, com teste exigindo que continue sendo** — enumerar ancestralidades seria
+> distribuir conteúdo da Paizo; a lista curada é o RV-157.
+> **`bonusDeChecagem` mora em `definicao.ts`, e não em `regras.ts`:** `regras.ts` é do RV-151 e não conhece
+> o formato da ficha; a ponte entre "onde o número está gravado" e "qual é a conta" é deste card.
+> **A metade de interface foi entregue pelo agente do RV-153**, no mesmo lote e nos mesmos arquivos: o
+> gate `usaAtributosComuns` no bloco dos seis atributos comuns
+> ([FichaPersonagem.tsx](../../apps/web/src/features/personagens/FichaPersonagem.tsx):215) e o
+> `<AvisoLicenca />` no rodapé (:314). Enquanto ela não existiu, a ficha de PF2e ofereceu seis botões
+> "🎲 +0" rolando `1d20+0` a partir de colunas que o sistema ignora (F6) — o card só está fechado porque
+> isso foi corrigido, verificado em código na curadoria.
+> **A `0008` (RV-096) é a migration deste card.** Nenhuma foi criada aqui: o valor `'pathfinder2e'` já
+> estava reservado no `check`, e a reserva `SISTEMAS_ANTECIPADOS_NO_CHECK` venceu e foi apagada, como o
+> handoff previa. **Consequência que saiu do papel:** o dashboard agora oferece "Pathfinder 2e" e, contra
+> o Supabase real, criar essa mesa falha no `INSERT` enquanto a `0008` não for aplicada (RV-139).
 
 **História**
 > Como **jogador de PF2e**, quero **criar minha ficha com ancestralidade, herança, antecedente, classe, nível e os seis modificadores de atributo**, para **entrar na campanha sem manter uma planilha paralela**.
@@ -315,7 +371,7 @@ Cenário: Borda — CD por nível fora da tabela
 - Faixa de nível: 1..20, coerente com `criarPersonagemSchema`.
 
 **Escopo**
-- `packages/shared/src/sistemas/pathfinder2e/definicao.ts` — `schemaFicha` Zod (`ancestralidade`, `heranca`, `antecedente`, `classe`, `nivel`, `modificadores`, `treinamentos: Record<string, GrauTreinamento>`), `secoes` (Identidade · Atributos · Perícias · Defesas), `rolagensPadrao`
+- `packages/shared/src/sistemas/pathfinder2e/definicao.ts` — `schemaFicha` Zod (`ancestralidade`, `heranca`, `antecedente`, os seis modificadores como chaves de topo `modificadorForca`…`modificadorCarisma`, `treinamentos`), `secoes` (Identidade · Atributos), `rolagensPadrao`. **Três correções feitas na execução (F11), porque o enunciado original era impossível ou contraditório:** (1) `classe` e `nivel` **não** entram em `dados` — são colunas comuns de `personagens`, já exibidas e validadas (`criarPersonagemSchema`, 1..20), e duplicá-las daria dois campos "Nível" na mesma tela e duas respostas na hora de somar proficiência; (2) os modificadores são chaves **planas**, e não um objeto `modificadores` aninhado, porque `CampoFicha.chave` endereça uma chave de topo de `dados` e o teste do RV-091 exige que todo campo de seção exista na ficha inicial — aninhado, a seção não renderizaria; (3) as seções Perícias e Defesas não são declaradas aqui: Perícias chega no RV-153 pela lista `pericias` (que já tem seção própria na interface, e uma `SecaoFicha` homônima duplicaria o título) e Defesas no RV-155. `rolagensPadrao` nasce vazio: iniciativa é por Percepção (RV-158)
 - `packages/shared/src/sistemas/registro.ts` — registrar `pathfinder2e`
 - `packages/shared/src/schemas/mesas.ts` — `SISTEMAS_RPG` ganha `'pathfinder2e'`
 - `apps/api/supabase/migrations/000X_sistema_pathfinder2e.sql` — recria o `check` de `mesas.sistema` com o valor novo
@@ -326,7 +382,8 @@ Cenário: Borda — CD por nível fora da tabela
 Cenário: Ficha nasce com o esqueleto do sistema
   Dado uma mesa com sistema "pathfinder2e"
   Quando eu criar o personagem "Seelah"
-  Então a ficha exibe as seções Identidade, Atributos, Perícias e Defesas
+  Então a ficha exibe as seções Identidade e Atributos
+  # Perícias chega no RV-153 e Defesas no RV-155, na mesma definição (F11, ver Escopo)
   E os seis modificadores começam em +0
   E o nível começa em 1
 
@@ -374,7 +431,35 @@ Cenário: Ficha genérica intacta
 
 ### RV-153 — Perícias de PF2e com rolagem em um clique
 
-**Épico:** E15 · **Depende de:** RV-090, RV-152 · **Tamanho:** M · **Onda:** 2
+**Épico:** E15 · **Depende de:** RV-090, RV-152 · **Tamanho:** M · **Onda:** 2 · **Status:** ✅ Concluído (v0.7.0)
+
+> **Decisões tomadas na entrega.** A tabela mora em
+> [pericias.ts](../../packages/shared/src/sistemas/pathfinder2e/pericias.ts) e a definição só a
+> pluga no registro. **Saber virou um conceito do contrato, não um caso especial do PF2e:**
+> `DefinicaoSistema` ganhou `familiasPericia: readonly FamiliaPericia[]` e
+> `acoesDePericia(ficha, chave)`, os dois obrigatórios, porque as alternativas eram um
+> `if (sistema === 'pathfinder2e')` na tela (proibido pelo DoD) ou uma tela que não desenha o que a
+> ficha guarda. As instâncias moram em `dados.saberes` como lista de `{ especializacao, grau }`, e a
+> chave (`saber:Guerra`) carrega a especialização **de propósito**: é o que deixa
+> `motivoDeRolagemDePericia` montar "Saber (Guerra) — Seelah" sem a ficha em mãos.
+> **`acoesTreinadas` não é catálogo:** é o subconjunto de ações que a interface precisa marcar como
+> indisponíveis, e a lista completa continua sendo o RV-157, atrás da port.
+> **O cenário de autorização foi corrigido (F11)** — ver a nota no próprio cenário.
+> **Duas pendências de interface do RV-152 foram fechadas junto**, por caírem nos mesmos arquivos e
+> por serem o que faria esta entrega mentir: a ficha de PF2e deixou de oferecer o teste genérico de
+> atributo (`usaAtributosComuns`) e passou a montar `<AvisoLicenca />` (`atribuicao`).
+> **Teto e limites decididos aqui:** 12 Saberes por ficha e 40 caracteres por especialização (constantes
+> exportadas, não números espalhados) — uma lista dentro de `jsonb` que a tela renderiza inteira precisa
+> de fundo. As **ações ficam num `<details>` por perícia**, com o estado em texto ("indisponível: Exige ao
+> menos treinado em Medicina."), e não como botão: botão que não faz nada é a promessa falsa que o card
+> veio evitar.
+> **Um defeito escapou desta entrega e virou o [RV-159](#rv-159--adicionar-saber-recusado-precisa-dizer-o-motivo-em-vez-de-esvaziar-o-campo):**
+> `acrescentarSaber` devolve `dados` inalterado quando a especialização é repetida, longa demais ou está
+> acima do teto, e o comentário da função afirma que "a interface impede as três" — a interface só impede
+> o campo vazio. Medido em execução pela verificação independente: o botão fica habilitado, o clique
+> esvazia o campo e nada acontece.
+> **Nenhuma migration:** as perícias moram no `dados jsonb` da `0007` e toda chave nova tem padrão, então
+> ficha antiga (`{}`) continua válida — provado pelo teste do registro para todos os sistemas.
 
 **História**
 > Como **jogador de PF2e**, quero **clicar na perícia e ver a rolagem já com nível, grau de treinamento e modificador somados**, para **não recalcular +11 toda vez que o grupo sobe de nível**.
@@ -400,9 +485,10 @@ Cenário: Ficha genérica intacta
 - **Armadilha — ações só de treinado.** Algumas ações de perícia exigem treinamento. A regra pertence à tabela (`acoesTreinadas`), **não** a um `if` no componente: esconder o botão sem a regra no dado é F4/F6.
 
 **Escopo**
-- `packages/shared/src/sistemas/pathfinder2e/pericias.ts` — `PERICIAS_PF2E: { chave, nome, atributo, acoesTreinadas: string[] }[]`
-- `packages/shared/src/sistemas/pathfinder2e/definicao.ts` — seção de perícias + `rolagensPadrao` de perícia
-- [FichaPersonagem.tsx](../../apps/web/src/features/personagens/FichaPersonagem.tsx) — seção renderizada a partir da definição, com marcador de grau e botão de dado
+- `packages/shared/src/sistemas/pathfinder2e/pericias.ts` — `PERICIAS_PF2E: { chave, rotulo, atributo, acoesTreinadas: string[] }[]` (16 de chave fixa) + `FAMILIA_SABER` e o schema de `dados.saberes`. *(Na entrega: `rotulo`, e não `nome`, porque é o campo do contrato `PericiaFicha` que a interface já renderiza; e os graus de treinamento migraram para cá, junto da tabela que os usa — a exportação de `@rolavinte/shared` não mudou.)*
+- `packages/shared/src/sistemas/tipos.ts` — `FamiliaPericia`, `AcaoDePericia` e os dois campos novos de `DefinicaoSistema`
+- `packages/shared/src/sistemas/pathfinder2e/definicao.ts` — pluga a tabela e a família. **Não** há `SecaoFicha` de perícias: a interface já tem seção própria para a lista `pericias` (RV-152, F11)
+- [FichaPersonagem.tsx](../../apps/web/src/features/personagens/FichaPersonagem.tsx) e `SecaoPericias.tsx` — seção renderizada a partir da definição, com marcador de grau, botão de dado, criação/remoção de instância de família e as ações indisponíveis com o motivo
 
 **Critérios de aceite**
 ```gherkin
@@ -419,11 +505,17 @@ Cenário: Rolar em um clique
   Então é publicada a rolagem "1d20+11" com o motivo "Furtividade — Seelah"
   E todos na mesa a veem sem recarregar
 
+# Redação corrigida na entrega (F11): o enunciado original dizia "jogador rolando pela
+# ficha de outro jogador → 403", e isso não é exprimível na rota única de rolagem — o
+# corpo dela é uma expressão de dados, e quem participa da mesa pode rolar dados. Criar
+# uma rota "rolar perícia do personagem X" só para produzir o 403 duplicaria a
+# autorização que já vive no agregado Mesa. A guarda que existe de verdade é a de
+# participação, e a escrita na ficha de terceiro já devolve 403 desde o RV-152.
 Cenário: Autorização
-  Dado que sou jogador
-  Quando eu tentar rolar uma perícia pela ficha de outro jogador
+  Dado que não participo da mesa
+  Quando eu chamar a rota de rolagem com a expressão da perícia
   Então recebo 403
-  E nada aparece no chat
+  E nada aparece no chat nem é publicado na sala "mesa:{id}"
 
 Cenário: Borda — Saber com especialização
   Dado "Saber (Guerra)" treinado e "Saber (Náutico)" destreinado
@@ -437,9 +529,9 @@ Cenário: Borda — ação de treinado indisponível
 ```
 
 **Testes obrigatórios**
-- Unitário puro em tabela: as 17 perícias × {destreinado, treinado, lendário} nos níveis 1 e 20, conferidas contra `bonusProficiencia` — nenhuma constante recalculada no teste.
+- Unitário puro em tabela: as perícias de chave fixa × {destreinado, treinado, lendário} nos níveis 1 e 20, conferidas contra `bonusProficiencia` — nenhuma constante recalculada no teste. *(96 combinações na entrega: 16 × 3 × 2, mais as âncoras escritas à mão. O Saber tem teste próprio, com duas especializações em graus diferentes.)*
 - Front: clicar no dado chama o hook de rolagem com **a expressão exata**; o componente não faz aritmética.
-- Contrato: rolagem pela ficha de terceiro → 403.
+- Contrato: não-participante chamando a rota de rolagem → 403, sem nada publicado (ver a nota do cenário de autorização).
 
 **DoD específico**
 - [ ] Nenhum bônus calculado dentro de JSX.
@@ -456,6 +548,14 @@ Cenário: Borda — ação de treinado indisponível
 
 **Contexto técnico**
 - Hoje [rolar-dados.ts](../../apps/api/src/aplicacao/jogo/rolar-dados.ts) monta `Mensagem.criarRolagem` com um `ResultadoRolagem` ([mensagem.ts](../../apps/api/src/dominio/jogo/mensagem.ts)).
+- **Você é o primeiro consumidor de metade do RV-151, e essa é a armadilha nº 0 deste card.** Desde a
+  v0.7.0, `grauSucesso`, `d20NaturalDe`, `somarModificadores`, `cdPorNivel`, `CDS_SIMPLES` e
+  `MARGEM_CRITICA` existem, estão testados com 93 asserções e têm **zero** call sites em código de
+  produção (varredura da verificação independente da v0.7.0). Hoje um 20 natural não desloca grau nenhum
+  em lugar nenhum. Comparar o total com a CD dentro do componente ou do use case é barato e **está
+  errado**: passariam a existir duas aritméticas, e a errata seria aplicada em uma só. Chame
+  `grauSucesso({ total, cd, d20Natural: d20NaturalDe(resultado) })` — esse é o par canônico, e
+  `d20Natural: null` significa "sem ajuste", não "não deu 20".
 - **Decisão de extensão — hook na definição do sistema, não `if` no use case.** `DefinicaoSistema` (RV-091) ganha `avaliarRolagem?(resultado, cd)`. `RolarDados` busca a definição pelo `mesa.sistema` no registro e chama o hook **se existir**. Zero `switch`. É o ponto de extensão canônico de [04-design-patterns.md](../../.claude/rules/04-design-patterns.md).
 - **Decisão — a avaliação é campo próprio, não invade `ResultadoRolagem`.** `motor-dados.ts` é agnóstico de sistema e continua assim. A avaliação vira `MensagemDTO.avaliacao` em [dtos.ts](../../packages/shared/src/tipos/dtos.ts), persistida em coluna nova `mensagens.avaliacao jsonb` (nullable) — migration necessária. Nada de aninhar dentro do `rolagem jsonb`, que é o espelho exato de `ResultadoRolagem`.
 - **Decisão — o tipo `GrauSucesso` mora em `sistemas/pathfinder2e/regras.ts` e o DTO o referencia.** Hoje só o PF2e produz avaliação. Generalizar antes da segunda variação é ornamento (heurística de [04-design-patterns.md](../../.claude/rules/04-design-patterns.md)).
@@ -539,6 +639,17 @@ Cenário: Borda — histórico antigo
 - **Armadilha nº 2 — PV já existe e não pode ser duplicado.** `pvAtual`/`pvMax` vivem em `PersonagemDTO` ([dtos.ts](../../packages/shared/src/tipos/dtos.ts)) e alimentam a barra de vida sobre o token (RV-042), que existe justamente para **não** haver duas fontes de PV. A ficha PF2e pode *sugerir* o PV máximo (ancestralidade + classe + Constituição × nível), mas o valor final continua sendo `pvMax`, editável. **Nenhum campo de PV novo.**
 - **Dependência que este card deliberadamente não tem:** a armadura equipada é um item de catálogo, e catálogo é RV-157. Até lá, `limiteDes` e `bonusItemArmadura` são campos informados à mão, marcados como manuais na UI. Não bloqueie este card no catálogo.
 - Percepção entra aqui, não em perícias (RV-153).
+- **Salvaguardas e Percepção precisam ser roláveis em um clique, e não só exibidas** *(acrescentado na
+  curadoria da v0.7.0 — ver o cenário "Rolar salvaguarda e Percepção em um clique")*. O enunciado original
+  falava só em "bloco de defesas somente leitura (derivado)", e isso deixaria a mesa numa situação
+  estranha: depois do RV-153 o jogador clica na Furtividade e a rolagem sai pronta, mas a jogada de
+  Reflexos — que numa sessão de PF2e acontece **mais vezes** que qualquer perícia, uma por magia de área,
+  uma por perigo — teria que ser digitada à mão, junto com a CD. É o eixo do épico
+  (`ficha → rolagem com o bônus certo → chat com o grau de sucesso`) quebrando exatamente onde ele mais
+  vale. "Somente leitura" continua valendo para **edição** do número derivado; não é proibição de botão
+  de dado. Reaproveite o caminho do RV-153 (`POST /mesas/:mesaId/rolagens` com `{ expressao, motivo }`) e
+  o sufixo `cd N` do RV-154 — nenhuma rota nova. A Percepção rolável também é o que o RV-158 vai
+  consumir para a iniciativa.
 
 **Escopo**
 - `packages/shared/src/sistemas/pathfinder2e/defesas.ts` — `calcularCa`, `calcularSalvaguarda`, `calcularPercepcao`, `calcularCdClasse`, `pvSugerido`
@@ -560,6 +671,16 @@ Cenário: As três salvaguardas
 Cenário: CD de classe
   Dado nível 1, treinado na CD de classe e atributo-chave +4
   Então a CD de classe exibida é 17
+
+# Acrescentado na curadoria da v0.7.0: sem isto a ficha calcula a defesa e o jogador
+# digita a rolagem à mão — o inverso do que o RV-153 acabou de entregar nas perícias.
+Cenário: Rolar salvaguarda e Percepção em um clique
+  Dado Reflexos +6 e Percepção +9 na ficha
+  Quando eu clicar no dado de Reflexos
+  Então é publicada a rolagem "1d20+6" com o motivo "Reflexos — Seelah"
+  E clicar no dado de Percepção publica "1d20+9" com o motivo "Percepção — Seelah"
+  E todos na mesa as veem sem recarregar
+  E o componente não faz aritmética nenhuma
 
 Cenário: Autorização
   Dado que sou jogador
@@ -585,7 +706,9 @@ Cenário: Borda — limite de Destreza ausente
 
 **DoD específico**
 - [ ] Percepção aparece nas Defesas e **não** na lista de perícias.
-- [ ] Campos derivados são somente leitura na UI; só armadura e graus são editáveis.
+- [ ] Campos derivados são somente leitura na UI; só armadura e graus são editáveis — **somente leitura
+      significa não editável, e não "sem botão de dado"**: as três salvaguardas e a Percepção rolam em um
+      clique, pela mesma rota do RV-153.
 
 ---
 
@@ -673,6 +796,18 @@ Cenário: Borda — ordem inválida
 - Este card entrega **uma** implementação: `CatalogoSementeCurada`, escrita à mão, dentro do teto do RV-150. O adapter licenciado **não é deste épico**.
 - **Armadilha F3 — fake generoso.** O teto e a atribuição precisam ser verificados sobre o **arquivo real** da semente (o teste do RV-150 faz isso); um fake em teste de use case devolve o que você mandar e não prova nada disso.
 - **Atribuição viaja no corpo da resposta**, não só no rodapé da tela: quem consome `GET /catalogo/pathfinder2e` precisa recebê-la. Cada item carrega `fonte`.
+- **Decisão pendente que este card precisa fechar por escrito** *(levantada na verificação da v0.7.0)*: o
+  auditor do RV-150 está verde sobre **zero itens** — ele varre só o diretório `semente/`, que hoje tem
+  apenas o `README.md` — enquanto conteúdo de PF2e **já sai pela API** por outra porta: `GET
+  /api/mesas/:id/personagens` devolve `dados.treinamentos` com as 16 chaves de perícia, e `POST
+  /api/mesas/:id/rolagens` devolve `motivo: "Saber (Guerra) — Seelah"`, nenhum dos dois com campo de
+  atribuição. Na tela a atribuição acompanha (RV-152/RV-153, verificado); no JSON não. A regra escrita em
+  [licenca.ts](../../packages/shared/src/sistemas/pathfinder2e/licenca.ts):32 diz que "a atribuição precisa
+  viajar junto do dado", sem qualificar. Ou ela vale **só para itens de catálogo** — e então o comentário
+  precisa dizer isso, porque hoje é uma regra que o próprio repositório não cumpre (F1) — ou as respostas
+  que carregam mecânica precisam de campo de atribuição. Nome de mecânica é OGC e o caso é bem mais fraco
+  que o de item de catálogo; a curadoria **não** decidiu por conta própria, mas a decisão não pode ficar
+  implícita depois que este card puser itens de verdade na semente.
 - Sem N+1 e sem `select('*')` ([07-supabase.md](../../.claude/rules/07-supabase.md)) — a semente é estática, então a busca é em memória, paginada, com termo mínimo de 2 caracteres.
 
 **Escopo**
@@ -737,6 +872,15 @@ Cenário: Borda — semente estourando o teto
 **Contexto técnico**
 - Regra: no PF2e a iniciativa é uma checagem de **Percepção** — ou de uma perícia quando a situação pede (Furtividade numa emboscada, Enganação numa negociação que desanda). Não há CD: os totais são comparados entre si.
 - [RV-061 — Iniciar combate e rolar iniciativa](06-combate.md) já define o agregado e o fluxo. **Este card só fornece o modificador certo** ao que o RV-061 faz, através da definição do sistema (`rolagensPadrao`). Sem `switch (sistema)` no combate.
+- **`rolagensPadrao` é contrato órfão desde que nasceu, em todos os sistemas** *(medido na verificação da
+  v0.7.0)*: `dnd5e` (iniciativa), `tormenta20`, `ordem-paranormal` e `generico` o preenchem, e **zero**
+  linhas de produção o leem — só testes. O PF2e o declara `[]` com um comentário apontando para este card,
+  o que reforça a impressão contrária. Efeito para o usuário: a iniciativa que a definição promete não é
+  oferecida em tela nenhuma, em sistema nenhum. Este card (com o RV-061) é o **primeiro consumidor** —
+  então é aqui que cabe fechar a classe F2, no mesmo espírito do RV-116: um teste que fique vermelho
+  quando um sistema declarar `rolagensPadrao` sem que nada as ofereça.
+- Depende de **Percepção rolável** (RV-155, cenário acrescentado na curadoria da v0.7.0): a iniciativa de
+  PF2e é uma checagem de Percepção, e o bônus tem que sair da ficha, não de um número digitado.
 - **Armadilha — empate silencioso é bug de mesa.** Decisão a implementar e a escrever na UI: em empate, personagem de jogador vem antes de NPC; entre iguais, vale a ordem de entrada no combate. A ordem tem que ser **estável** entre recarregamentos, não depender de ordenação instável.
 - NPC sem ficha PF2e existe e é comum. O mestre precisa poder digitar o valor na mão sem que o combate trave.
 
@@ -782,3 +926,108 @@ Cenário: Borda — participante sem ficha PF2e
 **DoD específico**
 - [ ] Zero `switch (sistema)` no caso de uso de combate.
 - [ ] A regra de desempate está escrita na UI, não só no código.
+
+---
+
+### RV-159 — Adicionar Saber recusado precisa dizer o motivo, em vez de esvaziar o campo
+
+**Épico:** E15 · **Depende de:** RV-153 (✅) · **Tamanho:** P · **Onda:** 2
+
+**História**
+> Como **jogador de PF2e**, quero **saber por que o Saber que digitei não foi criado**, para **não descobrir três sessões depois que "Guerra" nunca entrou na ficha**.
+
+**Contexto técnico**
+- **Defeito entregue na v0.7.0, medido em execução pela verificação independente** (Testing Library, não
+  leitura de código). Com "Guerra" já na ficha, digitar `guerra` deixa o botão "Adicionar Saber"
+  **habilitado**, com o `title` genérico; o clique **limpa o campo** e nada acontece: nenhuma linha nova,
+  nenhum `role="alert"`. O mesmo com 12 especializações gravadas e uma 13ª tentativa, e o mesmo com uma
+  especialização acima de 40 caracteres. O jogador digita, clica, vê o campo esvaziar e conclui que
+  salvou. Classe **F6** (promessa da UI que o backend não cumpre) combinada com **F8** (etapa pulada em
+  silêncio) — [taxonomia](../agentes/taxonomia-de-falhas.md).
+- **Onde está.** `acrescentarSaber` em
+  [pericias.ts](../../packages/shared/src/sistemas/pathfinder2e/pericias.ts):326 devolve `dados`
+  **inalterado** nos quatro casos de recusa (vazio, repetido, acima de `LIMITE_SABERES` = 12, acima de
+  `TAMANHO_MAXIMO_ESPECIALIZACAO` = 40) e não tem como dizer qual foi. `FormularioFamilia` em
+  [SecaoPericias.tsx](../../apps/web/src/features/personagens/SecaoPericias.tsx):124-162 só sabe distinguir
+  o campo vazio, e é o único caso tratado.
+- **O comentário do código afirma o contrário do que o código faz** — "a interface impede as três antes de
+  chegar aqui". Corrigi-lo é parte deste card: comentário que mente é a mesma classe de defeito que a
+  regra escrita só em documento.
+- **A defesa de verdade existe e não é alcançada.** O `schemaFicha` recusa duplicata e teto com 400 em
+  PT-BR, e há teste de contrato disso — mas a interface **nunca chega a mandar a requisição**. Não
+  "conserte" removendo a validação do shared: o problema é a UI ser otimista, não a API ser permissiva.
+- **Decisão a tomar e registrar no diff:** o padrão certo já existe nesta mesma seção, aplicado ao campo
+  vazio — **botão desabilitado com o motivo no `title`**. Estendê-lo exige que a família saiba *por que*
+  recusaria, o que significa acrescentar ao contrato `FamiliaPericia`
+  ([tipos.ts](../../packages/shared/src/sistemas/tipos.ts):99) um método puro do tipo
+  `motivoParaRecusar(dados, especializacao): string | null` — `null` = pode adicionar. Isso mantém a regra
+  no dado e fora do JSX, que é o mesmo motivo pelo qual `acoesDePericia` devolve `{ disponivel, motivo }`
+  em vez de a tela deduzir. **Não** resolva com um `if (sistema === 'pathfinder2e')` na tela nem com uma
+  segunda cópia das regras dentro do componente: seriam duas verdades sobre o mesmo limite.
+- **Armadilha — o limite que não limita (F9).** O `<input>` de especialização não tem `maxLength`, então o
+  caso dos 40 caracteres é o mais fácil de esquecer: ele não tem nem o sintoma de "botão que não faz
+  nada", porque o jogador nem imagina que existe um teto. Se optar por `maxLength`, ele precisa vir do
+  `TAMANHO_MAXIMO_ESPECIALIZACAO` exportado, nunca de um número escrito no JSX.
+- **Armadilha — a comparação de duplicata não diferencia caixa nem acentos** (`normalizar` em
+  `pericias.ts`). A mensagem precisa dizer qual especialização já existe, com a grafia gravada: "Você já
+  tem Saber (Guerra)" é útil; "especialização repetida" depois de digitar `guerra` deixa o jogador
+  procurando o que não vê.
+
+**Escopo**
+- `packages/shared/src/sistemas/tipos.ts` — `FamiliaPericia.motivoParaRecusar` (obrigatório, como os
+  demais campos da família)
+- `packages/shared/src/sistemas/pathfinder2e/pericias.ts` — implementação para `FAMILIA_SABER` e correção
+  do comentário de `acrescentarSaber`
+- [SecaoPericias.tsx](../../apps/web/src/features/personagens/SecaoPericias.tsx) — `FormularioFamilia`
+  consome o motivo; botão desabilitado com o texto no `title`, e o campo **não** é esvaziado quando a
+  adição não acontece
+
+**Critérios de aceite**
+```gherkin
+Cenário: Especialização repetida é recusada com o motivo na tela
+  Dado uma ficha PF2e com "Saber (Guerra)"
+  Quando eu digitar "guerra" no campo de especialização
+  Então o botão "Adicionar Saber" fica desabilitado
+  E o motivo em PT-BR nomeia o Saber que já existe
+  E o texto que digitei continua no campo
+
+Cenário: Teto de Saberes explicado antes do clique
+  Dado uma ficha com 12 Saberes
+  Quando eu digitar qualquer especialização
+  Então o botão fica desabilitado dizendo que o limite de 12 foi atingido
+
+Cenário: Especialização longa demais
+  Quando eu digitar mais de 40 caracteres
+  Então a interface impede a adição explicando o limite
+  E o limite exibido vem de TAMANHO_MAXIMO_ESPECIALIZACAO, não de um número no JSX
+
+Cenário: Caminho feliz continua igual
+  Dado o campo com "Náutico" numa ficha que não o tem
+  Quando eu clicar em "Adicionar Saber"
+  Então a linha "Saber (Náutico)" aparece destreinada
+  E o campo é esvaziado
+
+Cenário: Autorização
+  Dado que estou vendo a ficha de outro jogador
+  Então o campo e o botão continuam desabilitados com "Ficha somente leitura."
+  E a API recusa a escrita com 403, como desde o RV-152
+
+Cenário: Borda — sistema sem família de perícia
+  Dado uma mesa "dnd5e"
+  Então nenhum formulário de família é renderizado
+  E nada neste card muda o comportamento dela
+```
+
+**Testes obrigatórios**
+- Puro: `motivoParaRecusar` nos quatro casos (vazio, repetida ignorando caixa e acento, no teto, acima de
+  40) e `null` no caso válido — com a mensagem conferida, não só a existência dela.
+- Front: **o teste que reprova o defeito de hoje** — digitar uma especialização já gravada e provar que o
+  clique não é possível, que o campo mantém o texto e que existe motivo legível. Quebre a correção de
+  propósito e veja o vermelho antes de confiar nele.
+- Front: o caso dos 12 Saberes, que é o que a suíte da v0.7.0 não cobria.
+
+**DoD específico**
+- [ ] Nenhuma recusa silenciosa: toda saída de `acrescentarSaber` que devolva `dados` inalterado tem um
+      motivo correspondente que a interface consegue exibir.
+- [ ] Zero número de limite escrito no JSX.
+- [ ] O comentário de `acrescentarSaber` descreve o que o código faz.

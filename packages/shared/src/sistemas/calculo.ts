@@ -1,7 +1,13 @@
 import type { SistemaRpg } from '../schemas/mesas';
 import { formatarBonus } from './generico';
 import { definicaoDoSistema } from './registro';
-import type { DadosFicha, FichaCalculavel, PericiaFicha } from './tipos';
+import type {
+  AcaoDePericia,
+  DadosFicha,
+  FamiliaPericia,
+  FichaCalculavel,
+  PericiaFicha,
+} from './tipos';
 
 export { formatarBonus };
 
@@ -20,9 +26,39 @@ export interface PersonagemCalculavel extends FichaCalculavel {
   sistema: SistemaRpg;
 }
 
-/** As perícias que o sistema define, na ordem de exibição. */
+/** As perícias de chave fixa que o sistema define, na ordem de exibição. */
 export function periciasDoSistema(sistema: SistemaRpg): readonly PericiaFicha[] {
   return definicaoDoSistema(sistema).pericias;
+}
+
+/** As famílias de perícia do sistema (Saber, no PF2e). `[]` na maioria. */
+export function familiasDePericia(sistema: SistemaRpg): readonly FamiliaPericia[] {
+  return definicaoDoSistema(sistema).familiasPericia;
+}
+
+/**
+ * As perícias que **esta ficha** mostra: as de chave fixa mais as instâncias
+ * das famílias, nesta ordem (RV-153).
+ *
+ * A distinção existe porque "Saber (Guerra)" é perícia do personagem, não do
+ * sistema: ela nasce quando o jogador a cria e some quando ele a remove. Quem
+ * renderiza a ficha percorre esta lista e não precisa saber que famílias
+ * existem — nem que sistema é.
+ */
+export function periciasDaFicha(personagem: PersonagemCalculavel): readonly PericiaFicha[] {
+  const definicao = definicaoDoSistema(personagem.sistema);
+  return [
+    ...definicao.pericias,
+    ...definicao.familiasPericia.flatMap((familia) => familia.instancias(personagem)),
+  ];
+}
+
+/** As ações daquela perícia, já resolvidas contra o grau desta ficha. */
+export function acoesDePericia(
+  personagem: PersonagemCalculavel,
+  pericia: string,
+): readonly AcaoDePericia[] {
+  return definicaoDoSistema(personagem.sistema).acoesDePericia(personagem, pericia);
 }
 
 /**
@@ -73,7 +109,15 @@ export function motivoDeRolagemDePericia(
   nomePersonagem: string,
 ): string | null {
   const definicao = definicaoDoSistema(sistema);
-  const encontrada = definicao.pericias.find((p) => p.chave === pericia);
-  if (!encontrada) return null;
-  return `${encontrada.rotulo} — ${nomePersonagem}`;
+  // Perícia de família (`Saber (Guerra)`) não está em `pericias`: o rótulo dela
+  // é derivado da própria chave, e é por isso que o motivo da rolagem pode ser
+  // montado aqui sem a ficha em mãos.
+  const rotulo =
+    definicao.pericias.find((p) => p.chave === pericia)?.rotulo ??
+    definicao.familiasPericia.reduce<string | null>(
+      (achado, familia) => achado ?? familia.rotuloDeInstancia(pericia),
+      null,
+    );
+  if (rotulo === null || rotulo === undefined) return null;
+  return `${rotulo} — ${nomePersonagem}`;
 }

@@ -60,7 +60,7 @@ O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.
 ## Funcionalidades
 
 - ✅ Registro e login (JWT)
-- ✅ Criação de mesas com sistema de RPG (D&D 5e, Tormenta20, Ordem Paranormal, genérico)
+- ✅ Criação de mesas com sistema de RPG (D&D 5e, Pathfinder 2e, Tormenta20, Ordem Paranormal, genérico)
 - ✅ Convite de jogadores por email (Resend) com token de uso único
 - ✅ Gestão de convites: lista com status (pendente/aceito/revogado) e revogação que invalida o link na hora
 - ✅ Ciclo de vida da mesa: remover jogador, sair da mesa, editar nome/descrição/sistema e encerrar (a mesa fica arquivada em somente leitura, com o histórico legível)
@@ -81,6 +81,11 @@ O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.
 - ✅ Excluir e duplicar ficha (dono ou mestre), com confirmação acessível — a cópia continua pertencendo ao dono do original e o token vinculado sobrevive no mapa, desvinculado
 - ✅ Histórico do chat paginado por cursor na API (`?antesDe`&`antesDeId`&`limite`), com a visibilidade de sussurro e rolagem oculta preservada em toda página — a rolagem infinita na tela ainda não existe
 - ✅ Fronteira de licenciamento do Pathfinder 2e verificada por teste: teto de semente, atribuição obrigatória junto do dado e conteúdo barrado enquanto o documento de licença estiver incompleto
+- ✅ Ficha de Pathfinder 2e que calcula sozinha: modificadores de atributo em −5..+8 gravados direto (o sistema ignora as colunas 1..30), 16 perícias somando modificador + proficiência e rolando em um clique com o motivo no chat, e as ações que exigem treinamento listadas como indisponíveis com o motivo escrito
+- ✅ Saber de PF2e como família de perícias: o jogador cria quantas especializações quiser ("Saber (Guerra)" treinado e "Saber (Náutico)" destreinado convivem com bônus diferentes), cada uma em sua linha, sem nenhum caso especial de sistema na tela
+- ✅ Motor de regras de PF2e em funções puras: proficiência com o destreinado **sem somar o nível**, grau de sucesso com o 20/1 natural deslocando **um grau** (não decidindo o resultado), CDs simples e por nível, e empilhamento de modificadores por tipo — pronto para o grau de sucesso no chat, que ainda não está ligado
+- ✅ Atribuição OGL 1.0a / Community Use da Paizo exibida na ficha de Pathfinder, montada a partir do dado da definição do sistema — nenhuma tela escreve o texto legal à mão
+- ✅ Lista de sistemas de RPG amarrada ao banco: o `check` de `mesas.sistema` é extraído das migrations em disco e comparado com o enum nas duas direções, offline — sistema novo sem migration (ou migration sem sistema) derruba a suíte com o SQL da próxima migration já escrito na mensagem
 - ✅ Reconexão resiliente: queda de rede não pede F5 — a mesa avisa o estado, bloqueia a escrita com o motivo escrito (sem perder o texto digitado) e ressincroniza os caches ao voltar
 - ✅ Estados de carregamento, erro e vazio padronizados em toda a interface, com notificações em `aria-live` e botão de "Tentar novamente"
 - ✅ Contrato de eventos WS aplicado nos dois lados: evento novo sem ouvinte no front — ou sem publicador no servidor — derruba a suíte, em vez de falhar em silêncio
@@ -90,9 +95,9 @@ O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.
 
 ## Backlog
 
-O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/backlog/README.md) — 15 épicos e 98 cards (34 concluídos), organizados em três ondas (mesa jogável → paridade com o Roll20 → operação). Os cards novos nascem das descobertas de cada entrega, então a contagem cresce junto com o que já foi feito. A **ordem de execução** vive em [docs/backlog/sprints.md](docs/backlog/sprints.md): objetivo, cards fechados e versão de cada sprint.
+O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/backlog/README.md) — 15 épicos e 98 cards (38 concluídos), organizados em três ondas (mesa jogável → paridade com o Roll20 → operação). Os cards novos nascem das descobertas de cada entrega, então a contagem cresce junto com o que já foi feito. A **ordem de execução** vive em [docs/backlog/sprints.md](docs/backlog/sprints.md): objetivo, cards fechados e versão de cada sprint.
 
-O histórico de versões, com o que mudou e o que ainda não funciona, está em [docs/release-notes/](docs/release-notes/README.md) — a mais recente é a [v0.6.0](docs/release-notes/v0.6.0.md).
+O histórico de versões, com o que mudou e o que ainda não funciona, está em [docs/release-notes/](docs/release-notes/README.md) — a mais recente é a [v0.7.0](docs/release-notes/v0.7.0.md).
 
 ## Arquitetura
 

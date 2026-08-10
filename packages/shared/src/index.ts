@@ -14,3 +14,6 @@ export * from './tipos/dtos';
 export * from './tipos/eventos-ws';
 export * from './sistemas/pathfinder2e/atribuicao';
 export * from './sistemas/pathfinder2e/licenca';
+export * from './sistemas/pathfinder2e/regras';
+export * from './sistemas/pathfinder2e/pericias';
+export * from './sistemas/pathfinder2e/definicao';

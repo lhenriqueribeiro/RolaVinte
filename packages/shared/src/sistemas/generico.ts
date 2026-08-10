@@ -52,8 +52,13 @@ export function definicaoGenericaPara(chave: SistemaRpg, nome: string): Definica
     schemaFicha: schemaFichaGenerica,
     secoes: [],
     pericias: [],
+    familiasPericia: [],
     grausPericia: [],
     dadoDeTeste: '1d20',
+    // A ficha genérica é a do d20 clássico: os atributos comuns valem, e não há
+    // material licenciado a atribuir (RV-152).
+    usaAtributosComuns: true,
+    atribuicao: null,
     rolagensPadrao: [{ chave: 'iniciativa', rotulo: 'Iniciativa', expressao: iniciativaD20 }],
     // Sem perícias: a ficha genérica não presume a lista de nenhum sistema. As
     // três funções abaixo não são "não implementado" — são a resposta correta
@@ -62,6 +67,7 @@ export function definicaoGenericaPara(chave: SistemaRpg, nome: string): Definica
     bonusPericia: () => null,
     grauDePericia: () => null,
     definirGrauDePericia: (dados: DadosFicha) => dados,
+    acoesDePericia: () => [],
   };
 }
 

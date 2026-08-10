@@ -6,10 +6,12 @@ import {
   modificadorAtributo,
   type Atributos,
   type DadosFicha,
+  type FamiliaPericia,
   type NomeAtributo,
   type PersonagemCalculavel,
   type PersonagemDTO,
 } from '@rolavinte/shared';
+import { AvisoLicenca } from '@/components/ui/AvisoLicenca';
 import { Botao } from '@/components/ui/Botao';
 import { Campo, CampoArea } from '@/components/ui/Campo';
 import { Erro } from '@/components/ui/Estado';
@@ -122,6 +124,20 @@ export function FichaPersonagem({
     setDados((atual) => definicao.definirGrauDePericia(atual, pericia, grau));
   }
 
+  /**
+   * Perícia de família (o Saber de PF2e) nasce e morre pela própria família: a
+   * ficha não sabe que a lista mora em `dados.saberes`, e não deve saber.
+   */
+  function acrescentarDaFamilia(familia: FamiliaPericia, especializacao: string) {
+    setDados((atual) => familia.acrescentar(atual, especializacao));
+  }
+
+  function removerDaFamilia(linha: LinhaDePericia) {
+    const familia = definicao.familiasPericia.find((f) => f.chave === linha.familia);
+    if (!familia) return;
+    setDados((atual) => familia.remover(atual, linha.chave));
+  }
+
   function alterarCampo(chave: string, valor: unknown) {
     setDados((atual) => definirCampo(atual, chave, valor));
   }
@@ -191,49 +207,56 @@ export function FichaPersonagem({
           </div>
         </div>
 
-        <fieldset className="mt-4">
-          <legend className="mb-2 text-sm text-texto-2">
-            Atributos (clique no dado para testar)
-          </legend>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-            {ATRIBUTOS.map((atributo) => {
-              const valor = atributos[atributo];
-              const mod = modificadorAtributo(valor);
-              return (
-                <div
-                  key={atributo}
-                  className="rounded-lg border border-borda bg-painel-2 p-2 text-center"
-                >
-                  <p className="text-[11px] font-semibold text-texto-2">
-                    {ROTULO_ATRIBUTO[atributo]}
-                  </p>
-                  <input
-                    aria-label={`Valor de ${atributo}`}
-                    type="number"
-                    min={1}
-                    max={30}
-                    className="w-full bg-transparent text-center text-lg font-bold text-texto focus:outline-none disabled:opacity-100"
-                    value={valor}
-                    onChange={(e) =>
-                      setAtributos({ ...atributos, [atributo]: Number(e.target.value) })
-                    }
-                    disabled={!podeEditar}
-                  />
-                  <button
-                    type="button"
-                    className="mt-1 w-full cursor-pointer rounded bg-fundo px-1 py-0.5 text-xs text-ouro hover:bg-ouro/10 disabled:cursor-not-allowed disabled:opacity-50"
-                    onClick={() => rolarAtributo(atributo)}
-                    disabled={motivoBloqueio !== null}
-                    title={motivoBloqueio ?? `Rolar ${expressaoDeAtributo(atributo)}`}
+        {/* A metade comum da ficha só aparece nos sistemas que a usam. No PF2e o
+            personagem guarda o **modificador** direto na metade do sistema e
+            ignora estas colunas: oferecer aqui o teste genérico rolaria `1d20+0`
+            para sempre, uma promessa que o sistema não cumpre (F6). Quem decide é
+            o dado da definição, não um `if` de sistema. */}
+        {definicao.usaAtributosComuns && (
+          <fieldset className="mt-4">
+            <legend className="mb-2 text-sm text-texto-2">
+              Atributos (clique no dado para testar)
+            </legend>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+              {ATRIBUTOS.map((atributo) => {
+                const valor = atributos[atributo];
+                const mod = modificadorAtributo(valor);
+                return (
+                  <div
+                    key={atributo}
+                    className="rounded-lg border border-borda bg-painel-2 p-2 text-center"
                   >
-                    🎲 {mod >= 0 ? '+' : ''}
-                    {mod}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </fieldset>
+                    <p className="text-[11px] font-semibold text-texto-2">
+                      {ROTULO_ATRIBUTO[atributo]}
+                    </p>
+                    <input
+                      aria-label={`Valor de ${atributo}`}
+                      type="number"
+                      min={1}
+                      max={30}
+                      className="w-full bg-transparent text-center text-lg font-bold text-texto focus:outline-none disabled:opacity-100"
+                      value={valor}
+                      onChange={(e) =>
+                        setAtributos({ ...atributos, [atributo]: Number(e.target.value) })
+                      }
+                      disabled={!podeEditar}
+                    />
+                    <button
+                      type="button"
+                      className="mt-1 w-full cursor-pointer rounded bg-fundo px-1 py-0.5 text-xs text-ouro hover:bg-ouro/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => rolarAtributo(atributo)}
+                      disabled={motivoBloqueio !== null}
+                      title={motivoBloqueio ?? `Rolar ${expressaoDeAtributo(atributo)}`}
+                    >
+                      🎲 {mod >= 0 ? '+' : ''}
+                      {mod}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
 
         <CamposDoSistema
           secoes={definicao.secoes}
@@ -245,10 +268,13 @@ export function FichaPersonagem({
         <SecaoPericias
           linhas={pericias}
           graus={definicao.grausPericia}
+          familias={definicao.familiasPericia}
           desabilitado={!podeEditar}
           motivoBloqueio={motivoBloqueio}
           aoTrocarGrau={trocarGrau}
           aoRolar={rolarPericia}
+          aoAcrescentarDaFamilia={acrescentarDaFamilia}
+          aoRemoverDaFamilia={removerDaFamilia}
         />
 
         <div className="mt-4">
@@ -279,6 +305,13 @@ export function FichaPersonagem({
             </Botao>
           </div>
         )}
+
+        {/* A atribuição acompanha o conteúdo: ela é dado da definição
+            (`atribuicao`), e a tela só decide se monta o aviso. Sem isto, uma
+            ficha aberta direto por link exibiria mecânica licenciada sem crédito
+            nenhum — e um `if (sistema === …)` aqui seria o `switch` que o
+            registro existe para apagar. O texto nunca é reescrito no JSX. */}
+        {definicao.atribuicao && <AvisoLicenca className="mt-5" />}
       </form>
     </div>
   );
