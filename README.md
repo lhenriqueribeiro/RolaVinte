@@ -99,7 +99,9 @@ O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.
 
 ## Backlog
 
-O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/backlog/README.md) — 15 épicos e 106 cards (42 concluídos), organizados em três ondas (mesa jogável → paridade com o Roll20 → operação). Os cards novos nascem das descobertas de cada entrega, então a contagem cresce junto com o que já foi feito. A **ordem de execução** vive em [docs/backlog/sprints.md](docs/backlog/sprints.md): objetivo, cards fechados e versão de cada sprint.
+O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/backlog/README.md), organizado em três ondas (mesa jogável → paridade com o Roll20 → operação). A **ordem de execução** vive em [docs/backlog/sprints.md](docs/backlog/sprints.md): objetivo, cards fechados e versão de cada sprint.
+
+Cards novos nascem das descobertas de cada entrega, então o total cresce junto com o que já foi feito — a contagem atual fica no próprio backlog, atualizada pelo curador a cada sprint.
 
 O histórico de versões, com o que mudou e o que ainda não funciona, está em [docs/release-notes/](docs/release-notes/README.md) — a mais recente é a [v0.8.0](docs/release-notes/v0.8.0.md).
 

@@ -90,12 +90,33 @@ Campo validado sozinho, ignorando o estado que ele invalida.
 
 Código correto que nunca rodou de verdade.
 
-**Casos reais.** (a) `config/env.ts` lia `process.env`, mas **nada** carregava `apps/api/.env` — seguir o README não fazia a API subir (v0.2.0). (b) O workflow de CI está correto e é código morto: não existe `.git`. (c) Os buckets `mapas` e `tokens` não existem em ambiente nenhum, e as migrations 0002–0004 não foram aplicadas (RV-138).
+**Casos reais.** (a) `config/env.ts` lia `process.env`, mas **nada** carregava `apps/api/.env` — seguir o README não fazia a API subir (v0.2.0). (b) O workflow de CI ficou correto e inerte por três versões, até o repositório existir de fato (resolvido: há `origin/main`, e o CI roda a cada push). (c) A migration `0005` ficou em disco e fora do banco, e como `mensagens.destinatario_id` entra na lista de colunas de **todo** select de mensagem, o efeito não foi "sussurro falha" — **o chat inteiro estava fora do ar** contra o banco real (v0.5.0). A `0007` repetiu o padrão e derrubaria a aba de personagens de qualquer mesa.
 
-**Como caçar:** "está implementado" e "está em execução em algum lugar" são estados diferentes. Diga qual dos dois você verificou.
+**Como caçar:** "está implementado" e "está em execução em algum lugar" são estados diferentes. Diga qual dos dois você verificou. Hoje há conserto: `npm run supabase:verificar -w @rolavinte/api` compara disco com banco e `npm run supabase:migrar -w @rolavinte/api` aplica as pendentes.
 
 ## F11 — Enunciado contraditório aceito em silêncio
 
 **Caso real (v0.4.0).** O card RV-042 dizia num cenário "40% em vermelho" e noutro "âmbar entre 25% e 50%" — 12/30 PV cai nos dois. O agente escolheu a regra das faixas, fixou os limites em teste, escreveu a decisão no código **e corrigiu o card**.
 
 **Conduta correta:** decida, justifique, e **altere o texto do card** — senão a contradição reaparece com o próximo agente.
+
+## F12 — Duas verdades para o mesmo conceito
+
+O dado existe em dois lugares, um é lido e o outro é ignorado — sem ninguém avisar.
+
+**Caso real (v0.8.0, achado no navegador com 1.475 testes verdes).** Um personagem de Pathfinder tinha os atributos em duas casas:
+
+```
+coluna atributos : {"forca":18,"destreza":14,...}   ← exigida na criação, guardada, ignorada
+dados            : {"modificadorForca":0,...}       ← o que a ficha lia
+```
+
+Quem preenchia Força 18 via a perícia calcular como se fosse 0. **A suíte passou porque cada metade era testada sozinha:** havia teste de que a ficha lê `dados` e teste de que a criação persiste `atributos`. Nenhum criava informando um valor e **relia** para conferir que era o mesmo.
+
+**A causa foi uma premissa plausível e errada** (RV-091): "as colunas comuns são iguais em todo sistema". Atributo é justamente o que não é — D&D usa valor de 1 a 30 e deriva o modificador; PF2e usa modificador direto, de −5 a +8.
+
+**Como caçar:**
+- Para todo campo, pergunte **quem escreve e quem lê**. Se as respostas apontam lugares diferentes, há duas verdades.
+- Campo **exigido na criação e ausente da tela** é o sintoma mais visível.
+- O teste que pega é o de ida e volta: **grave informando, releia pela API, compare**. Testar cada metade não pega.
+- Desconfie de "isto é igual em todo sistema" — é a forma que a premissa errada costuma ter.

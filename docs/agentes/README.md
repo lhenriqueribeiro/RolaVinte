@@ -77,24 +77,35 @@ Resultado: quando o backend declarou o evento, o teste de cobertura deixou **3 t
 
 **Quem implementa não assina o próprio laudo.** O verificador achou, em fases diferentes: o ouvinte de evento faltando, contratos duplicados entre api e web, o fake que passa por construção, e uma proteção inerte que exigiu ler o fonte do Fastify. Nenhum implementador viu nada disso.
 
-**Descoberta com critério de corte.** O curador descarta a maior parte do que recebe. Nas três fases, dezenas de descobertas viraram **12 cards** — todos com defeito ou lacuna descritível.
+**Descoberta com critério de corte.** O curador descarta a maior parte do que recebe: dezenas de descobertas por entrega viram uns poucos cards, todos com defeito ou lacuna descritível. Backlog inflado perde a função de priorizar.
 
 **Decisão registrada no card, não na conversa.** Cards concluídos carregam um bloco de "decisões tomadas na entrega". É o que impede o próximo agente de re-decidir errado uma pergunta já respondida.
 
+**Verificação fora da suíte, ao fim de cada sprint.** É a prática mais nova, e nasceu porque **duas sprintes seguidas ganharam card de defeito que a suíte não pegava**: a migration `0005` em disco e fora do banco (achada pelo curador, conferindo em vez de acreditar) e o atributo com duas verdades (achado no navegador, com 1.475 testes verdes).
+
+O padrão é sempre o mesmo: **a suíte protege contra regressão, não contra premissa errada.** Cada metade é testada, nenhum teste exercita as duas juntas, e o defeito mora exatamente na junção. Por isso o ciclo da sprint termina com o orquestrador subindo a aplicação e percorrendo o caminho de verdade — não como cerimônia, mas porque foi o que achou os dois defeitos mais caros do projeto.
+
 ## Custo real
 
-| Fase | Versão | Agentes | Duração | Tokens | Testes |
+| Entrega | Versão | Agentes | Duração | Tokens | Testes |
 |---|---|---|---|---|---|
-| 1 — Fundação | v0.2.0 | 6 | ~36 min | 590 mil | 22 → 55 |
-| 2 — Mesas e endurecimento | v0.3.0 | 7 | ~45 min | 1,06 mi | 55 → 179 |
-| 3 — Tabletop | v0.4.0 | 8 | ~1h30 + 22 min | 1,66 mi | 179 → 447 |
+| Fase 1 — Fundação | v0.2.0 | 6 | ~36 min | 590 mil | 22 → 55 |
+| Fase 2 — Mesas e endurecimento | v0.3.0 | 7 | ~45 min | 1,06 mi | 55 → 179 |
+| Fase 3 — Tabletop | v0.4.0 | 8 | ~1h30 + 22 min | 1,66 mi | 179 → 447 |
+| Fase 4 — Pronto para jogar | v0.5.0 | 8 | ~1h50 | 1,64 mi | 447 → 663 |
+| Sprint 1 — Ficha extensível | v0.6.0 | 7 | ~1h20 | 1,41 mi | 663 → 863 |
+| Sprint 2 — Pathfinder calcula | v0.7.0 | 7 | ~1h50 | 1,42 mi | 863 → 1.167 |
+| Sprint 3 — Pathfinder na mesa | v0.8.0 | 7 | ~2h45 | 2,23 mi | 1.167 → 1.475 |
 
-Três fases, 21 cards concluídos, ~3,3 milhões de tokens de subagente.
+Sete entregas até a v0.8.0, ~10 milhões de tokens de subagente. É um registro histórico, não um placar: o estado atual do backlog fica em [docs/backlog/](../backlog/README.md).
+
+As quatro primeiras foram chamadas de **fase**; a partir da v0.6.0 o backlog passou a ser organizado em [sprints](../backlog/sprints.md), com objetivo declarado e versão. O ciclo interno é o mesmo.
 
 **Sobre a fase 3:** três agentes do último estágio morreram com erro de rede. A reexecução aproveitou o prefixo em cache — os cinco agentes de construção não rodaram de novo, e só os três finais custaram tokens novos. **Falha de infraestrutura no meio de uma fase não exige recomeçar**: reexecute com o mesmo script e o mesmo `runId`.
 
 ## Limites conhecidos deste processo
 
-- **Sem git, o paralelismo tem teto.** A disciplina de posse funciona, mas custa serialização. Com repositório versionado, agentes poderiam trabalhar em worktrees e o merge resolveria — mais paralelismo pelo mesmo preço.
-- **Nenhum agente executa a aplicação.** Todos verificam por `check`, `test` e `build`. Nada garante que a API sobe de fato — não há credenciais Supabase no ambiente, e as migrations 0002–0004 seguem sem aplicar. O E2E do RV-133 é o que fecha essa lacuna.
-- **A taxonomia só protege contra o que já aconteceu.** Classe de defeito nova continua passando na primeira vez. O que o processo garante é que ela não passe duas vezes.
+- **O paralelismo tem teto, mesmo com git.** O repositório existe, mas todos os agentes de uma sprint compartilham a mesma árvore de trabalho — sem worktree, a disciplina de posse é o que substitui o merge, e ela custa serialização. Dar a cada agente um worktree próprio é a melhoria de maior retorno que este processo ainda não tem.
+- **Agente nenhum executa a aplicação.** Todos param em `check`, `test` e `build`. Quem sobe a plataforma e clica é o orquestrador, à mão, ao fim da sprint — e foi assim que os dois defeitos mais caros apareceram. Enquanto o E2E do RV-133 não existir, essa verificação **não é opcional**.
+- **A taxonomia só protege contra o que já aconteceu.** Classe nova passa na primeira vez; o processo garante que não passe duas. Das 12 classes de hoje, 3 nasceram de defeito que atravessou a suíte inteira verde.
+- **Custo por card cresce com a base.** A Sprint 3 gastou 2,23 milhões de tokens em 4 cards; a Fase 1 gastou 590 mil em 3. Não é desperdício: cada agente lê mais contexto porque há mais projeto para não quebrar.

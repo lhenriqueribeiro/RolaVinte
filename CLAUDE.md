@@ -65,14 +65,14 @@ Resumo do que quebra o build de review:
 Este projeto é construído por agentes em fases. A especificação está em [docs/agentes/](docs/agentes/README.md):
 
 - [protocolo-comum.md](docs/agentes/protocolo-comum.md) — **leitura obrigatória de todo agente** antes de codar: regras de arquitetura, disciplina de concorrência sem git, e critério de encerramento.
-- [taxonomia-de-falhas.md](docs/agentes/taxonomia-de-falhas.md) — as 11 classes de defeito que este projeto já produziu de verdade. Não reincida.
+- [taxonomia-de-falhas.md](docs/agentes/taxonomia-de-falhas.md) — as 12 classes de defeito que este projeto já produziu de verdade. Não reincida.
 - Definições executáveis em [.claude/agents/](.claude/agents/): `implementador-backend`, `implementador-frontend`, `verificador`, `curador-backlog`, `redator-release`.
 
 Duas regras do processo que valem para qualquer contribuição, humana ou não: **quem implementa não verifica o próprio trabalho**, e **teste protetor precisa ter falhado ao menos uma vez** para valer alguma coisa.
 
 ## Backlog
 
-O roteiro do produto vive em [docs/backlog/](docs/backlog/README.md): 15 épicos, 98 cards (21 concluídos) com história, critérios de aceite em Gherkin, testes obrigatórios e DoD. Antes de implementar uma feature, procure o card correspondente — ele traz as decisões já tomadas e as armadilhas mapeadas. Card novo segue o [modelo](docs/backlog/_modelo-card.md).
+O roteiro do produto vive em [docs/backlog/](docs/backlog/README.md), organizado em [sprints](docs/backlog/sprints.md) com objetivo declarado e versão. Cada card traz história, critérios de aceite em Gherkin, testes obrigatórios e DoD. A contagem de cards e o que está concluído ficam **só** no backlog, que o curador atualiza a cada entrega — repetir o número aqui garante que ele fique errado. Antes de implementar uma feature, procure o card correspondente — ele traz as decisões já tomadas e as armadilhas mapeadas. Card novo segue o [modelo](docs/backlog/_modelo-card.md).
 
 ## Fluxos principais (visão de 10 segundos)
 

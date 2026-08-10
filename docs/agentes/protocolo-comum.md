@@ -47,7 +47,7 @@ A exceção única: se o seu card não puder ser concluído sem a correção. Ne
 
 ## 5. Concorrência: como não apagar o trabalho alheio
 
-Este projeto **não é um repositório git**, então não há isolamento por worktree nem merge para socorrer. Vários agentes editam o mesmo sistema de arquivos ao mesmo tempo.
+O projeto **é** um repositório git, com `main` rastreando `origin/main` — use `git diff` e `git status` livremente para conferir o que você mudou, e `git diff --stat` para provar que um experimento foi desfeito por inteiro. O que **não** existe é isolamento: todos os agentes de uma sprint escrevem na **mesma árvore de trabalho**, sem worktree e sem merge para socorrer. Quem sobrescreve, apaga.
 
 - Você recebe uma lista de **arquivos de posse exclusiva**. Neles pode usar `Write`.
 - Em **qualquer outro arquivo**, use `Edit` com trechos mínimos e únicos. **Nunca `Write`** — ele sobrescreve o arquivo inteiro e apaga alterações de quem estava lá.
@@ -60,8 +60,10 @@ Esta regra pagou duas vezes neste projeto e é obrigatória sempre que você esc
 
 1. Quebre a coisa de propósito.
 2. Confirme que o teste fica **vermelho**, e que a mensagem nomeia o problema.
-3. Desfaça.
+3. Desfaça — e confira com `git diff` que não sobrou resíduo.
 4. Relate o experimento em `observacoes`.
+
+**A asserção tem que ser precisa, não só presente.** Um caso real: uma guarda de migration afirmava "cada chave aparece ao menos duas vezes" no SQL. Ao quebrar de propósito, **ela passou verde** — a chave também aparecia no `where`, então uma chave que ninguém copiava nem apagava ainda contava duas. Trocada por duas buscas específicas, o vermelho apareceu. Se o seu experimento não produzir vermelho, a suspeita recai sobre o **teste**, não sobre o experimento.
 
 Casos reais: o teste de fronteiras de arquitetura (RV-001) e o de cobertura de eventos WS (RV-115). No segundo, o experimento revelou que `npm run check` continuava **verde** com um evento órfão no contrato — medindo exatamente o valor do teste.
 

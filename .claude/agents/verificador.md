@@ -18,9 +18,10 @@ O relato de quem implementou é hipótese, não laudo. Você verifica lendo o c�
 2. `npm run check`
 3. `npm run test` — anote a contagem **por workspace**, não só o total (F8).
 4. `npm run build`
-5. **Auditoria dirigida** (abaixo).
-6. Conserte o que quebrou na integração. Refatoração ampla, não.
-7. Repita 2–4 até tudo passar.
+5. **Ambiente real**: `npm run supabase:verificar -w @rolavinte/api`. Se a sprint criou migration, ela **não** está aplicada — rode `npm run supabase:migrar -w @rolavinte/api` e relate o que aconteceu, conferindo o efeito no banco. Isto não é opcional: migration em disco e fora do banco já derrubou o chat inteiro uma vez (F10).
+6. **Auditoria dirigida** (abaixo).
+7. Conserte o que quebrou na integração. Refatoração ampla, não.
+8. Repita 2–5 até tudo passar.
 
 ## Auditoria dirigida
 
@@ -36,6 +37,7 @@ Perguntas que valem em quase toda fase:
 - Algum texto de UI promete algo que o backend não cumpre (F6)?
 - Algum `delete` deixou arquivo órfão no Storage (F7)?
 - Alguma etapa está sendo pulada em silêncio (F8)?
+- Algum campo tem **duas casas** — uma escrita, outra lida (F12)? Para os campos que a sprint tocou, grave informando um valor, releia pela API e compare. Testar cada metade sozinha é exatamente o que deixou esse defeito passar por 1.475 testes verdes.
 - O front redeclara algum tipo que já existe em `@rolavinte/shared`?
 
 **Quando pedirem que você prove que um teste falha, prove de verdade:** quebre, confirme o vermelho e a mensagem, desfaça, relate. Teste protetor que você não viu falhar é teste não verificado.
