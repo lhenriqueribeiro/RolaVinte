@@ -584,6 +584,9 @@ describe('Token continua sem pontos de vida (RV-042)', () => {
     expect(token.personagemId).toBe(PERSONAGEM_BRUNO);
     expect(Object.keys(token).sort()).toEqual([
       'cenaId',
+      // RV-064: condição é estado da PEÇA (marcador de mesa) e não da ficha, por
+      // isso mora aqui. O PV continua fora, no `PersonagemDTO`.
+      'condicoes',
       'cor',
       'id',
       'imagemUrl',

@@ -1,6 +1,14 @@
 import { useState, type PointerEvent } from 'react';
 import type { PersonagemDTO, TokenDTO } from '@rolavinte/shared';
+import { CONDICOES, normalizarCondicoes } from '@rolavinte/shared';
 import { CLASSE_DA_FAIXA, faixaDeVida, fracaoDeVida, rotuloDeVida } from './aparencia';
+
+/**
+ * O que o marcador do turno diz, escrito uma vez: ele vai para o `aria-label` do
+ * símbolo, para o `title` e (em minúsculas) para o rótulo do botão da peça. Três
+ * redações da mesma informação divergiriam.
+ */
+export const ROTULO_NO_TURNO = 'No turno';
 
 interface Props {
   token: TokenDTO;
@@ -11,6 +19,11 @@ interface Props {
   y: number;
   tamanhoCelula: number;
   selecionado: boolean;
+  /**
+   * A vez do combate é desta peça (RV-063). Opcional e `false` por omissão: o
+   * mapa funciona fora da luta, e nem toda montagem do tabletop tem combate.
+   */
+  noTurno?: boolean;
   arrastando: boolean;
   podeMover: boolean;
   aoApontar: (evento: PointerEvent<HTMLButtonElement>) => void;
@@ -31,6 +44,7 @@ export function PecaToken({
   y,
   tamanhoCelula,
   selecionado,
+  noTurno = false,
   arrastando,
   podeMover,
   aoApontar,
@@ -44,14 +58,43 @@ export function PecaToken({
   const temArte = token.imagemUrl !== null && token.imagemUrl !== urlQueFalhou;
   const rotuloVida = personagem ? rotuloDeVida(personagem.pvAtual, personagem.pvMax) : null;
 
+  // `normalizarCondicoes` e não `token.condicoes` direto: um `TokenDTO` em cache
+  // de antes do RV-064 chega **sem** o campo, e um payload de uma versão futura
+  // pode trazer chave que este cliente não conhece. As duas situações viram
+  // "nenhuma condição a mais para desenhar", em vez de um `undefined.map`.
+  const condicoes = normalizarCondicoes(token.condicoes ?? []);
+  const rotulosCondicoes = condicoes.map((chave) => CONDICOES[chave].rotulo);
+
+  /**
+   * Rótulo do botão da peça. As condições entram aqui **além** de aparecerem na
+   * lista de ícones ao lado: quem navega por teclado chega ao botão, e o estado
+   * da peça tem de ser legível no elemento com que se interage — repetir a
+   * informação em dois lugares custa menos que escondê-la de quem usa leitor de
+   * tela.
+   */
+  const rotuloDaPeca = [
+    `Token ${token.nome}`,
+    // Logo depois do nome: quem chega ao botão por teclado durante a luta precisa
+    // ouvir "é a vez desta peça" antes do resto do estado.
+    noTurno ? ROTULO_NO_TURNO.toLowerCase() : null,
+    rotuloVida,
+    rotulosCondicoes.length > 0 ? `condições: ${rotulosCondicoes.join(', ')}` : null,
+  ]
+    .filter((parte) => parte !== null)
+    .join(', ');
+
   return (
     <div
-      className={`absolute ${arrastando ? 'z-20' : 'z-10 transition-[left,top] duration-150'}`}
+      className={`absolute ${arrastando ? 'z-20' : 'z-10 transition-[left,top] duration-150'} ${
+        // Realce do turno (RV-063): a moldura é só o reforço visual — quem informa
+        // são o marcador com rótulo textual e o `aria-label` do botão.
+        noTurno ? 'rounded-full outline-2 outline-offset-2 outline-ouro' : ''
+      }`}
       style={{ left: x, top: y, width: tamanhoCelula, height: tamanhoCelula }}
     >
       <button
         type="button"
-        aria-label={rotuloVida ? `Token ${token.nome}, ${rotuloVida}` : `Token ${token.nome}`}
+        aria-label={rotuloDaPeca}
         onPointerDown={aoApontar}
         className={`absolute inset-[3px] flex items-center justify-center overflow-hidden rounded-full border-2 text-[10px] font-bold text-white shadow-lg ${
           podeMover ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
@@ -80,6 +123,44 @@ export function PecaToken({
           </span>
         )}
       </button>
+
+      {/* Marcador do turno (RV-063). Ele existe porque o realce por moldura é uma
+          pista **de cor**: quem não a distingue precisa do símbolo com rótulo
+          textual, e o item de DoD do card é explícito quanto a isso. */}
+      {noTurno && (
+        <span
+          role="img"
+          aria-label={ROTULO_NO_TURNO}
+          title={ROTULO_NO_TURNO}
+          className="pointer-events-none absolute -left-1 -top-1 z-10 rounded-full border border-ouro bg-fundo px-[3px] text-[10px] leading-[1.25] text-ouro shadow"
+        >
+          ▶
+        </span>
+      )}
+
+      {/* Condições ativas (RV-064): ícone no canto da peça, cada um com rótulo
+          textual em `aria-label` e `title`. O símbolo NUNCA informa sozinho —
+          nem por cor, nem por forma; quem passa o mouse lê o nome e a descrição,
+          quem usa leitor de tela ouve a lista, e o rótulo do botão repete. */}
+      {condicoes.length > 0 && (
+        <ul
+          aria-label={`Condições de ${token.nome}`}
+          className="pointer-events-none absolute -right-1 -top-1 z-10 flex max-w-[130%] flex-wrap justify-end gap-px"
+        >
+          {condicoes.map((chave) => (
+            <li key={chave}>
+              <span
+                role="img"
+                aria-label={CONDICOES[chave].rotulo}
+                title={`${CONDICOES[chave].rotulo} — ${CONDICOES[chave].descricao}`}
+                className="pointer-events-auto block rounded-full border border-black/60 bg-black/80 px-[3px] text-[10px] leading-[1.25] shadow"
+              >
+                {CONDICOES[chave].icone}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {personagem && rotuloVida && (
         <div className="pointer-events-none absolute inset-x-1 bottom-0">

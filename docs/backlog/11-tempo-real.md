@@ -168,12 +168,14 @@ Cenário: Borda — publicador com método sobrando
 > socket. O encerramento tem precedência sobre a conexão (é definitivo); a faixa de status é
 > independente, então uma mesa encerrada **e** caída mostra as duas informações.
 >
-> **Correção do Escopo:** a ressincronização refaz `['mensagens']`, `['cena']`, `['personagens']` e
-> `['mesa', mesaId]`. `['combate', mesaId]` **não** entrou porque essa query ainda não existe (é o
-> RV-118); `['mesa']` entrou no lugar porque um `mesa:participante-removido` perdido durante a queda
-> deixaria na tela uma mesa da qual o jogador já não participa — o defeito original do RV-021. Quem
-> criar a query de combate acrescenta a chave em `CACHES_RESSINCRONIZADOS` e na lista escrita à mão
-> do teste de invalidações exatas.
+> **Correção do Escopo:** a ressincronização refez `['mensagens']`, `['cena']`, `['personagens']` e
+> `['mesa', mesaId]`. `['combate', mesaId]` não entrou na v0.5.0 porque a query não existia; `['mesa']`
+> entrou no lugar porque um `mesa:participante-removido` perdido durante a queda deixaria na tela uma
+> mesa da qual o jogador já não participa — o defeito original do RV-021.
+> **Fechado na v0.9.0:** a query de combate nasceu no [RV-063](06-combate.md#rv-063--painel-de-iniciativa)
+> (`chaveDoCombate` em `features/jogo/api.ts`) e `'combate'` **já está** em `CACHES_RESSINCRONIZADOS`,
+> com a lista escrita à mão do teste de invalidações exatas atualizada. Quem criar o **próximo** cache
+> alimentado por socket faz o mesmo par de edições.
 >
 > **Backoff:** `OPCOES_RECONEXAO` em `lib/socket.ts` (0,5s inicial, teto de 10s, jitter 0,5). Quem lê
 > essas opções é o `Backoff` do socket.io-client (`manager.js` → `contrib/backo2.js#duration()`,
@@ -189,7 +191,7 @@ Cenário: Borda — publicador com método sobrando
 **Escopo**
 - `apps/web/src/features/jogo/store-conexao.ts`: `{ estado: 'conectado'|'reconectando'|'offline' }`
 - Faixa de status na `PaginaMesa` ("Reconectando…"), ações de escrita desabilitadas enquanto offline
-- Ressincronização: ao reconectar, refazer `['mensagens', mesaId]`, `['cena', mesaId]`, `['personagens', mesaId]` e `['combate', mesaId]` (entregue com `['mesa', mesaId]` no lugar de `['combate']`, que ainda não existe — ver a nota acima)
+- Ressincronização: ao reconectar, refazer `['mensagens', mesaId]`, `['cena', mesaId]`, `['personagens', mesaId]` e `['combate', mesaId]` (entregue com `['mesa', mesaId]`, e `['combate']` acrescentado na v0.9.0 quando a query passou a existir — ver a nota acima)
 - Backoff exponencial com teto (socket.io: `reconnectionDelayMax`)
 
 **Critérios de aceite**

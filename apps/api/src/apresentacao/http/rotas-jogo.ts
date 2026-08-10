@@ -1,6 +1,7 @@
 import type { FastifyInstance, preHandlerAsyncHookHandler } from 'fastify';
 import multipart from '@fastify/multipart';
 import {
+  alternarCondicaoTokenSchema,
   atualizarCenaSchema,
   atualizarTokenSchema,
   CAMPO_IMAGEM_FUNDO,
@@ -30,6 +31,7 @@ import type { ObterCenaAtiva } from '../../aplicacao/jogo/obter-cena-ativa';
 import type { CriarToken } from '../../aplicacao/jogo/criar-token';
 import type { MoverToken } from '../../aplicacao/jogo/mover-token';
 import type { AtualizarToken } from '../../aplicacao/jogo/atualizar-token';
+import type { AlternarCondicaoToken } from '../../aplicacao/jogo/alternar-condicao-token';
 import type { DefinirImagemToken } from '../../aplicacao/jogo/definir-imagem-token';
 import type { RemoverToken } from '../../aplicacao/jogo/remover-token';
 import { responderResultado } from './erros';
@@ -50,6 +52,7 @@ interface Deps {
   criarToken: CriarToken;
   moverToken: MoverToken;
   atualizarToken: AtualizarToken;
+  alternarCondicaoToken: AlternarCondicaoToken;
   definirImagemToken: DefinirImagemToken;
   removerToken: RemoverToken;
   autenticar: preHandlerAsyncHookHandler;
@@ -253,6 +256,27 @@ export function registrarRotasJogo(app: FastifyInstance, deps: Deps): void {
       await deps.atualizarToken.executar(request.usuarioId, tokenId, entrada),
     );
   });
+
+  /**
+   * Marcar e desmarcar uma condição da peça (RV-064).
+   *
+   * Corpo: `{ condicao: 'envenenado', aplicada: true }`. Uma condição por
+   * requisição, e não a lista inteira: ver `alternarCondicaoTokenSchema`.
+   * Condição fora do catálogo é 400 aqui mesmo, pelo schema.
+   */
+  app.patch(
+    '/tokens/:tokenId/condicoes',
+    { preHandler: deps.autenticar },
+    async (request, reply) => {
+      const { tokenId } = request.params as { tokenId: string };
+      const entrada = validarEntrada(alternarCondicaoTokenSchema, request.body ?? {}, reply);
+      if (!entrada) return;
+      return responderResultado(
+        reply,
+        await deps.alternarCondicaoToken.executar(request.usuarioId, tokenId, entrada),
+      );
+    },
+  );
 
   app.post('/tokens/:tokenId/imagem', { preHandler: deps.autenticar }, async (request, reply) => {
     const { tokenId } = request.params as { tokenId: string };

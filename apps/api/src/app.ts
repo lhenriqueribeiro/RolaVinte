@@ -44,8 +44,15 @@ import type { ObterCenaAtiva } from './aplicacao/jogo/obter-cena-ativa';
 import type { CriarToken } from './aplicacao/jogo/criar-token';
 import type { MoverToken } from './aplicacao/jogo/mover-token';
 import type { AtualizarToken } from './aplicacao/jogo/atualizar-token';
+import type { AlternarCondicaoToken } from './aplicacao/jogo/alternar-condicao-token';
 import type { DefinirImagemToken } from './aplicacao/jogo/definir-imagem-token';
 import type { RemoverToken } from './aplicacao/jogo/remover-token';
+import type { ObterCombate } from './aplicacao/jogo/obter-combate';
+import type { IniciarCombate } from './aplicacao/jogo/iniciar-combate';
+import type { RolarIniciativa } from './aplicacao/jogo/rolar-iniciativa';
+import type { PassarTurno } from './aplicacao/jogo/passar-turno';
+import type { EncerrarCombate } from './aplicacao/jogo/encerrar-combate';
+import type { AplicarDano } from './aplicacao/jogo/aplicar-dano';
 
 import { criarAutenticador } from './apresentacao/http/autenticacao';
 import { MENSAGEM_LIMITE_REQUISICOES, registrarTratamentoDeErros } from './apresentacao/http/erros';
@@ -54,6 +61,7 @@ import { registrarRotasAuth } from './apresentacao/http/rotas-auth';
 import { registrarRotasMesas } from './apresentacao/http/rotas-mesas';
 import { registrarRotasPersonagens } from './apresentacao/http/rotas-personagens';
 import { registrarRotasJogo } from './apresentacao/http/rotas-jogo';
+import { registrarRotasCombate } from './apresentacao/http/rotas-combate';
 
 /** Casos de uso expostos pela API HTTP, injetados pelo composition root. */
 export interface CasosDeUsoHttp {
@@ -91,8 +99,15 @@ export interface CasosDeUsoHttp {
   criarToken: CriarToken;
   moverToken: MoverToken;
   atualizarToken: AtualizarToken;
+  alternarCondicaoToken: AlternarCondicaoToken;
   definirImagemToken: DefinirImagemToken;
   removerToken: RemoverToken;
+  obterCombate: ObterCombate;
+  iniciarCombate: IniciarCombate;
+  rolarIniciativa: RolarIniciativa;
+  passarTurno: PassarTurno;
+  encerrarCombate: EncerrarCombate;
+  aplicarDano: AplicarDano;
 }
 
 export interface DependenciasHttp extends CasosDeUsoHttp {
@@ -217,6 +232,7 @@ export function registrarRotas(app: FastifyInstance, dependencias: DependenciasH
       registrarRotasMesas(api, rotas);
       registrarRotasPersonagens(api, rotas);
       registrarRotasJogo(api, rotas);
+      registrarRotasCombate(api, rotas);
     },
     { prefix: '/api' },
   );

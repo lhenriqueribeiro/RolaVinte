@@ -4,6 +4,7 @@ import type {
   AcaoDePericia,
   CampoFicha,
   DadosFicha,
+  DefesaFicha,
   DefinicaoSistema,
   EscalaDeAtributo,
   FichaCalculavel,
@@ -11,6 +12,7 @@ import type {
 import { ATRIBUICAO_PF2E } from './atribuicao';
 import { ATAQUES_PF2E, SCHEMA_ATAQUES } from './ataques';
 import { CAMPOS_DEFESAS, montarDefesas, SCHEMA_DEFESAS } from './defesas';
+import { rolagensDeIniciativaPf2e } from './iniciativa';
 import { avaliarRolagemPathfinder2e } from './avaliar-rolagem';
 import {
   acoesDaPericia,
@@ -83,9 +85,10 @@ import { bonusProficiencia, GRAUS_TREINAMENTO, type GrauTreinamento } from './re
  * - **Defesas** (CA, salvaguardas, Percepção, CD de classe) chegaram no RV-155:
  *   a tabela e a aritmética moram em `defesas.ts`, e este arquivo pluga a seção
  *   dos campos informados e o método `defesas` da definição.
- * - **Iniciativa** rola por Percepção no PF2e, então `rolagensPadrao` nasce
- *   vazio: é o RV-158. Declarar a iniciativa por Destreza da ficha genérica
- *   seria justamente a regra errada com cara de regra certa.
+ * - **Iniciativa** chegou no RV-158: `rolagensPadrao` declara a Percepção como
+ *   padrão e as dezesseis perícias como alternativas, e a tabela mora em
+ *   `iniciativa.ts`. Declarar a iniciativa por Destreza da ficha genérica seria
+ *   justamente a regra errada com cara de regra certa.
  * - **Classe e nível** não se duplicam em `dados`: são colunas comuns da tabela
  *   `personagens` (`classe` texto, `nivel` 1..20 por `criarPersonagemSchema`), já
  *   exibidas e validadas. Repeti-las aqui daria dois campos "Nível" na mesma
@@ -348,6 +351,17 @@ function acoesDePericia(ficha: FichaCalculavel, periciaChave: string): readonly 
   return acoesDaPericia(pericia, grauDeTreinamento(ficha, periciaChave) ?? GRAU_PADRAO);
 }
 
+/**
+ * As defesas derivadas desta ficha (RV-155).
+ *
+ * É função nomeada, e não mais um arrow dentro da definição, porque a iniciativa
+ * (RV-158) lê a Percepção **desta** lista: uma chamada só, e a iniciativa passa a
+ * ser, por construção, o mesmo número que a ficha mostra.
+ */
+function defesasDaFicha(ficha: FichaCalculavel): readonly DefesaFicha[] {
+  return montarDefesas(ficha, (atributo) => modificadorDeAtributo(ficha, atributo));
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // A definição
 // ─────────────────────────────────────────────────────────────────────
@@ -374,13 +388,17 @@ export const SISTEMA_PATHFINDER2E: DefinicaoSistema = {
   familiasPericia: [FAMILIA_SABER],
   grausPericia: GRAUS_TREINAMENTO_PF2E,
   dadoDeTeste: DADO_DE_TESTE,
-  // Vazio até o RV-158: a iniciativa do PF2e rola por Percepção — que **já
-  // existe** desde o RV-155, na lista de `defesas` sob a chave `CHAVE_PERCEPCAO`,
-  // com valor, expressão e motivo prontos. O que falta é o consumidor (o caso de
-  // uso de combate do RV-061), e é ele que decide entre Percepção e a perícia que
-  // a cena pedir. Declarar aqui a iniciativa por Destreza da ficha genérica seria
-  // a regra errada com cara de regra certa.
-  rolagensPadrao: [],
+  // A iniciativa (RV-158): Percepção como padrão e as dezesseis perícias como
+  // alternativas, porque no PF2e a cena pode pedir outra checagem. A conta não está
+  // aqui nem em `iniciativa.ts` — a Percepção sai de `defesasDaFicha` (a mesma
+  // lista que a ficha desenha) e o bônus da perícia sai de `bonusPericia`. Era
+  // `[]`, e o `[]` era F2: quatro sistemas declaravam iniciativa e nenhuma linha de
+  // produção a lia. O consumidor é `RolarIniciativa`, na api.
+  rolagensPadrao: rolagensDeIniciativaPf2e({
+    dadoDeTeste: DADO_DE_TESTE,
+    defesas: defesasDaFicha,
+    bonusPericia,
+  }),
   atributos: ESCALA_ATRIBUTO_PF2E,
   atribuicao: ATRIBUICAO_PF2E,
   bonusPericia,
@@ -390,7 +408,7 @@ export const SISTEMA_PATHFINDER2E: DefinicaoSistema = {
   // As defesas derivadas (RV-155). A conta é de `defesas.ts`; o que este arquivo
   // acrescenta é a **escala** — `montarDefesas` recebe o modificador já
   // interpretado, e por isso não tem como supor que 4 significa +4 ou +(-3).
-  defesas: (ficha) => montarDefesas(ficha, (atributo) => modificadorDeAtributo(ficha, atributo)),
+  defesas: defesasDaFicha,
   // Os ataques com a penalidade de ataques múltiplos (RV-156). A tabela do MAP é de
   // `regras.ts` e as variantes são de `ataques.ts`; aqui só se pluga o modelo, com o
   // dado do sistema. **Não há contador de MAP em lugar nenhum** — a ordem do golpe é

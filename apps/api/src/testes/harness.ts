@@ -41,8 +41,16 @@ import { ObterCenaAtiva } from '../aplicacao/jogo/obter-cena-ativa';
 import { CriarToken } from '../aplicacao/jogo/criar-token';
 import { MoverToken } from '../aplicacao/jogo/mover-token';
 import { AtualizarToken } from '../aplicacao/jogo/atualizar-token';
+import { AlternarCondicaoToken } from '../aplicacao/jogo/alternar-condicao-token';
 import { DefinirImagemToken } from '../aplicacao/jogo/definir-imagem-token';
 import { RemoverToken } from '../aplicacao/jogo/remover-token';
+import { ObterCombate } from '../aplicacao/jogo/obter-combate';
+import { IniciarCombate } from '../aplicacao/jogo/iniciar-combate';
+import { RolarIniciativa } from '../aplicacao/jogo/rolar-iniciativa';
+import { PassarTurno } from '../aplicacao/jogo/passar-turno';
+import { EncerrarCombate } from '../aplicacao/jogo/encerrar-combate';
+import { AplicarDano } from '../aplicacao/jogo/aplicar-dano';
+import type { DependenciasAviso } from '../aplicacao/jogo/aviso-de-combate';
 
 import { EventBusMemoria } from '../infra/eventos/event-bus-memoria';
 import { JwtServicoToken } from '../infra/auth/jwt-servico-token';
@@ -51,6 +59,7 @@ import { templateConvite } from '../infra/email/templates/convite';
 import {
   FakeArmazenamentoArquivos,
   FakeCenaRepository,
+  FakeCombateRepository,
   FakeMensagemRepository,
   FakeMesaRepository,
   FakePersonagemRepository,
@@ -76,6 +85,7 @@ export interface FakesDeTeste {
   personagens: FakePersonagemRepository;
   cenas: FakeCenaRepository;
   mensagens: FakeMensagemRepository;
+  combates: FakeCombateRepository;
   email: FakeServicoEmail;
   armazenamento: FakeArmazenamentoArquivos;
   /** Bucket separado das artes de token (RV-041) — espelha os dois do `main.ts`. */
@@ -143,6 +153,7 @@ export function criarAppDeTeste(opcoes: OpcoesAppDeTeste = {}): AppDeTeste {
   const personagens = new FakePersonagemRepository(usuarios);
   const cenas = new FakeCenaRepository();
   const mensagens = new FakeMensagemRepository();
+  const combates = new FakeCombateRepository();
 
   const email = new FakeServicoEmail();
   const armazenamento = new FakeArmazenamentoArquivos();
@@ -195,6 +206,12 @@ export function criarAppDeTeste(opcoes: OpcoesAppDeTeste = {}): AppDeTeste {
     relogio,
     publicador,
   );
+  // Espelha o `main.ts`: as dependências do aviso de sistema no chat (RV-062/065)
+  // e a edição de ficha, que o RV-065 **reusa** em vez de escrever PV por outro
+  // caminho, nascem antes do objeto de casos de uso porque ele as compõe.
+  const avisoDeCombate: DependenciasAviso = { mensagens, geradorId, relogio, publicador };
+  const atualizarPersonagem = new AtualizarPersonagem(personagens, mesas, usuarios, publicador);
+
   const registroComandos = new RegistroComandosChat({
     fala: (ctx, comando) => enviarMensagem.executar(ctx.usuarioId, ctx.mesaId, comando.conteudo),
     rolagem: (ctx, comando) =>
@@ -238,7 +255,7 @@ export function criarAppDeTeste(opcoes: OpcoesAppDeTeste = {}): AppDeTeste {
     aceitarConvite: new AceitarConvite(mesas, usuarios, relogio),
     criarPersonagem: new CriarPersonagem(personagens, mesas, usuarios, geradorId),
     listarPersonagens: new ListarPersonagens(personagens, mesas),
-    atualizarPersonagem: new AtualizarPersonagem(personagens, mesas, usuarios, publicador),
+    atualizarPersonagem,
     removerPersonagem: new RemoverPersonagem(personagens, mesas),
     duplicarPersonagem: new DuplicarPersonagem(personagens, mesas, usuarios, geradorId),
     enviarMensagem,
@@ -261,6 +278,7 @@ export function criarAppDeTeste(opcoes: OpcoesAppDeTeste = {}): AppDeTeste {
     criarToken: new CriarToken(cenas, mesas, geradorId, publicador),
     moverToken: new MoverToken(cenas, mesas, personagens, publicador),
     atualizarToken: new AtualizarToken(cenas, mesas, publicador),
+    alternarCondicaoToken: new AlternarCondicaoToken(cenas, mesas, publicador),
     definirImagemToken: new DefinirImagemToken(
       cenas,
       mesas,
@@ -269,6 +287,27 @@ export function criarAppDeTeste(opcoes: OpcoesAppDeTeste = {}): AppDeTeste {
       publicador,
     ),
     removerToken: new RemoverToken(cenas, mesas, publicador, armazenamentoTokens),
+    obterCombate: new ObterCombate(combates, mesas),
+    iniciarCombate: new IniciarCombate(combates, cenas, mesas, geradorId, publicador),
+    rolarIniciativa: new RolarIniciativa(
+      combates,
+      cenas,
+      mesas,
+      personagens,
+      rolarDados,
+      publicador,
+    ),
+    passarTurno: new PassarTurno(combates, mesas, publicador, avisoDeCombate),
+    encerrarCombate: new EncerrarCombate(combates, mesas, publicador),
+    aplicarDano: new AplicarDano(
+      combates,
+      cenas,
+      mesas,
+      personagens,
+      atualizarPersonagem,
+      publicador,
+      avisoDeCombate,
+    ),
     servicoToken,
   });
 
@@ -308,6 +347,7 @@ export function criarAppDeTeste(opcoes: OpcoesAppDeTeste = {}): AppDeTeste {
       personagens,
       cenas,
       mensagens,
+      combates,
       email,
       armazenamento,
       armazenamentoTokens,

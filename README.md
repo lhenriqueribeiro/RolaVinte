@@ -49,10 +49,13 @@ Plataforma de RPG de mesa online em PT-BR — um clone evoluído do Roll20: mesa
 | `npm run lint:fix` | Aplica as correções automáticas do ESLint |
 | `npm run format` | Formata o código com o Prettier |
 | `npm run format:check` | Verifica a formatação sem alterar arquivos |
-| `npm run check` | Lint + typecheck de todos os workspaces |
+| `npm run docs:verificar` | Confere a documentação: caminho citado como link, comando `npm run X` e fato volátil fora de casa |
+| `npm run typecheck` | `tsc --noEmit` nos três workspaces |
+| `npm run check` | Lint + `docs:verificar` + `typecheck` — **é este o comando obrigatório antes de entregar** |
 | `npm run test` | Testes (Vitest) dos três workspaces — shared, api e web |
 | `npm run build` | Build de produção |
 | `npm run supabase:sql -w @rolavinte/api` | Imprime o SQL de instalação (migrations em ordem + buckets), derivado dos arquivos reais |
+| `npm run supabase:migrar -w @rolavinte/api` | Aplica as migrations pendentes, em ordem, registrando cada uma |
 | `npm run supabase:verificar -w @rolavinte/api` | Confere schema e Storage do projeto apontado pelo `.env` antes de a API subir |
 
 O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.claude/rules/01-arquitetura.md) em erro de build: `dominio/` e `aplicacao/` não compilam com `fastify`, `@supabase/*`, `resend` ou `socket.io`, `apresentacao/` não alcança `infra/`, e `components/ui` não importa `lib/socket`. A prova de que cada fronteira realmente dispara é automatizada em `apps/api/src/testes/fronteiras-arquitetura.test.ts`.
@@ -88,6 +91,11 @@ O `npm run lint` transforma os guardrails de [.claude/rules/01-arquitetura.md](.
 - ✅ Grau de sucesso no chat: `/r 1d20+11 cd 18` numa mesa de PF2e sai como "Sucesso crítico · contra CD 18" para todos, com o ajuste do 20/1 natural explicado em texto (nada só por cor) — a CD chega pelo sufixo `cd N` de quem digita ou como número de quem clica na ficha, sem CD padrão em lugar nenhum, e sistema que não avalia grau recusa a CD dizendo o nome do sistema
 - ✅ Defesas de PF2e calculadas na ficha: CA (com bônus de item e limite de Destreza, em que "sem limite" é diferente de "limite 0"), Fortitude, Reflexos, Vontade, Percepção e CD de classe — as roláveis rolam em um clique, nenhum número derivado é gravado, e a CD de classe se recusa a existir sem o atributo-chave em vez de escolher um por conta própria
 - ✅ Ataques de PF2e com penalidade de ataques múltiplos: três botões de acerto (`1d20+9` / `-5` / `-10`, ou `-4` / `-8` com arma ágil) e dois de dano, com a CA do alvo virando grau de sucesso no chat — o dano nunca é checado contra CD, o crítico dobra em botão próprio e **a plataforma não conta os seus ataques**: a ordem é escolha explícita do jogador
+- ✅ Combate conduzido pela plataforma: o mestre escolhe as peças, a ordem de iniciativa se monta sozinha (desempate estável por ordem de entrada, com a regra escrita na tela), o turno anda, a rodada vira e o chat anuncia "Rodada 2" para todos — encerrar preserva o histórico da luta em vez de apagá-lo
+- ✅ Iniciativa como resposta do **sistema**, não do combate: em Pathfinder 2e é a Percepção da ficha (com as 16 perícias como alternativas para a cena que pede Furtividade), em D&D 5e é Destreza, e a peça sem ficha entra com o número que o mestre digita — o cliente escolhe *qual* rolagem, nunca a expressão
+- ✅ Painel de iniciativa visível a todos os participantes, com "é a sua vez" em três canais e **nenhum deles a cor** (marca de acessibilidade no item, a palavra escrita e aviso em `aria-live`), e a peça do turno realçada no mapa com rótulo textual — a moldura dourada é só reforço
+- ✅ Dano e cura por participante no painel do mestre, sem PV duplicado em lugar nenhum: quem chega a 0 PV recebe o marcador de `inconsciente` na peça, quem é curado o perde, e o jogador continua editando o PV na própria ficha
+- ✅ Condições de token: 14 marcadores que o mestre liga e desliga, visíveis para a mesa na hora com ícone **e** rótulo em texto — o catálogo vive em um único lugar, então condição nova é uma entrada num objeto, sem `if` em caso de uso, componente ou SQL
 - ✅ Atribuição OGL 1.0a / Community Use da Paizo exibida na ficha de Pathfinder, montada a partir do dado da definição do sistema — nenhuma tela escreve o texto legal à mão
 - ✅ Lista de sistemas de RPG amarrada ao banco: o `check` de `mesas.sistema` é extraído das migrations em disco e comparado com o enum nas duas direções, offline — sistema novo sem migration (ou migration sem sistema) derruba a suíte com o SQL da próxima migration já escrito na mensagem
 - ✅ Reconexão resiliente: queda de rede não pede F5 — a mesa avisa o estado, bloqueia a escrita com o motivo escrito (sem perder o texto digitado) e ressincroniza os caches ao voltar
@@ -103,7 +111,7 @@ O caminho do MVP atual até a plataforma completa está em [docs/backlog/](docs/
 
 Cards novos nascem das descobertas de cada entrega, então o total cresce junto com o que já foi feito — a contagem atual fica no próprio backlog, atualizada pelo curador a cada sprint.
 
-O histórico de versões, com o que mudou e o que ainda não funciona, está em [docs/release-notes/](docs/release-notes/README.md) — a mais recente é a [v0.8.0](docs/release-notes/v0.8.0.md).
+O histórico de versões, com o que mudou e o que ainda não funciona, está em [docs/release-notes/](docs/release-notes/README.md) — a mais recente é a [v0.9.0](docs/release-notes/v0.9.0.md).
 
 ## Arquitetura
 

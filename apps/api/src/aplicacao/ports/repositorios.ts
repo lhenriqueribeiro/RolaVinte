@@ -11,6 +11,7 @@ import type { Personagem } from '../../dominio/personagens/personagem';
 import type { Cena } from '../../dominio/jogo/cena';
 import type { Token } from '../../dominio/jogo/token';
 import type { Mensagem } from '../../dominio/jogo/mensagem';
+import type { Combate } from '../../dominio/jogo/combate';
 
 export interface UsuarioRepository {
   salvar(usuario: Usuario): Promise<void>;
@@ -56,6 +57,33 @@ export interface CenaRepository {
   buscarTokenPorId(id: string): Promise<Token | null>;
   removerToken(id: string): Promise<void>;
   listarTokensDaCena(cenaId: string): Promise<Token[]>;
+}
+
+/**
+ * Repositório do agregado `Combate` (RV-060).
+ *
+ * Sem `remover`: encerrar um combate é mudança de estado (`ativo = false`), não
+ * exclusão — o histórico da luta fica, e é isso que permite "encerrei e comecei
+ * outro" sem apagar nada. Como não há delete, também não há recurso externo para
+ * ficar órfão (F7): o combate não possui arquivo em Storage.
+ */
+export interface CombateRepository {
+  /**
+   * Persiste o agregado **inteiro**, participantes incluídos.
+   *
+   * Upsert sozinho não basta, pela mesma razão de `MesaRepository.salvar`:
+   * remover um participante só apaga a linha do agregado em memória, e sem o
+   * `delete` de sincronização ele reapareceria na leitura seguinte (F3 da
+   * taxonomia). Quem implementa esta port é responsável pelas duas metades.
+   */
+  salvar(combate: Combate): Promise<void>;
+  buscarPorId(id: string): Promise<Combate | null>;
+  /**
+   * O combate ativo da mesa, ou `null`. É a consulta que sustenta a invariante
+   * "um combate ativo por mesa" no caso de uso — a outra tranca é o índice único
+   * parcial da migration `0012`.
+   */
+  buscarAtivoDaMesa(mesaId: string): Promise<Combate | null>;
 }
 
 /** Uma página do histórico do chat (RV-073). */

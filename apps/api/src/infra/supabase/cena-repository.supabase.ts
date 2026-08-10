@@ -14,7 +14,13 @@ import {
 
 const COLUNAS_CENA =
   'id, mesa_id, nome, largura_grid, altura_grid, cor_fundo, ativa, imagem_fundo_url, imagem_fundo_caminho, tamanho_celula, grid_visivel, cor_grid';
-const COLUNAS_TOKEN = 'id, cena_id, nome, cor, x, y, personagem_id, imagem_url, imagem_caminho';
+/**
+ * Colunas do token pedidas em todo `select` — exportadas para que a guarda de
+ * disco (`condicoes-do-token.test.ts`) compare esta lista com o SQL das
+ * migrations em vez de repetir os nomes à mão.
+ */
+export const COLUNAS_TOKEN =
+  'id, cena_id, nome, cor, x, y, personagem_id, imagem_url, imagem_caminho, condicoes';
 
 export class SupabaseCenaRepository implements CenaRepository {
   constructor(private readonly sb: SupabaseClient) {}

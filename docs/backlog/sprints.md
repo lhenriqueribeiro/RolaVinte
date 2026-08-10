@@ -53,7 +53,9 @@ Cumprido pela metade que o objetivo nomeia: a ficha existe, e o número que sai 
 
 **Contrato órfão que a Sprint 3 precisa fechar:** `grauSucesso`, `d20NaturalDe`, `somarModificadores`, `cdPorNivel` e `CDS_SIMPLES` têm zero call sites em produção. A aritmética está certa e invisível — um 20 natural não desloca grau nenhum na tela nem no chat. Está anotado no contexto do RV-154, junto com o risco concreto: reimplementar a comparação com a CD no componente é barato e criaria duas aritméticas.
 
-> **Fechado pela metade na Sprint 3, e a metade que sobrou está nomeada.** `grauSucesso` e `d20NaturalDe` ganharam consumidor de produção pelo RV-154 (`avaliar-rolagem.ts` → `DefinicaoSistema.avaliarRolagem` → `RolarDados`), provado contra o banco real. `cdPorNivel`, `CDS_SIMPLES`, `somarModificadores` e `MARGEM_CRITICA` continuam com **zero** call sites de produção — o RV-156 explicou por escrito por que não os usou (a penalidade de ataques múltiplos não empilha tipo nenhum), e nenhum card em aberto os promete. Consequência para o usuário: a tabela de CDs do PF2e não chega a tela nenhuma, e o mestre continua consultando o livro para escolher a CD que vai digitar — é o contexto que o [RV-161](15-pathfinder2e.md) herda. `rolagensPadrao` segue órfão em quatro sistemas e é do RV-158.
+> **Fechado pela metade na Sprint 3, e a metade que sobrou está nomeada.** `grauSucesso` e `d20NaturalDe` ganharam consumidor de produção pelo RV-154 (`avaliar-rolagem.ts` → `DefinicaoSistema.avaliarRolagem` → `RolarDados`), provado contra o banco real. `cdPorNivel`, `CDS_SIMPLES`, `somarModificadores` e `MARGEM_CRITICA` continuam com **zero** call sites de produção — o RV-156 explicou por escrito por que não os usou (a penalidade de ataques múltiplos não empilha tipo nenhum), e nenhum card em aberto os promete. Consequência para o usuário: a tabela de CDs do PF2e não chega a tela nenhuma, e o mestre continua consultando o livro para escolher a CD que vai digitar — é o contexto que o [RV-161](15-pathfinder2e.md) herda — e que **continua de pé**, porque o RV-161 não entrou na
+> Sprint 4. `rolagensPadrao`, por outro lado, **deixou de ser órfão na Sprint 4**: o RV-158 lhe deu consumidor de
+> produção (`RolarIniciativa`) e duas guardas que ficam vermelhas se ele voltar a não ter.
 
 ## Sprint 3 — Pathfinder na mesa · `v0.8.0` · ✅ concluída
 
@@ -110,7 +112,7 @@ Duas consequências de priorização, que são de quem decide e não da curadori
 
 **E aqui a curadoria registra a mesma leitura pela segunda vez.** A curadoria da v0.7.0 escreveu, nesta página, que "ou o RV-132 sobe para a Sprint 4, ou 'a mesa joga' continua significando 'o mestre joga sozinho na máquina dele'". A Sprint 3 fechou, o Pathfinder ficou pronto, e o RV-132 continua três sprints à frente. Repetir a leitura sem consequência é a mesma classe de defesa inerte que a taxonomia chama de F1 — regra escrita em documento que nenhuma linha executa. Então ela vira **proposta com composição escrita** abaixo, e a decisão continua sendo do humano.
 
-## Proposta desta curadoria — uma sprint de publicação **antes** do Combate
+## Proposta da curadoria da v0.8.0 — uma sprint de publicação **antes** do Combate · ❌ não adotada
 
 > **Objetivo:** as cinco pessoas entram. Convite real, endereço de terceiro, plataforma fora do `localhost`.
 
@@ -120,27 +122,166 @@ Por que própria e não dentro da Sprint 4: o RV-132 é `G`, não compartilha um
 
 Se a decisão for **não** subir o RV-132, então o objetivo da Sprint 4 precisa ser reescrito com honestidade — "o mestre conduz uma luta pela plataforma" continua significando "sozinho".
 
-## Sprint 4 — Combate · `v0.9.0` · ▶ próxima
+> **Desfecho, registrado na curadoria da v0.9.0:** a proposta não foi adotada, a Sprint 4 rodou como estava e o
+> objetivo dela **de fato** significou "sozinho" — a leitura acima se confirmou palavra por palavra. Ela fica aqui
+> como história datada, não como pendência: a proposta viva agora é outra, porque o argumento mudou de qualidade.
+> Com o combate entregue, **não há mais nenhum card de produto** entre o repositório e uma sessão real de cinco
+> pessoas; o que resta é publicar. Ver o fecho da Sprint 4 e a nota da Sprint 6.
+
+## Sprint 4 — Combate · `v0.9.0` · ✅ concluída
 
 > **Objetivo:** o mestre conduz uma luta pela plataforma, sem planilha ao lado.
 
-| Ordem | Card | Por que está aqui |
+**Cumprido, e mais do que o objetivo dizia: a luta é conduzida por quem joga, não só pelo mestre.** O painel é
+visível a todos os participantes, o jogador rola a iniciativa da própria peça e vê a vez chegar por três canais
+que não dependem de cor. O que **não** foi cumprido é a metade de Pathfinder da sprint: dos dez cards planejados
+(RV-160, RV-161, os seis do E06, RV-158 e RV-159), **três não entraram** — e um deles era o primeiro item da
+lista, o card protetor.
+
+| Ordem planejada | Card | Como fechou |
 |---|---|---|
-| 1 | [RV-160](15-pathfinder2e.md) | **Card protetor, regra de composição nº 1.** Hoje qualquer expressão recebe grau de sucesso se vier com CD — inclusive um dano. O RV-161 vai **abrir mais portas de CD**; fechar essa classe depois de multiplicá-la é o caminho conhecido para o grau errado gravado em mais lugares. `P` |
-| 2 | [RV-161](15-pathfinder2e.md) | A CD chega às rolagens da ficha (salvaguardas, Percepção, perícias). É o que falta para o eixo do épico — `ficha → bônus certo → grau no chat` — valer na checagem **mais rolada** de uma sessão de PF2e, e não só no ataque. `M` |
-| 3 | `RV-060` … `RV-065` | Agregado Combate, iniciativa, turnos, painel, condições, aplicar dano/cura. É o corpo da sprint |
-| 4 | [RV-158](15-pathfinder2e.md) | Iniciativa por Percepção em PF2e. Depende de RV-061 e consome a Percepção rolável do RV-155 — e é ele quem fecha a última F2 do épico (`rolagensPadrao`, declarado por quatro sistemas e lido por zero linhas de produção) |
-| 5 | [RV-159](15-pathfinder2e.md) | **Segunda tentativa.** Perdeu a vizinhança de arquivo que o justificava na Sprint 3, e entra aqui por ser `P` e por ser a ficha mentindo para o jogador. Se escorregar de novo, não volta a ser apêndice: vira estágio próprio ou sai da página, como está escrito para o RV-073 |
+| 1 | [RV-160](15-pathfinder2e.md) | ❌ **Não entrou.** Era o card protetor da sprint pela regra de composição nº 1. Conferido no fecho: `rolar-dados.ts` continua chamando `avaliar(...)` para **qualquer** expressão que venha com CD, então `/r 1d8+4 cd 18` segue gravando "Falha crítica" num dano |
+| 2 | [RV-161](15-pathfinder2e.md) | ❌ **Não entrou.** Conferido no fecho: só o caminho de ataque manda `cd`; salvaguarda, Percepção e perícia continuam rolando sem grau de sucesso |
+| 3 | `RV-060` … `RV-065` | ✅ **Os seis.** Agregado `Combate` (terceira raiz de agregado do projeto), iniciar/rolar iniciativa, turno e rodada, painel de iniciativa com realce no mapa, catálogo de 14 condições no token e dano/cura pelo painel. Migrations `0011_condicoes` e `0012_combate` escritas **e aplicadas**, com o efeito conferido no Postgres pela verificação independente |
+| 4 | [RV-158](15-pathfinder2e.md) | ✅ Iniciativa é resposta do **sistema**: Percepção em PF2e (lida da mesma lista de `defesas(ficha)` que a ficha desenha, sem recalcular), dezesseis perícias como alternativa, Destreza em D&D 5e — e a mesa de D&D **recusa** a alternativa de PF2e. Fechou a última F2 do épico: `rolagensPadrao` tem consumidor de produção e duas guardas |
+| 5 | [RV-159](15-pathfinder2e.md) | ❌ **Não entrou pela segunda vez.** A Sprint 3 já havia escrito "se escorregar de novo, vira estágio próprio ou sai da página". Escorregou. A ficha continua esvaziando o campo de Saber sem dizer por quê |
+| — | [RV-140](14-documentacao.md) | ✅ **Entrou fora do plano, vindo da Sprint 5.** As nove regras de `.claude/rules/` foram lidas contra o código, mais `CLAUDE.md`, o protocolo e a taxonomia. Cinco símbolos citados que não existem foram removidos, duas exigências que ninguém cumpria foram apagadas em vez de mantidas, e quatro afirmações falsas de estado saíram da taxonomia |
 
-**Regra nº 2 aplicada:** RV-160 e RV-161 tocam `rolar-dados.ts`/`avaliar-rolagem.ts` e a ficha de PF2e; RV-060…RV-065 criam o agregado Combate; RV-158 costura os dois. São três frentes de escrita distintas, então cabem na mesma sprint com agentes diferentes — o que **não** cabe é RV-161 e RV-158 no mesmo instante, porque disputam `defesas.ts` e a Percepção.
+**Por que o RV-140 antes da hora foi acerto, e por que a troca ainda saiu no vermelho.** Ele não é uma
+funcionalidade: é a superfície que **todo** agente lê antes de codar. Os quatro agentes de implementação que
+vieram depois dele justificaram decisões citando guardrail e taxonomia — inclusive mecanismos que só passaram a
+estar **escritos** por causa dele: as guardas do agregado, os quatro passos do evento WS e o registro total como
+único ponto de associação chave→comportamento. Vindo antes dos cards de combate, ele pagou dentro da própria
+sprint (o `combate:atualizado` nasceu com os quatro passos completos, e nenhuma escrita reimplementou guarda de
+autorização à mão, que era o furo do RV-027). Mas a conta líquida
+é desconfortável: **entrou um card de qualidade e saíram três de produto**, sendo um deles protetor. Isso não é
+o RV-140 tirando o lugar de ninguém — é a sprint tendo sido composta com sete cards para quatro agentes.
 
-**O RV-073 não está nesta lista de propósito.** Ele saiu da sprint de Pathfinder pela terceira vez e não vira apêndice de uma sprint de combate. Ou entra na sprint de publicação proposta acima, com agente próprio, ou sai da página até ser a prioridade de alguém — que é a regra que esta página já escreveu e não cumpriu.
+**A regra nº 1 foi escrita e não foi cumprida, e o preço é conhecido.** O RV-160 estava em primeiro lugar
+porque o RV-161 multiplicaria as portas de CD. O RV-161 também não entrou, então a classe **não** foi
+multiplicada e o dano imediato é zero — mas a dívida ficou intacta e agora ela atravessa uma versão em que o
+combate existe. Se a próxima sprint puxar o RV-161 sem o RV-160 na frente, o grau errado passa a ser gravado
+por três portas em vez de uma.
 
-## Sprint 5 — Confiança · `v0.10.0`
+**Nasceram cinco cards da execução** (critério de corte aplicado sobre 43 achados — 27 descobertas dos cinco
+agentes de implementação, 10 da verificação independente e 6 problemas abertos que ela listou, com sobreposição
+entre eles): [RV-066](06-combate.md) — a expressão informada vence a
+derivação para **qualquer** papel, então o jogador escolhe a própria iniciativa por chamada direta à rota (F4,
+proteção que mora só na interface); [RV-067](06-combate.md) — trocar a cena ativa no meio da luta esvazia PV,
+botões e realce sem uma palavra de explicação; [RV-162](15-pathfinder2e.md) — a ficha diz ao jogador que a
+plataforma "ainda não sabe de quem é o turno", frase que esta sprint tornou falsa em três lugares;
+[RV-141](14-documentacao.md) — o vocabulário do guardrail de DDD não incorporou a terceira raiz de agregado, e
+invocar o script `typecheck`, que não existe, devolve exit 0; [RV-142](13-operacao.md) — roteiro de fumaça contra o ambiente
+real, com ida e volta de campo (ver a Sprint 5, abaixo).
+
+**O que foi descartado, e por quê** — o descarte justificado é parte do trabalho de curadoria, e sem ele estes
+achados voltam como card na próxima sprint. **Viraram contexto dentro de card existente, não card novo:** a
+ausência de teste do `cena-repository.supabase.ts` (agora com `condicoes` conferido só por script descartável) e
+o `unique` do banco respondendo 500 em vez de 409 nas corridas — os dois entraram no
+[RV-136](13-operacao.md#rv-136--cobertura-automatizada-dos-adapters-supabase), que também teve um cenário de
+borda **corrigido**, porque ele pedia o oposto do desenho registrado na regra 07; e a ressincronização do cache
+`['combate']`, que virou nota fechada no [RV-112](11-tempo-real.md). **Não viraram nada:** condições de PF2e sem
+efeito mecânico (`enfraquecido`, `lento`) — é profundidade de sistema, não defeito, e o lugar do efeito é a
+definição do sistema, não o catálogo; a ausência de `atualizado_em` em todas as tabelas — se o produto quiser
+"editado em", é card de schema com leitor, não conserto de documentação; o mestre não poder digitar iniciativa
+manual em peça **com** ficha — decisão deliberada, com o desenho certo (modificador circunstancial) já escrito
+caso vire necessidade; a ordem de entrada como desempate que o mestre não controla — a tela diz a verdade sobre
+isso, então é escopo faltando sem promessa falsa, e "jogador antes de NPC" foi decidido contra por escrito; o
+`tipo: 'sistema'` que ficou quatro versões sem produtor — ganhou um agora, e a assimetria que sobra (o registro
+obriga a classificar, não a usar) não tem consequência hoje; e três achados de **processo**, não de produto: o
+briefing da fase chegou com número de migration ocupado e com contagem de testes de duas entregas atrás, e o
+orquestrador atribuiu ao agente de backend duas linhas de front. Isso é matéria de
+[docs/agentes/](../agentes/README.md), não de backlog.
+
+**Um defeito foi encontrado e corrigido dentro da verificação, e vale como registro do método:** rolar
+iniciativa num combate encerrado gravava e transmitia `Iniciativa — Thorin: 23` no chat de toda a mesa **antes**
+de responder 409 — um número que a mesa viu e a ordem não tem. A guarda existia; a **ordem** dela estava errada.
+Foi achado escrevendo o teste primeiro, vendo-o vermelho, e só então mexendo no caso de uso.
+
+**A sprint não deixou nenhum item do baseline pior**, o que é a primeira vez em quatro. As duas migrations novas
+foram aplicadas na mesma entrega que as criou, então a fila continua em zero — a disciplina que a F10 cobrou na
+v0.5.0 virou hábito.
+
+### Uma mesa de Pathfinder joga uma sessão inteira agora? — percurso medido, não estimado
+
+| Passo da sessão | Estado | O que ainda impede |
+|---|---|---|
+| O mestre cria a mesa de PF2e e a cena | ✅ | Nada. Mesa, cena, mapa de fundo, grid e zoom |
+| Os outros quatro jogadores entram | ❌ | **É aqui que a sessão morre, pela quarta versão seguida.** A plataforma existe em `localhost`, `RESEND_API_KEY` está vazia, todo convite cai no stdout da API e o `ConviteDTO` não expõe o token nem para o mestre copiar à mão. [RV-132](13-operacao.md) |
+| O jogador monta a ficha | ✅ com arestas | Atributos na escala do sistema, identidade, 16 perícias + Saber, defesas e ataques calculados. Arestas: Saber repetido é no-op silencioso ([RV-159](15-pathfinder2e.md), segundo escorregão); bônus de acerto e armadura digitados à mão até o catálogo ([RV-157](15-pathfinder2e.md)) |
+| Entra em combate | ✅ | O mestre escolhe as peças por caixas de seleção e inicia. Um combate ativo por mesa, com 409 no segundo |
+| Rola iniciativa | ✅ com defeito ao lado | Sai da Percepção da ficha sem ninguém digitar número, e a alternativa por perícia existe para a emboscada. **Mas o jogador pode mandar `1d20+99` pela rota e a plataforma aceita** ([RV-066](06-combate.md)) — e o mestre não controla o desempate, que é a ordem das peças na cena |
+| Ataca | ✅ | Três botões com o MAP aplicado, CA do alvo no campo, grau de sucesso no chat |
+| Sofre dano | ✅ | Dano e cura pelo painel, um clique: a ficha muda, a barra do token acompanha, o chat registra e o PV para em 0 |
+| Ganha condição | ✅ | 14 condições marcáveis pelo mestre, com rótulo textual para todos, e `inconsciente` marcado/desmarcado automaticamente ao zerar e recuperar PV |
+| O turno passa | ✅ | Rodada, turno, "Rodada 2" no chat, realce da peça no mapa e "É a sua vez" por três canais sem depender de cor |
+| O mestre diz "CD 18" e o jogador rola a salvaguarda | ⚠️ | A rolagem sai certa e **sem grau de sucesso**. A mesa volta a comparar 28 com 18 na cabeça. [RV-161](15-pathfinder2e.md), não entregue |
+| Rola o dano | ✅ com defeito ao lado | Quem **digitar** `/r 1d8+4 cd 18` recebe "Falha crítica" num dano, e o grau errado fica gravado. [RV-160](15-pathfinder2e.md), não entregue |
+| Troca de mapa no meio da luta | ⚠️ | O painel perde PV, botões e realce sem explicação. [RV-067](06-combate.md) |
+| Três horas de chat | ⚠️ | Cinco pessoas passam de 50 mensagens rápido e não existe caminho para alcançar o resto. [RV-073](07-chat.md), **fora das sprints por decisão registrada** |
+
+**A resposta honesta: o combate joga; a mesa continua não jogando, e o motivo é o mesmo de três sprints atrás.**
+Um mestre sozinho, na máquina dele, conduz hoje uma luta de Pathfinder inteira pela plataforma — iniciativa
+derivada da ficha, turno, condições, dano no PV e grau de sucesso no ataque. **Cinco pessoas ainda não
+conseguem entrar.** A Sprint 4 melhorou muito uma sessão que não começa, que é exatamente o que a curadoria da
+v0.7.0 e a da v0.8.0 previram por escrito, nesta página, e que nenhuma decisão desfez.
+
+**Terceira vez que esta leitura é registrada, e agora com uma diferença factual.** Nas duas anteriores a
+resposta possível era "o Pathfinder ainda não está pronto". Agora está: com o combate entregue, **não há mais
+nenhum card de produto entre o repositório e uma sessão real** — o que sobra é publicação e entrega de convite.
+Se o [RV-132](13-operacao.md) continuar na Sprint 6, a versão `v1.0.0` chega antes da primeira sessão de cinco
+pessoas, e a métrica de pronto do produto vira decorativa.
+
+## Sprint 5 — Confiança · `v0.10.0` · ▶ próxima
 
 > **Objetivo:** parar de depender de verificação manual para saber que a plataforma funciona.
 
-`RV-006` (modo memória, desbloqueia o E2E) · `RV-133` (E2E do fluxo crítico) · `RV-136` (cobertura dos adapters Supabase) · `RV-137` (limites de abuso no Socket.IO) · `RV-140` (guardrails alinhados ao código)
+`RV-006` (modo memória, desbloqueia o E2E) · `RV-133` (E2E do fluxo crítico) · `RV-136` (cobertura dos adapters
+Supabase) · `RV-137` (limites de abuso no Socket.IO) · ~~`RV-140`~~ (**entregue na Sprint 4**) · **`RV-142`
+(roteiro de fumaça contra o ambiente real — card novo, ver abaixo)**
+
+### O conteúdo desta sprint está certo? — três reparos, medidos
+
+**1. O RV-140 saiu: já foi entregue.** Ele foi executado na Sprint 4, fora do plano, e não deve ser recontado
+aqui.
+
+**2. O RV-133 não é executável nesta sprint como a página o compõe.** Ele declara `**Depende de:** RV-006,
+RV-132`, e o **RV-132 está na Sprint 6** — a Definition of Ready falha antes de o agente começar. São só duas
+saídas honestas: ou o RV-132 sobe (o que a v0.7.0 e a v0.8.0 já pediram, sem consequência), ou a dependência do
+RV-133 é reduzida por escrito ao modo memória, aceitando que o E2E rode só em `localhost` até haver ambiente
+publicado. Deixar como está é agendar o quarto escorregão do projeto.
+
+**3. O E2E do RV-133 é a resposta certa para uma classe de defeito, e não para a que mais custou aqui.** Ele
+roda com `PERSISTENCIA=memoria` para não depender de banco no CI — o próprio RV-136 registra que "nem o E2E
+encosta nos adapters Supabase". Confira o padrão contra o que ele pegaria:
+
+| Defeito | Como foi achado | O E2E em modo memória pegaria? |
+|---|---|---|
+| [RV-159](15-pathfinder2e.md) (Saber no-op) | Testing Library, em execução | **Sim** — é interação de tela, e é aqui que o E2E rende |
+| [RV-098](09-fichas.md) (atributo com duas casas) | navegador contra o Supabase real | **Não.** As duas metades estavam certas isoladamente; o que expôs foi ler a linha gravada. Em memória, o fake regrava o objeto inteiro e a divergência não existe |
+| [RV-160](15-pathfinder2e.md) (grau em dano) | API em execução, chamada direta | **Não.** A tela nunca manda `cd` num dano — o E2E percorre a tela, então reproduz a mesma proteção que mora na forma do chamador (F4) |
+| F10 (migration em disco, chat fora do ar) | ambiente real | **Não, por construção:** modo memória existe para não ter banco |
+
+Dois dos três defeitos mais caros — e a classe que derrubou o chat inteiro — passam pelo E2E como escrito. **Não
+é que o RV-133 esteja errado; é que ele cobre a metade de cima da costura.** A metade de baixo (escreveu no
+Postgres real e releu pelo mesmo contrato?) não tem card nenhum no backlog: o `supabase:verificar` responde "o
+schema está lá", o RV-136 prova a **consulta** com cliente falso, e o RV-009 pegaria coluna inexistente em
+compilação, mas nenhum deles grava e relê.
+
+**Daí o card novo, [RV-142](13-operacao.md).** Um roteiro executável (o script `fumaca`) que percorre o fluxo
+crítico contra o Supabase em uso, gravando cada campo que o usuário informa e **relendo pelo mesmo contrato**,
+falhando com o nome do campo divergente. Ele é a versão repetível do único instrumento que achou defeito quatro
+vezes neste projeto, custa `M`, **não depende de RV-006 nem de RV-132** e roda hoje. Se a sprint precisar
+escolher, ele rende mais cedo que o RV-133 — e é o RV-133 que depende de um card de outra sprint, não ele.
+
+**Uma recomendação de composição, que é decisão de quem prioriza e não da curadoria:** o
+[RV-009](00-fundacao.md) (tipos gerados do banco) é o quarto item da Onda 1 e não está em sprint nenhuma. Ele é
+a versão em tempo de compilação da mesma classe — nome de coluna errado deixaria de compilar em vez de estourar
+na mesa de alguém — e é mais barato que o RV-136. Numa sprint chamada "Confiança", a ausência dele chama atenção.
+
+**Os dois defeitos abertos de combate cabem aqui, e por afinidade e não por sobra:** [RV-066](06-combate.md) é
+`P`, é F4 (proteção que existe só na interface) e a sprint é sobre não confiar na forma do chamador;
+[RV-067](06-combate.md) é `P` e puro front. Juntos são menos de meio dia.
 
 ## Sprint 6 — Operação · `v1.0.0`
 
@@ -149,6 +290,14 @@ Se a decisão for **não** subir o RV-132, então o objetivo da Sprint 4 precisa
 `RV-130` (observabilidade) · `RV-132` (deploy) · `RV-131` (backup e retenção) · `RV-134` (teste de carga)
 
 > **Contestado na curadoria da v0.7.0:** o `RV-132` é o segundo item da Onda 1 e está aqui, três sprints depois de a plataforma ficar jogável. Ver a nota ao fim da Sprint 3.
+>
+> **Contestado pela terceira vez na curadoria da v0.9.0, e agora o argumento é aritmético, não retórico.** Com o
+> combate entregue, o `RV-132` é o **único** card entre o repositório e a métrica de pronto do produto ("um grupo
+> de 5 pessoas completa uma sessão de 3h"). Ele também é o único item da Sprint 6 que **outros** cards esperam:
+> `RV-133` e `RV-134` declaram dependência dele — então, como a página está composta, a Sprint 5 contém um card
+> `G` que só fica pronto na Sprint 6. Ou o `RV-132` sobe para a Sprint 5, ou o `RV-133` desce para a Sprint 6
+> junto com ele. As duas resolvem; manter as duas coisas onde estão não resolve, e a página já registrou essa
+> mesma inconsistência duas vezes sem consequência.
 
 ---
 
@@ -164,7 +313,11 @@ Cards abertos que não entram nas seis primeiras sprints e **por quê**:
 | [E09](09-fichas.md) | RV-092, RV-094, RV-095 | Ficha completa de D&D, inventário e bestiário são profundidade de sistema, não pré-requisito de nenhuma sprint |
 | [E09](09-fichas.md) | **RV-097** | Defeito real da v0.6.0, mas exige **decisão de produto** (recusar a troca de sistema, migrar os `dados` ou tirar `sistema` do PATCH) antes de virar trabalho. Entra na primeira sprint depois da decisão; se um grupo real cair nele antes, sobe para a Onda 1 |
 | [E10](10-handouts.md) | RV-100 … RV-102 | Material de apoio; o chat cobre o essencial hoje |
-| [E11](11-tempo-real.md) | **RV-117** | A interface já diz a verdade ao usuário ("só verá a ficha sumir ao recarregar"), então é escopo faltando e não defeito silencioso. Candidato natural à **Sprint 4**, onde o combate passa a depender de ficha viva na tela de todo mundo |
+| [E11](11-tempo-real.md) | **RV-117** | A interface já diz a verdade ao usuário ("só verá a ficha sumir ao recarregar"), então é escopo faltando e não defeito silencioso. Era candidato à Sprint 4 e **não entrou**; o combate entregue não o tornou urgente, porque o painel lê o PV do cache de personagens, que o `personagem:atualizado` mantém vivo — o que fica de fora é criar/excluir ficha durante a sessão |
+| [E06](06-combate.md) | **RV-066**, **RV-067** | Nascidos da v0.9.0. Os dois são `P` e estão **recomendados para a Sprint 5** (ver lá): RV-066 é F4 e RV-067 é puro front |
+| [E13](13-operacao.md) | **RV-142** | Nascido da v0.9.0 e **proposto para a Sprint 5**, onde ele é a metade da costura que o E2E não alcança |
+| [E14](14-documentacao.md) | **RV-141** | Nascido da v0.9.0. `P`, sem urgência: o guardrail não está errado, está incompleto — mas a guarda que ele cria é o que impede a próxima raiz de agregado de ficar de fora |
+| [E15](15-pathfinder2e.md) | **RV-162** | Nascido da v0.9.0. Depende de uma decisão de produto (o turno pré-seleciona o ataque?), e o texto falso ao usuário é a parte de uma linha |
 | [E12](12-ux.md) | RV-120, RV-121, RV-123 … RV-125 | Responsivo e acessibilidade entram quando houver uso real em telas variadas |
 | [E15](15-pathfinder2e.md) | RV-157 | Catálogo é o último card do épico, por decisão de licenciamento |
 | Diversos | RV-025, RV-026, RV-028, RV-029, RV-043 … RV-046, RV-110, RV-111, RV-113, RV-114 | Ver o épico de cada um |
@@ -174,6 +327,14 @@ Sprint não é contrato, e isso vale nas duas direções.
 **Card entra.** [RV-096](09-fichas.md) não existia quando a Sprint 2 foi escrita: nasceu da execução da Sprint 1, foi julgado bloqueador do E15 na curadoria da v0.6.0 e entrou como **primeiro item** da Sprint 2, na frente de cards já planejados. Fechou dentro dela e cobrou o próprio preço no mesmo lote. Na v0.7.0 o mesmo mecanismo produziu o [RV-159](15-pathfinder2e.md) e trouxe o [RV-139](13-operacao.md) de "sprint nenhuma" para o primeiro lugar da Sprint 3. E na Sprint 3 aconteceu a versão mais forte disso: o [RV-098](09-fichas.md) nasceu de **verificação manual no navegador**, entrou na sprint já em curso e foi executado **antes** dos três cards de Pathfinder — porque defesas e ataques calculados sobre um atributo com duas verdades teriam nascido errados.
 
 **Card sai.** [RV-073](07-chat.md) foi planejado na Sprint 1, arrastado para a Sprint 2, arrastado para a Sprint 3 e não fechou nas três. A Sprint 3 já dizia, por escrito, "ou vira estágio com agente próprio, ou sai da página" — e ele foi mantido como sexto item de uma sprint de Pathfinder, o que é a definição de folga. Na Sprint 4 ele **não** aparece: ou entra na sprint de publicação proposta, com agente próprio, ou sai da página até que seja a prioridade de alguém. Um card que atravessa três sprints sem sair do lugar não está sendo despriorizado — está sendo usado para fazer a sprint parecer maior.
+
+> **A regra funcionou, e o [RV-159](15-pathfinder2e.md) é o caso seguinte.** Fora da página, o RV-073 parou de
+> inflar sprint — continua aberto, continua sendo a regressão de 100 → 50 mensagens, e agora está honestamente
+> classificado como "não é prioridade de ninguém". O RV-159 escorregou duas vezes com a mesma promessa escrita
+> ("vira estágio próprio ou sai da página") e a Sprint 4 o manteve como quinto item. Pela regra desta seção ele
+> **sai da Sprint 5** e vira decisão explícita: ou alguém o toma como estágio, ou ele desce para a lista acima.
+> Ele é `P` e é a ficha mentindo para o jogador — o que o mantém preso é justamente ser pequeno o bastante para
+> ser sempre o último.
 
 **Item executado sem o card fechar.** [RV-139](13-operacao.md) é o primeiro caso: as dez migrations foram aplicadas e conferidas na verificação da Sprint 3, o que era o efeito de que a sprint dependia, mas dois itens do DoD dele não têm evidência. O card fica aberto. Registrar isso como "concluído" seria trocar a checagem por otimismo, que é o hábito que o próprio RV-139 nasceu para corrigir.
 

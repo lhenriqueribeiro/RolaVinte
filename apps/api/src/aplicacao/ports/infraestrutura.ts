@@ -93,4 +93,11 @@ export interface PublicadorEventosMesa {
     mesaId: string,
     dados: Omit<PayloadEventoServidor<'mesa:participante-removido'>, 'mesaId'>,
   ): void;
+  /**
+   * O combate mudou (RV-061 … RV-065): começou, iniciativa rolada, turno passado,
+   * combate encerrado. Um método para os quatro, porque o payload é o mesmo
+   * `CombateDTO` completo e o cliente faz a mesma coisa com ele — reescrever o
+   * cache do combate.
+   */
+  combateAtualizado(mesaId: string, combate: PayloadEventoServidor<'combate:atualizado'>): void;
 }

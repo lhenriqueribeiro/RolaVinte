@@ -41,8 +41,16 @@ import { ObterCenaAtiva } from './aplicacao/jogo/obter-cena-ativa';
 import { CriarToken } from './aplicacao/jogo/criar-token';
 import { MoverToken } from './aplicacao/jogo/mover-token';
 import { AtualizarToken } from './aplicacao/jogo/atualizar-token';
+import { AlternarCondicaoToken } from './aplicacao/jogo/alternar-condicao-token';
 import { DefinirImagemToken } from './aplicacao/jogo/definir-imagem-token';
 import { RemoverToken } from './aplicacao/jogo/remover-token';
+import { ObterCombate } from './aplicacao/jogo/obter-combate';
+import { IniciarCombate } from './aplicacao/jogo/iniciar-combate';
+import { RolarIniciativa } from './aplicacao/jogo/rolar-iniciativa';
+import { PassarTurno } from './aplicacao/jogo/passar-turno';
+import { EncerrarCombate } from './aplicacao/jogo/encerrar-combate';
+import { AplicarDano } from './aplicacao/jogo/aplicar-dano';
+import type { DependenciasAviso } from './aplicacao/jogo/aviso-de-combate';
 import { VerificarParticipacao } from './aplicacao/jogo/verificar-participacao';
 
 import { criarClienteSupabase } from './infra/supabase/cliente';
@@ -51,6 +59,7 @@ import { SupabaseMesaRepository } from './infra/supabase/mesa-repository.supabas
 import { SupabasePersonagemRepository } from './infra/supabase/personagem-repository.supabase';
 import { SupabaseCenaRepository } from './infra/supabase/cena-repository.supabase';
 import { SupabaseMensagemRepository } from './infra/supabase/mensagem-repository.supabase';
+import { SupabaseCombateRepository } from './infra/supabase/combate-repository.supabase';
 import {
   BUCKET_TOKENS,
   SupabaseArmazenamentoArquivos,
@@ -94,6 +103,7 @@ async function iniciar(): Promise<void> {
   const personagens = new SupabasePersonagemRepository(sb);
   const cenas = new SupabaseCenaRepository(sb);
   const mensagens = new SupabaseMensagemRepository(sb);
+  const combates = new SupabaseCombateRepository(sb);
   const armazenamento = new SupabaseArmazenamentoArquivos(sb);
   // Mesma port, mesmo adapter, outro bucket: arte de token e mapa não dividem
   // cota nem limpeza (RV-041).
@@ -163,6 +173,14 @@ async function iniciar(): Promise<void> {
     publicador,
   );
 
+  // Aviso de sistema no chat (RV-062/RV-065): as quatro dependências que
+  // "escrever uma linha no chat e transmiti-la" exige, reunidas uma vez só.
+  const avisoDeCombate: DependenciasAviso = { mensagens, geradorId, relogio, publicador };
+
+  // Nasce antes do objeto `usos` porque o RV-065 o compõe: aplicar dano **reusa**
+  // esta edição de ficha em vez de escrever PV por um segundo caminho.
+  const atualizarPersonagem = new AtualizarPersonagem(personagens, mesas, usuarios, publicador);
+
   const registroComandos = new RegistroComandosChat({
     fala: (ctx, comando) => enviarMensagem.executar(ctx.usuarioId, ctx.mesaId, comando.conteudo),
     rolagem: (ctx, comando) =>
@@ -208,7 +226,7 @@ async function iniciar(): Promise<void> {
     aceitarConvite: new AceitarConvite(mesas, usuarios, relogio),
     criarPersonagem: new CriarPersonagem(personagens, mesas, usuarios, geradorId),
     listarPersonagens: new ListarPersonagens(personagens, mesas),
-    atualizarPersonagem: new AtualizarPersonagem(personagens, mesas, usuarios, publicador),
+    atualizarPersonagem,
     removerPersonagem: new RemoverPersonagem(personagens, mesas),
     duplicarPersonagem: new DuplicarPersonagem(personagens, mesas, usuarios, geradorId),
     enviarMensagem,
@@ -231,6 +249,7 @@ async function iniciar(): Promise<void> {
     criarToken: new CriarToken(cenas, mesas, geradorId, publicador),
     moverToken: new MoverToken(cenas, mesas, personagens, publicador),
     atualizarToken: new AtualizarToken(cenas, mesas, publicador),
+    alternarCondicaoToken: new AlternarCondicaoToken(cenas, mesas, publicador),
     definirImagemToken: new DefinirImagemToken(
       cenas,
       mesas,
@@ -239,6 +258,29 @@ async function iniciar(): Promise<void> {
       publicador,
     ),
     removerToken: new RemoverToken(cenas, mesas, publicador, armazenamentoTokens),
+    obterCombate: new ObterCombate(combates, mesas),
+    iniciarCombate: new IniciarCombate(combates, cenas, mesas, geradorId, publicador),
+    // `rolarDados` entra como port estreita: existe UMA rolagem, então o total
+    // gravado na iniciativa é o mesmo que a mesa viu no chat.
+    rolarIniciativa: new RolarIniciativa(
+      combates,
+      cenas,
+      mesas,
+      personagens,
+      rolarDados,
+      publicador,
+    ),
+    passarTurno: new PassarTurno(combates, mesas, publicador, avisoDeCombate),
+    encerrarCombate: new EncerrarCombate(combates, mesas, publicador),
+    aplicarDano: new AplicarDano(
+      combates,
+      cenas,
+      mesas,
+      personagens,
+      atualizarPersonagem,
+      publicador,
+      avisoDeCombate,
+    ),
     verificarParticipacao: new VerificarParticipacao(mesas),
   };
 

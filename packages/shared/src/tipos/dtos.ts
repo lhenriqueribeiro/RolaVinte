@@ -1,5 +1,6 @@
 import type { AvaliacaoRolagem } from '../chat/avaliacao';
 import type { ResultadoRolagem } from '../dados/motor-dados';
+import type { CondicaoToken } from '../schemas/jogo';
 import type { Atributos } from '../schemas/personagens';
 import type { SistemaRpg } from '../schemas/mesas';
 import type { DadosFicha } from '../sistemas/tipos';
@@ -140,6 +141,15 @@ export interface TokenDTO {
    * verdade que divergem no primeiro dano.
    */
   imagemUrl: string | null;
+  /**
+   * Condições ativas na peça (RV-064), sem repetição e na ordem do catálogo de
+   * `CONDICOES`. Lista vazia é o caso normal.
+   *
+   * **Quem lê precisa tolerar a ausência do campo**, e não só o `[]`: um
+   * `TokenDTO` em cache de uma versão anterior chega sem ele. Trate como
+   * "nenhuma condição".
+   */
+  condicoes: CondicaoToken[];
 }
 
 /** Resposta de `GET /mesas/:mesaId/cena` — a cena ativa (ou `null`) com seus tokens. */

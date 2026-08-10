@@ -15,7 +15,7 @@ Raiz do repositório: `C:\Projetos\RolaVinte`, que já é o seu diretório de tr
 5. A release note mais recente em [docs/release-notes/](../release-notes/) — é onde o estado real e as limitações conhecidas ficam registrados.
 6. [taxonomia-de-falhas.md](taxonomia-de-falhas.md) — as classes de defeito que este projeto já produziu. Não repita nenhuma.
 
-> **Aviso sobre os guardrails:** `.claude/rules/` descreve princípios, e alguns trechos descrevem a estrutura de arquivos como ela era no início do projeto. Quando o texto e o código divergirem, **o código manda** — e você registra a divergência em `descobertas`. Princípio desatualizado é bug de documentação; siga o princípio, corrija o mapa.
+> **Como ler os guardrails:** `.claude/rules/` diz **o princípio** e **o teste objetivo** que um revisor aplica, não o inventário do repositório. Fato do estado atual (caminho, contagem, o que já está aplicado) você **mede**, não lê de um documento — ver [10-verificabilidade.md](../../.claude/rules/10-verificabilidade.md). Quando texto e código divergirem, **o código manda**, e a divergência vai para `descobertas`: documento que descreve estrutura que deixou de existir é bug de documentação, e o próximo agente escreve contra ela.
 
 ## 2. Meça o estado, não confie no briefing
 
@@ -28,10 +28,12 @@ O briefing que você recebeu descreve o repositório no momento em que a fase fo
 ## 3. Regras inegociáveis de arquitetura
 
 - **Regra de dependência**: `dominio` ← `aplicacao` ← `infra`/`apresentacao`. É proibido importar `fastify`, `@supabase/*`, `resend` ou `socket.io` em `apps/api/src/dominio` ou `apps/api/src/aplicacao`. O lint barra, e [fronteiras-arquitetura.test.ts](../../apps/api/src/testes/fronteiras-arquitetura.test.ts) prova que barra.
-- **Todo acesso externo novo passa por port** declarada em `aplicacao/ports/`, com adapter em `infra/`.
+- **Todo acesso externo novo passa por port** declarada em `aplicacao/ports/`, com adapter em `infra/`. Isso inclui arquivo: upload e remoção passam por `ArmazenamentoArquivos`, com o caminho **gerado pela aplicação**, e o SDK do provedor não aparece fora de `infra/`.
+- **Evento de tempo real novo segue os quatro passos** de [05-backend.md](../../.claude/rules/05-backend.md#criar-um-evento-novo--os-quatro-passos-na-ordem). Pular um deles é como o evento órfão nasceu (F2).
+- **Comportamento que varia por sistema de RPG só existe no registro de sistemas** de `packages/shared`. `switch (sistema)` ou `if (sistema === …)` em caso de uso, schema ou componente é rejeitado.
 - **Falha esperada devolve `Result`**, nunca exceção. Exceção é bug.
 - **Autorização é regra de domínio.** Verifique no agregado ou no caso de uso — nunca só escondendo o botão. Se a proteção existe apenas na UI, ela não existe.
-- **Reuse as guardas do agregado.** `Mesa.autorizarEscritaDeParticipante(usuarioId)` e `Mesa.autorizarEscritaDoMestre(usuarioId, mensagem)` já cobrem participação **e** mesa encerrada juntas. Reimplementar a checagem à mão é como o congelamento de mesa encerrada furou nas fichas.
+- **Reuse as guardas do agregado.** `Mesa.autorizarEscritaDeParticipante(usuarioId)` e `Mesa.autorizarEscritaDoMestre(usuarioId, mensagem)` já cobrem participação **e** mesa encerrada juntas; `ehParticipante`/`ehMestre` são consulta, não autorização. Reimplementar a checagem à mão é como o congelamento de mesa encerrada furou nas fichas — norma e teste objetivo em [02-ddd.md](../../.claude/rules/02-ddd.md#guardas-do-agregado--reuse-nunca-reimplemente).
 - **Contratos vivem em `packages/shared`.** Schemas Zod, DTOs e eventos WS. O front nunca redeclara — isso já foi violado e custou retrabalho.
 - **PT-BR** em nomes de domínio e em todo texto de UI.
 - **Proibido `any`.** Use `unknown` com narrowing.

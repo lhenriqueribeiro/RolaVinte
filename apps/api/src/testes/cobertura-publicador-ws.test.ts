@@ -3,6 +3,7 @@ import {
   EVENTOS_SERVIDOR_PARA_CLIENTE,
   SALA_MESA,
   type CenaDTO,
+  type CombateDTO,
   type MensagemDTO,
   type NomeEventoServidorParaCliente,
   type PersonagemDTO,
@@ -79,6 +80,7 @@ const TOKEN: TokenDTO = {
   y: 4,
   personagemId: null,
   imagemUrl: null,
+  condicoes: [],
 };
 
 const CENA: CenaDTO = {
@@ -119,6 +121,17 @@ const PERSONAGEM: PersonagemDTO = {
   dados: {},
 };
 
+const COMBATE: CombateDTO = {
+  id: 'combate-1',
+  mesaId: MESA_ID,
+  cenaId: CENA.id,
+  rodada: 1,
+  indiceTurno: 0,
+  ativo: true,
+  participantes: [{ tokenId: TOKEN.id, nome: TOKEN.nome, iniciativa: 18 }],
+  tokenIdDoTurno: TOKEN.id,
+};
+
 /**
  * Uma forma de publicar cada evento do contrato. O `Record` é o ponto do
  * mecanismo: chave faltando ou chave sobrando não compila.
@@ -134,6 +147,7 @@ const PUBLICACAO_POR_EVENTO: Record<
   'cena:ativada': (p) => p.cenaAtivada(MESA_ID, CENA),
   'personagem:atualizado': (p) => p.personagemAtualizado(MESA_ID, PERSONAGEM),
   'mesa:participante-removido': (p) => p.participanteRemovido(MESA_ID, { usuarioId: 'u1' }),
+  'combate:atualizado': (p) => p.combateAtualizado(MESA_ID, COMBATE),
 };
 
 interface Emissao {

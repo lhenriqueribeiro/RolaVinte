@@ -55,6 +55,10 @@ export class PublicadorSocket implements PublicadorEventosMesa {
     this.io.to(SALA_MESA(mesaId)).emit('personagem:atualizado', personagem);
   }
 
+  combateAtualizado(mesaId: string, combate: PayloadEventoServidor<'combate:atualizado'>): void {
+    this.io.to(SALA_MESA(mesaId)).emit('combate:atualizado', combate);
+  }
+
   participanteRemovido(
     mesaId: string,
     dados: Omit<PayloadEventoServidor<'mesa:participante-removido'>, 'mesaId'>,

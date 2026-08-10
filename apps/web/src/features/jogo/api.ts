@@ -4,7 +4,11 @@ import type {
   AtualizarTokenEntrada,
   CenaComTokensDTO,
   CenaDTO,
+  CombateAtivoDTO,
+  CombateDTO,
+  CondicaoToken,
   MensagemDTO,
+  PersonagemDTO,
   TokenDTO,
 } from '@rolavinte/shared';
 import { CAMPO_IMAGEM_FUNDO, CAMPO_IMAGEM_TOKEN } from '@rolavinte/shared';
@@ -235,6 +239,28 @@ export function useAtualizarToken(mesaId: string) {
   });
 }
 
+/**
+ * Marcar e desmarcar uma condição da peça (RV-064) — só o mestre; jogador recebe
+ * 403.
+ *
+ * Uma condição por requisição (`{ condicao, aplicada }`), e não a lista inteira:
+ * a substituição total faria a marcação do mestre e a do painel de combate
+ * apagarem uma à outra. O `onSuccess` remenda `['cena', mesaId]` com o token que
+ * a rota devolveu, e o `token:atualizado` faz o mesmo para os outros clientes —
+ * sem refetch e sem PV copiado (o token continua sem PV).
+ */
+export function useAlternarCondicaoToken(mesaId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (dados: { tokenId: string; condicao: CondicaoToken; aplicada: boolean }) =>
+      requisitar<TokenDTO>(`/tokens/${dados.tokenId}/condicoes`, {
+        metodo: 'PATCH',
+        corpo: { condicao: dados.condicao, aplicada: dados.aplicada },
+      }),
+    onSuccess: (token) => aplicarTokenAtualizado(queryClient, mesaId, token),
+  });
+}
+
 /** Upload da arte do token (RV-041). */
 export function useDefinirImagemToken(mesaId: string) {
   const queryClient = useQueryClient();
@@ -250,5 +276,160 @@ export function useRemoverToken(mesaId: string) {
   return useMutation({
     mutationFn: (tokenId: string) => requisitar<void>(`/tokens/${tokenId}`, { metodo: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cena', mesaId] }),
+  });
+}
+
+/**
+ * Chave do combate em curso da mesa. Escrita **uma vez** e usada pela query, por
+ * cada mutação e pelo ouvinte de `combate:atualizado`: três lugares escrevendo a
+ * mesma chave à mão é como dois caches da mesma coisa aparecem.
+ */
+export function chaveDoCombate(mesaId: string): [string, string] {
+  return ['combate', mesaId];
+}
+
+/**
+ * Grava o combate no cache no **formato do `GET`** (`CombateAtivoDTO`).
+ *
+ * É o único ponto do front que traduz `CombateDTO` para o que o painel lê, e por
+ * isso vale para as duas origens: a resposta de uma mutação e o evento
+ * `combate:atualizado` (que importa esta função em vez de repetir a regra).
+ *
+ * Combate encerrado chega com `ativo: false` e é gravado como `null` — o mesmo
+ * valor que `GET /mesas/:id/combate` devolve fora da luta. Assim o painel esvazia
+ * lendo um formato só, sem um segundo estado de "acabou agora" para tratar.
+ */
+export function aplicarCombate(
+  queryClient: QueryClient,
+  mesaId: string,
+  combate: CombateDTO,
+): void {
+  queryClient.setQueryData<CombateAtivoDTO>(chaveDoCombate(mesaId), {
+    combate: combate.ativo ? combate : null,
+  });
+}
+
+/**
+ * O combate em curso da mesa (RV-063) — leitura de **todo participante**, não só
+ * do mestre: a ordem e de quem é a vez são justamente o que o jogador precisa ver.
+ *
+ * `{ combate: null }` é a resposta normal fora da luta, e não um erro: a rota
+ * responde 200 com esse corpo. O painel usa isso para o estado vazio.
+ */
+export function useCombate(mesaId: string) {
+  return useQuery({
+    queryKey: chaveDoCombate(mesaId),
+    queryFn: () => requisitar<CombateAtivoDTO>(`/mesas/${mesaId}/combate`),
+  });
+}
+
+/** Inicia o combate com os tokens escolhidos na cena ativa (RV-061) — 201. */
+export function useIniciarCombate(mesaId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (tokenIds: string[]) =>
+      requisitar<CombateDTO>(`/mesas/${mesaId}/combate`, {
+        metodo: 'POST',
+        corpo: { tokenIds },
+      }),
+    onSuccess: (combate) => aplicarCombate(queryClient, mesaId, combate),
+  });
+}
+
+/**
+ * Rola a iniciativa de um participante (RV-061 / RV-158).
+ *
+ * `rolagem` é a chave da forma de rolar que o **sistema** declara; `expressao` só
+ * viaja para peça sem ficha. Quem decide qual dos dois vai é
+ * `pedidoDeIniciativa`, em `painel-iniciativa.ts`, com o motivo escrito lá.
+ *
+ * `motivo` fica de fora de propósito: vazio faz o servidor escrever
+ * `Iniciativa (Percepção) — <nome>` no chat, dizendo **qual regra** foi aplicada.
+ * Mandar um motivo daqui apagaria essa informação da linha do chat.
+ *
+ * A mensagem da rolagem chega ao chat pelo `mensagem:nova`, como toda rolagem —
+ * não há `setQueryData` de mensagens aqui.
+ */
+export function useRolarIniciativa(mesaId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (dados: {
+      combateId: string;
+      tokenId: string;
+      rolagem?: string;
+      expressao?: string;
+    }) =>
+      requisitar<{ combate: CombateDTO; mensagem: MensagemDTO }>(
+        `/combates/${dados.combateId}/iniciativa`,
+        {
+          metodo: 'POST',
+          corpo: {
+            tokenId: dados.tokenId,
+            ...(dados.rolagem === undefined ? {} : { rolagem: dados.rolagem }),
+            ...(dados.expressao === undefined ? {} : { expressao: dados.expressao }),
+          },
+        },
+      ),
+    onSuccess: (resposta) => aplicarCombate(queryClient, mesaId, resposta.combate),
+  });
+}
+
+/** Passa o turno; na volta ao primeiro, o servidor anuncia a rodada no chat (RV-062). */
+export function usePassarTurno(mesaId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    // `corpo: {}` pelo mesmo motivo de `useAtivarCena`: o cliente central sempre
+    // manda `Content-Type: application/json`, e o Fastify recusa um POST com esse
+    // cabeçalho e corpo vazio antes de chegar à rota.
+    mutationFn: (combateId: string) =>
+      requisitar<CombateDTO>(`/combates/${combateId}/proximo-turno`, {
+        metodo: 'POST',
+        corpo: {},
+      }),
+    onSuccess: (combate) => aplicarCombate(queryClient, mesaId, combate),
+  });
+}
+
+/**
+ * Encerra o combate (RV-062). A resposta vem com `ativo: false`, e é isso que
+ * esvazia o painel — o histórico da luta continua no servidor.
+ */
+export function useEncerrarCombate(mesaId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (combateId: string) =>
+      requisitar<CombateDTO>(`/combates/${combateId}/encerrar`, { metodo: 'POST', corpo: {} }),
+    onSuccess: (combate) => aplicarCombate(queryClient, mesaId, combate),
+  });
+}
+
+/**
+ * Dano (delta negativo) e cura (positivo) pelo painel (RV-065) — só o mestre.
+ *
+ * A rota devolve o `PersonagemDTO`, porque é a ficha que muda: o combate não
+ * guarda PV. Então o `onSuccess` faz duas coisas, e as duas são necessárias:
+ *
+ * 1. **remenda `['personagens', mesaId]`** com a ficha que voltou — é dela que
+ *    saem a barra de vida do token e o PV no painel, sem refetch;
+ * 2. **invalida `['cena', mesaId]`**, porque zerar o PV marca `inconsciente` na
+ *    peça e voltar acima de zero desmarca. Essa mudança **não** está na resposta
+ *    (ela viaja pelo `token:atualizado`), e sem o refetch o mapa continuaria
+ *    mostrando o marcador antigo para quem aplicou o golpe até o socket chegar —
+ *    numa queda de conexão, até o F5.
+ */
+export function useAplicarPv(mesaId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (dados: { combateId: string; tokenId: string; delta: number }) =>
+      requisitar<PersonagemDTO>(`/combates/${dados.combateId}/participantes/${dados.tokenId}/pv`, {
+        metodo: 'POST',
+        corpo: { delta: dados.delta },
+      }),
+    onSuccess: async (personagem) => {
+      queryClient.setQueryData<PersonagemDTO[]>(['personagens', mesaId], (atual) =>
+        atual?.map((p) => (p.id === personagem.id ? personagem : p)),
+      );
+      await queryClient.invalidateQueries({ queryKey: ['cena', mesaId] });
+    },
   });
 }

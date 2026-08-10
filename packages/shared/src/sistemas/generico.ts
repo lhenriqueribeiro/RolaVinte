@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { SistemaRpg } from '../schemas/mesas';
 import { modificadorAtributo } from '../schemas/personagens';
+import { CHAVE_INICIATIVA, ROTULO_INICIATIVA } from './iniciativa';
 import type { DadosFicha, DefinicaoSistema, EscalaDeAtributo, FichaCalculavel } from './tipos';
 
 /**
@@ -81,7 +82,17 @@ export function definicaoGenericaPara(chave: SistemaRpg, nome: string): Definica
     // derivado (RV-098). Nada de material licenciado a atribuir (RV-152).
     atributos: ESCALA_D20_CLASSICA,
     atribuicao: null,
-    rolagensPadrao: [{ chave: 'iniciativa', rotulo: 'Iniciativa', expressao: iniciativaD20 }],
+    // A ficha genérica **mantém** a iniciativa por Destreza (decisão registrada no
+    // RV-158, que é quem lhe deu o primeiro consumidor). Ela não é "um sistema sem
+    // regra": é a ficha do d20 clássico, e isso já está declarado em voz alta duas
+    // linhas acima (`ESCALA_D20_CLASSICA`, `dadoDeTeste: '1d20'`). Tirá-la deixaria
+    // Tormenta 20 e Ordem Paranormal — que reusam esta definição e são d20 — sem
+    // iniciativa nenhuma na plataforma, obrigando o mestre a digitar o bônus de cada
+    // participante à mão. A chave sai da constante do contrato: é por ela que o
+    // consumidor acha a iniciativa.
+    rolagensPadrao: [
+      { chave: CHAVE_INICIATIVA, rotulo: ROTULO_INICIATIVA, expressao: iniciativaD20 },
+    ],
     // Sem perícias: a ficha genérica não presume a lista de nenhum sistema. As
     // três funções abaixo não são "não implementado" — são a resposta correta
     // para um sistema sem perícias, e a interface nem chega a chamá-las porque

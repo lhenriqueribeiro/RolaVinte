@@ -92,6 +92,7 @@ describe('GerenciadorCenas — ativar em um clique (RV-031)', () => {
           y: 3,
           personagemId: null,
           imagemUrl: null,
+          condicoes: [],
         },
       ],
     };

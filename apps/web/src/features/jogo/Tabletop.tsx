@@ -33,6 +33,14 @@ interface Props {
    * nada de PV copiado para o token nem para estado local.
    */
   personagens?: PersonagemDTO[];
+  /**
+   * Peça de quem está no turno do combate (RV-063); `null` fora da luta.
+   *
+   * Vem pronto de `CombateDTO.tokenIdDoTurno` — o mapa **não** recalcula o turno
+   * a partir do índice, senão um `indiceTurno` interpretado de forma diferente
+   * realçaria a peça errada.
+   */
+  tokenIdDoTurno?: string | null;
   /** Mesa encerrada: o mapa vira somente leitura, com o motivo à vista (RV-023). */
   motivoBloqueio?: string | null;
 }
@@ -74,6 +82,7 @@ export function Tabletop({
   souMestre,
   meusPersonagens,
   personagens = [],
+  tokenIdDoTurno = null,
   motivoBloqueio = null,
 }: Props) {
   const mover = useMoverToken(mesaId);
@@ -381,6 +390,7 @@ export function Tabletop({
                 y={arrastando ? arrasto.py : token.y * celula}
                 tamanhoCelula={celula}
                 selecionado={selecionado === token.id}
+                noTurno={tokenIdDoTurno === token.id}
                 arrastando={arrastando}
                 podeMover={podeMover(token)}
                 aoApontar={(e) => iniciarArrasto(e, token)}

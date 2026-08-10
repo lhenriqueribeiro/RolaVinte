@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ESCALA_D20_CLASSICA, formatarBonus } from './generico';
+import { CHAVE_INICIATIVA, ROTULO_INICIATIVA } from './iniciativa';
 import type {
   DadosFicha,
   DefinicaoSistema,
@@ -190,10 +191,15 @@ export const SISTEMA_DND5E: DefinicaoSistema = {
   // já gravadas. Nada a atribuir (RV-152).
   atributos: ESCALA_D20_CLASSICA,
   atribuicao: null,
+  // Uma opção só, e é a regra: em D&D 5e a iniciativa é sempre uma checagem de
+  // Destreza. A chave vem da constante do contrato (RV-158) porque é por ela que o
+  // consumidor acha a iniciativa — um erro de digitação aqui deixaria a mesa sem
+  // iniciativa nenhuma, em silêncio. Alternativas por perícia são regra de PF2e e
+  // ficam na definição de lá.
   rolagensPadrao: [
     {
-      chave: 'iniciativa',
-      rotulo: 'Iniciativa',
+      chave: CHAVE_INICIATIVA,
+      rotulo: ROTULO_INICIATIVA,
       expressao: (ficha) =>
         `1d20${formatarBonus(ESCALA_D20_CLASSICA.modificador(ficha.atributos.destreza))}`,
     },

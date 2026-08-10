@@ -6,14 +6,15 @@ import { Carregando, Erro } from '@/components/ui/Estado';
 import { useSessao } from '@/features/auth/store-sessao';
 import { usePersonagens } from '@/features/personagens/api';
 import { PainelPersonagens } from '@/features/personagens/PainelPersonagens';
-import { useCenaAtiva } from './api';
+import { useCenaAtiva, useCombate } from './api';
 import { motivoDeConexao, rotuloDeConexao, useConexao } from './store-conexao';
 import { useSocketMesa } from './use-socket-mesa';
 import { Tabletop } from './Tabletop';
 import { Chat } from './Chat';
+import { PainelIniciativa } from './PainelIniciativa';
 import { PainelMestre } from './PainelMestre';
 
-type Aba = 'chat' | 'personagens' | 'mestre';
+type Aba = 'chat' | 'combate' | 'personagens' | 'mestre';
 
 export function PaginaMesa() {
   const { mesaId = '' } = useParams();
@@ -21,6 +22,10 @@ export function PaginaMesa() {
   const mesa = useMesa(mesaId);
   const cenaAtiva = useCenaAtiva(mesaId);
   const personagens = usePersonagens(mesaId);
+  // A página lê o combate **só** para realçar a peça do turno no mapa (RV-063). O
+  // painel usa a mesma `queryKey`, então o TanStack serve as duas montagens com
+  // uma requisição — e não há um segundo cache de combate para divergir.
+  const combate = useCombate(mesaId);
   const [aba, setAba] = useState<Aba>('chat');
   // Seletor fino: a página só depende do *estado* da conexão, e nada mais da
   // store — um campo a mais aqui rerenderizaria o tabletop inteiro a cada
@@ -77,6 +82,9 @@ export function PaginaMesa() {
 
   const abas: { id: Aba; rotulo: string }[] = [
     { id: 'chat', rotulo: '💬 Chat' },
+    // A aba de combate é de **todos**: a ordem e de quem é a vez são justamente o
+    // que o jogador precisa ver para se preparar antes do turno (RV-063).
+    { id: 'combate', rotulo: '⚔️ Combate' },
     { id: 'personagens', rotulo: '🧙 Personagens' },
     ...(souMestre ? [{ id: 'mestre' as Aba, rotulo: '👑 Mestre' }] : []),
   ];
@@ -146,6 +154,7 @@ export function PaginaMesa() {
                 souMestre={souMestre}
                 meusPersonagens={meusPersonagens}
                 personagens={personagens.data ?? []}
+                tokenIdDoTurno={combate.data?.combate?.tokenIdDoTurno ?? null}
                 motivoBloqueio={motivoBloqueio}
               />
             ) : (
@@ -182,6 +191,16 @@ export function PaginaMesa() {
           </nav>
           <div className="min-h-0 flex-1">
             {aba === 'chat' && <Chat mesaId={mesaId} motivoBloqueio={motivoBloqueio} />}
+            {aba === 'combate' && (
+              <PainelIniciativa
+                mesaId={mesaId}
+                souMestre={souMestre}
+                tokens={cenaAtiva.data?.tokens ?? []}
+                personagens={personagens.data ?? []}
+                meusPersonagens={meusPersonagens}
+                motivoBloqueio={motivoBloqueio}
+              />
+            )}
             {aba === 'personagens' && (
               <PainelPersonagens
                 mesaId={mesaId}

@@ -33,6 +33,11 @@ export type EventoPublicado =
       nome: 'mesa:participante-removido';
       mesaId: string;
       dados: Omit<PayloadEventoServidor<'mesa:participante-removido'>, 'mesaId'>;
+    }
+  | {
+      nome: 'combate:atualizado';
+      mesaId: string;
+      dados: PayloadEventoServidor<'combate:atualizado'>;
     };
 
 /** Fake de `PublicadorEventosMesa`: registra o broadcast em vez de emitir no socket. */
@@ -77,6 +82,10 @@ export class FakePublicadorEventosMesa implements PublicadorEventosMesa {
     personagem: PayloadEventoServidor<'personagem:atualizado'>,
   ): void {
     this.registros.push({ nome: 'personagem:atualizado', mesaId, dados: personagem });
+  }
+
+  combateAtualizado(mesaId: string, combate: PayloadEventoServidor<'combate:atualizado'>): void {
+    this.registros.push({ nome: 'combate:atualizado', mesaId, dados: combate });
   }
 
   participanteRemovido(

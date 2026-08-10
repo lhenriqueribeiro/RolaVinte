@@ -26,6 +26,13 @@ export interface RowToken {
   personagem_id: string | null;
   imagem_url: string | null;
   imagem_caminho: string | null;
+  /**
+   * `text[]` da migration `0011` (RV-064). Tipado com `null` porque uma linha
+   * lida por um cliente que ainda não conhece a coluna, ou um `select` de antes
+   * dela, chega assim — `Token.reconstituir` normaliza e o token fica sem
+   * condição, em vez de estourar.
+   */
+  condicoes: string[] | null;
 }
 
 export function rowParaCena(row: RowCena): Cena {
@@ -73,6 +80,7 @@ export function rowParaToken(row: RowToken): Token {
     personagemId: row.personagem_id,
     imagemUrl: row.imagem_url,
     imagemCaminho: row.imagem_caminho,
+    condicoes: row.condicoes ?? [],
   });
 }
 
@@ -87,5 +95,7 @@ export function tokenParaRow(token: Token): RowToken {
     personagem_id: token.personagemId,
     imagem_url: token.imagemUrl,
     imagem_caminho: token.imagemCaminho,
+    // Array novo: o upsert não pode mandar a lista interna do agregado.
+    condicoes: [...token.condicoes],
   };
 }

@@ -288,6 +288,27 @@ Cenário: Exclusão exige confirmação
   replica a cascata e por isso o experimento fica vermelho nele — mas se `COLUNAS_TOKEN` perder a
   coluna no adapter real, o sintoma é silencioso: o bucket volta a crescer e nada acusa.
 - Nada mais no backlog cobre isso: RV-009 pega **coluna inexistente** (tipos), não comportamento; RV-133 (E2E) roda com `PERSISTENCIA=memoria` (RV-006), ou seja, **nem o E2E encosta nos adapters Supabase**.
+- **Atualização da v0.9.0 — o molde melhorou e o alvo encolheu, mas o adapter de cenas ficou.**
+  [combate-repository.supabase.test.ts](../../apps/api/src/infra/supabase/combate-repository.supabase.test.ts)
+  nasceu com o padrão certo e é hoje o melhor molde: ele assere o **filtro exato** do `delete` de
+  sincronização (`combate_id=eq.… ` + `token_id=not.in.("…")`), a ordem delete-antes-de-upsert, o combate sem
+  ninguém apagando tudo sem filtro de token e `ativo = false` como upsert (nunca delete). Já
+  `cena-repository.supabase.ts` **continua sem teste**, e agora carrega mais risco: `tokens.condicoes` entrou em
+  `COLUNAS_TOKEN` e a ida e volta contra o Postgres real foi conferida por **script descartável** na entrega do
+  RV-064, não por suíte — o `FakeCenaRepository` regrava o agregado inteiro e jamais exporia uma coluna
+  esquecida no upsert. É o primeiro alvo deste card.
+- **Atualização da v0.9.0 — o cenário de borda deste card contradiz a arquitetura, e é o card que está errado.**
+  A [regra 07](../../.claude/rules/07-supabase.md), reescrita contra o código no RV-140, registra o desenho real:
+  erro do supabase-js é **falha de infraestrutura** e vira exceção com contexto (`garantirSemErro` em
+  `infra/supabase/cliente.ts`), enquanto conflito de negócio é detectado pelo domínio **antes** da escrita —
+  deduzir regra de negócio de código de erro de driver acoplaria o domínio a mensagem de driver. O cenário
+  "unique violation → `Result` de conflito" abaixo pede o contrário e foi corrigido. **Sobra uma janela real,
+  medida e sem dono:** na corrida, o segundo `insert` estoura o `unique` e o cliente recebe **500 em vez de 409**
+  — dois registros simultâneos com o mesmo email, e dois cliques simultâneos em "Iniciar combate" contra o
+  índice único parcial `idx_combates_ativo_por_mesa` da `0012` (que também **não tem consumidor automatizado**:
+  nenhum teste em disco afirma que ele existe). Decidir se essas corridas merecem tradução para 409 é decisão de
+  produto; enquanto não for tomada, o comportamento é "erro genérico em PT-BR", não o 409 que a rota promete no
+  caminho sequencial.
 - **Armadilha:** não transforme isto em teste de banco. Nada de container Postgres no CI ([ci.yml](../../.github/workflows/ci.yml) não tem e não pode ter credencial). O duplo do cliente é o contrato: se ele precisar simular SQL, o teste está grande demais.
 
 **Escopo**
@@ -303,10 +324,11 @@ Cenário: Caminho feliz — a escrita arriscada de cada agregado é observada
   Então o adapter emite o delete daquele token com o filtro correto
   E não regrava os tokens que continuaram na cena
 
-Cenário: Borda — erro do supabase-js vira ErroDominio
-  Dado que o cliente devolve violação de unicidade ao salvar um usuário
+Cenário: Borda — erro do supabase-js falha alto, com contexto da operação
+  Dado que o cliente devolve erro ao salvar um usuário
   Quando o repositório tratar a resposta
-  Então o resultado é um Result de falha do tipo "conflito", sem exceção vazando
+  Então a falha é lançada com o contexto da operação, e não engolida nem convertida em regra de negócio
+  E o conflito de negócio continua sendo detectado pelo domínio antes da escrita
 
 Cenário: Fronteira — nenhum teste toca rede, banco ou credencial
   Dado um ambiente sem variáveis do Supabase
@@ -573,3 +595,88 @@ Cenário: Borda — sem credencial, a falha é legível
       é a lista derivada do diretório que vale, não a escrita neste card.
 - [ ] A checklist do verificador não depende de alguém lembrar de editá-la.
 - [ ] O que o script **não** cobre (check constraints, policies de Storage) está escrito na saída dele.
+
+---
+
+### RV-142 — Roteiro de fumaça contra o ambiente real, com ida e volta de cada campo
+
+**Épico:** E13 · **Depende de:** RV-139 · **Tamanho:** M · **Onda:** 2
+
+> Numeração fora da faixa do épico: `RV-130`…`RV-139` estão ocupados. O card é de operação, e o `**Épico:**`
+> acima é o que vale.
+
+**História**
+> Como **mantenedor prestes a publicar uma versão**, quero **um roteiro executável que percorra o fluxo crítico contra o Supabase real e compare o que gravei com o que releio**, para **parar de descobrir defeito de costura só quando alguém abre o navegador**.
+
+**Contexto técnico**
+- **Este card existe por causa de um padrão medido em quatro sprints, não por gosto por testes.** Os três
+  defeitos mais caros do projeto foram achados **fora da suíte**, com ela verde:
+  [RV-159](15-pathfinder2e.md) (execução com Testing Library), [RV-098](09-fichas.md) (navegador contra o
+  Supabase real, com 1.167 testes verdes) e [RV-160](15-pathfinder2e.md) (API em execução, com 1.475 verdes).
+  Na v0.9.0 o mecanismo pagou de novo, agora dentro da verificação: a rolagem de iniciativa em combate encerrado
+  gravava a mensagem no chat **antes** de recusar.
+- **O que a suíte não alcança, e por que mais um teste unitário não resolve:** a **costura**. F3 (o fake regrava
+  o agregado inteiro e nunca vê a coluna esquecida), F10 (migration em disco não é migration aplicada) e F12
+  (campo exigido na escrita e ignorado na leitura, com cada metade testada sozinha). Os três só aparecem quando
+  algo escreve e **relê** pelo caminho real.
+- **O E2E do [RV-133](#rv-133--e2e-do-fluxo-crítico) não fecha esta classe, por desenho.** Ele roda com
+  `PERSISTENCIA=memoria` (RV-006) para não depender de banco no CI — o próprio
+  [RV-136](#rv-136--cobertura-automatizada-dos-adapters-supabase) já registra que "nem o E2E encosta nos adapters
+  Supabase". E ele depende de [RV-132](#rv-132--deploy-de-api-e-web), que está uma sprint adiante. **Este card
+  não depende de nenhum dos três** e roda hoje, com o projeto Supabase que já existe: é a diferença entre a
+  defesa chegar agora e chegar em duas sprints.
+- **O que já existe para reusar:** `npm run supabase:verificar -w @rolavinte/api` confere migrations aplicadas ×
+  disco e os buckets — ele responde "o schema está lá", **não** "os dados atravessam". `apps/api/scripts/`
+  hospeda os utilitários de migration e é onde o roteiro pertence.
+- **Armadilha — o valor está no `then`, não no `when`.** Um roteiro que só chama rotas e confere status vira
+  monitor de saúde. O que ele tem de fazer é **gravar informando um valor e reler pelo mesmo contrato**,
+  comparando campo por campo, e **falhar nomeando o campo** que voltou diferente. Foi exatamente isso que
+  ninguém tinha quando `atributos` e `dados.modificador*` conviviam com valores contraditórios na mesma linha.
+- **Armadilha — não vire teste de carga nem suíte paralela.** É um roteiro só, curto, rodado à mão antes de
+  publicar. Ele não entra no `npm run test` (exige credencial), não vai para o CI e não replica asserção que a
+  suíte já faz offline.
+- **Armadilha — dado de auditoria em base real é lixo que fica.** A v0.8.0 deixou 4 usuários, 7 mesas, 5
+  personagens e 7 mensagens com prefixos de verificação, porque apagar linha em base real é decisão de quem
+  opera. O roteiro deve marcar tudo o que cria com um prefixo único e **relatar ao fim o que criou**, com o SQL
+  de limpeza pronto — sem apagar por conta própria.
+
+**Escopo**
+- `apps/api/scripts/fumaca-ambiente-real.mjs` — o roteiro, com prefixo por execução e relatório final
+- `apps/api/package.json` — o script `fumaca` (invocado com `-w @rolavinte/api`)
+- `README.md` — como rodar, e a advertência de que ele escreve em base real
+- `.claude/agents/verificador.md` — o roteiro entra na lista de auditoria de quem verifica a sprint
+
+**Critérios de aceite**
+```gherkin
+Cenário: Caminho feliz — o fluxo crítico atravessa
+  Dado um .env apontando para o Supabase em uso
+  Quando eu rodar o roteiro
+  Então ele registra uma conta, cria mesa, cena, token, ficha e combate, rola dados e aplica dano
+  E imprime, em PT-BR, o que criou e o SQL para apagar
+
+Cenário: Ida e volta de campo informado
+  Quando o roteiro gravar cada campo que o usuário informa (atributos, dados do sistema, condições, iniciativa, PV)
+  E reler pelo mesmo contrato de leitura
+  Então qualquer divergência falha nomeando o campo, o valor gravado e o valor relido
+
+Cenário: Borda — migration em disco e não aplicada
+  Dado um arquivo de migration que o banco não registra
+  Então o roteiro para antes de escrever, dizendo qual falta e o comando para aplicá-la
+
+Cenário: Borda — ambiente sem credencial
+  Quando eu rodar sem SUPABASE_URL
+  Então recebo a orientação em PT-BR, sem stack trace cru, e nada é criado
+```
+
+**Testes obrigatórios**
+- O roteiro **é** a verificação; o que precisa de teste é a comparação de ida e volta, que deve ser função pura
+  testável offline (recebe gravado e relido, devolve as divergências nomeadas).
+- Experimento obrigatório de vermelho: remova um campo do `select` de um mapper e confirme que o roteiro
+  **nomeia** o campo perdido. Sem esse experimento o roteiro não vale nada — é a lição da guarda de migration
+  que passava verde por asserção vaga.
+
+**DoD específico**
+- [ ] Roda em menos de dois minutos e não exige navegador.
+- [ ] A saída diz **qual ambiente** foi exercitado, a data e o prefixo usado — sem isso a evidência não é
+      auditável.
+- [ ] Nenhuma asserção duplica algo que a suíte offline já prova.

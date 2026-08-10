@@ -1,4 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import {
+  CONDICOES,
+  CONDICOES_DISPONIVEIS,
+  MENSAGEM_CONDICAO_DESCONHECIDA,
+} from '@rolavinte/shared';
 import { Cena } from './cena';
 import { MENSAGEM_COR_TOKEN, MENSAGEM_NOME_TOKEN, Token } from './token';
 
@@ -211,6 +216,184 @@ describe('Token.definirImagem (RV-041)', () => {
     peca.definirImagem('https://cdn/a.png', 'tokens/token-1/a.png');
 
     expect(peca.cor).toBe('#2ecc71');
+  });
+});
+
+describe('Token — condições (RV-064)', () => {
+  it('nasce sem condição nenhuma', () => {
+    expect(token().condicoes).toEqual([]);
+  });
+
+  it('marca a condição pedida', () => {
+    const peca = token();
+
+    const r = peca.aplicarCondicao('envenenado');
+
+    expect(r.ok).toBe(true);
+    expect(peca.condicoes).toEqual(['envenenado']);
+    expect(peca.temCondicao('envenenado')).toBe(true);
+  });
+
+  it('aplicar "caido" duas vezes deixa a condição uma única vez', () => {
+    const peca = token();
+
+    expect(peca.aplicarCondicao('caido').ok).toBe(true);
+    expect(peca.aplicarCondicao('caido').ok).toBe(true);
+
+    // A asserção é a lista inteira, e não `toContain`: com `toContain` o defeito
+    // "consta duas vezes" passaria verde.
+    expect(peca.condicoes).toEqual(['caido']);
+  });
+
+  it('a ordem de marcação não é observável: A depois B é igual a B depois A', () => {
+    const primeira = token();
+    primeira.aplicarCondicao('envenenado');
+    primeira.aplicarCondicao('caido');
+
+    const segunda = token();
+    segunda.aplicarCondicao('caido');
+    segunda.aplicarCondicao('envenenado');
+
+    expect(primeira.condicoes).toEqual(segunda.condicoes);
+    // E a ordem é a do catálogo, não a de chegada — dois `token:atualizado`
+    // seguidos não podem trocar os ícones de lugar na tela.
+    expect(primeira.condicoes).toEqual(['caido', 'envenenado']);
+  });
+
+  it('desmarca sem tocar nas outras', () => {
+    const peca = token();
+    peca.aplicarCondicao('caido');
+    peca.aplicarCondicao('envenenado');
+    peca.aplicarCondicao('cego');
+
+    const r = peca.removerCondicao('envenenado');
+
+    expect(r.ok).toBe(true);
+    expect(peca.condicoes).toEqual(['caido', 'cego']);
+  });
+
+  it('desmarcar o que não está marcado é sucesso sem efeito', () => {
+    const peca = token();
+    peca.aplicarCondicao('caido');
+
+    const r = peca.removerCondicao('cego');
+
+    expect(r.ok).toBe(true);
+    expect(peca.condicoes).toEqual(['caido']);
+  });
+
+  it.each(['banana', 'CAIDO', 'caído', '', 'inconciente'])(
+    'recusa a condição desconhecida %o com validacao, e nada é marcado',
+    (chave) => {
+      const peca = token();
+
+      const r = peca.aplicarCondicao(chave);
+
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.erro.tipo).toBe('validacao');
+      expect(r.erro.mensagem).toBe(MENSAGEM_CONDICAO_DESCONHECIDA);
+      expect(peca.condicoes).toEqual([]);
+    },
+  );
+
+  it('recusa desmarcar uma chave desconhecida sem alterar a lista', () => {
+    const peca = token();
+    peca.aplicarCondicao('caido');
+
+    const r = peca.removerCondicao('banana');
+
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.erro.mensagem).toBe(MENSAGEM_CONDICAO_DESCONHECIDA);
+    expect(peca.condicoes).toEqual(['caido']);
+  });
+
+  it('temCondicao é consulta: chave desconhecida é falso, não exceção', () => {
+    expect(token().temCondicao('banana')).toBe(false);
+  });
+
+  it('toda condição do catálogo é aplicável — o catálogo é o ponto de extensão', () => {
+    // Derivado do catálogo, não de uma lista escrita à mão aqui: acrescentar uma
+    // condição em `@rolavinte/shared` passa a ser exercitado sem tocar neste teste,
+    // e uma entrada que o domínio recusasse ficaria vermelha nomeando a chave.
+    const peca = token();
+
+    for (const chave of CONDICOES_DISPONIVEIS) {
+      expect(
+        peca.aplicarCondicao(chave),
+        `condição "${chave}" recusada pelo agregado`,
+      ).toMatchObject({ ok: true });
+    }
+
+    expect(peca.condicoes).toEqual([...CONDICOES_DISPONIVEIS]);
+    expect(CONDICOES_DISPONIVEIS.length).toBeGreaterThan(0);
+  });
+
+  it('cada condição do catálogo tem rótulo textual — ícone nunca informa sozinho', () => {
+    for (const chave of CONDICOES_DISPONIVEIS) {
+      const definicao = CONDICOES[chave];
+      expect(definicao.rotulo.trim(), `condição "${chave}" sem rótulo`).not.toBe('');
+      expect(definicao.icone.trim(), `condição "${chave}" sem ícone`).not.toBe('');
+      expect(definicao.descricao.trim(), `condição "${chave}" sem descrição`).not.toBe('');
+    }
+  });
+
+  it('condições não interferem em nome, cor, posição nem arte', () => {
+    const mapa = cena();
+    const peca = token({ nome: 'Gob1', cor: '#e74c3c', x: 2, y: 3 }, mapa);
+    peca.definirImagem('https://cdn/a.png', 'tokens/token-1/a.png');
+
+    peca.aplicarCondicao('atordoado');
+
+    expect(peca.nome).toBe('Gob1');
+    expect(peca.cor).toBe('#e74c3c');
+    expect([peca.x, peca.y]).toEqual([2, 3]);
+    expect(peca.imagemUrl).toBe('https://cdn/a.png');
+  });
+
+  it('mover não apaga as condições marcadas', () => {
+    const mapa = cena();
+    const peca = token({}, mapa);
+    peca.aplicarCondicao('caido');
+
+    expect(peca.mover(5, 5, mapa).ok).toBe(true);
+
+    expect(peca.condicoes).toEqual(['caido']);
+  });
+});
+
+describe('Token.reconstituir — condições vindas do banco (RV-064)', () => {
+  function doBanco(condicoes: readonly string[]): Token {
+    return Token.reconstituir({
+      id: 'token-1',
+      cenaId: CENA_ID,
+      nome: 'Gob1',
+      cor: '#e74c3c',
+      x: 1,
+      y: 1,
+      personagemId: null,
+      imagemUrl: null,
+      imagemCaminho: null,
+      condicoes,
+    });
+  }
+
+  it('normaliza a ordem e as duplicatas gravadas por uma versão anterior', () => {
+    expect(doBanco(['envenenado', 'caido', 'envenenado']).condicoes).toEqual([
+      'caido',
+      'envenenado',
+    ]);
+  });
+
+  it('descarta chave que não está mais no catálogo, sem derrubar a leitura', () => {
+    // Sem isto, uma condição retirada do catálogo (ou escrita à mão no Postgres)
+    // deixaria a cena com um marcador que a tela não sabe desenhar.
+    expect(doBanco(['caido', 'banana']).condicoes).toEqual(['caido']);
+  });
+
+  it('lista vazia é o estado normal de toda peça já gravada', () => {
+    expect(doBanco([]).condicoes).toEqual([]);
   });
 });
 

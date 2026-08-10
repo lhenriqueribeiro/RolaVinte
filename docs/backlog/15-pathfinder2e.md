@@ -885,7 +885,8 @@ Cenário: Borda — limite de Destreza ausente
 > guardas em disco provam a ausência em vez de prometê-la (`ataques.test.ts`): nenhum arquivo de
 > `apps/api/src` conhece o vocabulário deste card, e nenhuma migration fala de ataque. Um teste de front
 > clica **duas vezes no mesmo botão** e exige a mesma expressão — se a tela contasse, o segundo clique
-> sairia `-5` e ninguém saberia zerar. Quando o RV-062 existir, ele pré-seleciona o botão e nada disto muda.
+> sairia `-5` e ninguém saberia zerar. *(O RV-062 passou a existir na v0.9.0; a pré-seleção continua não
+> implementada, e a decisão sobre ela é o [RV-162](#rv-162--a-ficha-justifica-o-map-manual-com-um-fato-que-deixou-de-ser-verdade).)*
 > **A tabela é `MAP_POR_ORDEM` em [regras.ts](../../packages/shared/src/sistemas/pathfinder2e/regras.ts)**,
 > com uma coluna para arma comum e outra para ágil, pela mesma disciplina do destreinado no RV-151. Há teste
 > exigindo que a ágil **não** seja "um a menos": a diferença é 1 no segundo golpe e 2 no terceiro, e derivar
@@ -957,7 +958,7 @@ Cenário: Borda — limite de Destreza ausente
 
 **Contexto técnico**
 - Regra (OGC): ação com o traço *ataque* usada mais de uma vez no mesmo turno sofre −5 no segundo e −10 no terceiro em diante; arma **ágil** troca por −4/−8. A penalidade é calculada **pela arma daquele ataque**, não pela anterior. Zera no fim do turno.
-- **Decisão crítica — o MAP não é estado do servidor neste card.** Sem [RV-060 (agregado Combate) e RV-062 (controle de turno)](06-combate.md), o servidor não sabe de quem é o turno nem quando zerar o contador; um contador global seria estado compartilhado errado por construção. Aqui o MAP é **escolha explícita do jogador**: três botões rotulados ("1º ataque", "2º ataque −5", "3º ataque −10"). Quando RV-062 existir, ele pode **pré-selecionar** o botão; a ficha não muda.
+- **Decisão crítica — o MAP não é estado do servidor neste card.** Quando este card foi escrito e executado (v0.8.0), [RV-060 e RV-062](06-combate.md) não existiam, então o servidor não sabia de quem era o turno nem quando zerar um contador, e um contador global seria estado compartilhado errado por construção. Aqui o MAP é **escolha explícita do jogador**: três botões rotulados ("1º ataque", "2º ataque −5", "3º ataque −10"). **Atualização de 2026-08-10 (v0.9.0): RV-060 e RV-062 foram entregues, então a premissa acima é história e não estado atual** — o servidor entrega `CombateDTO.tokenIdDoTurno`. A escolha explícita continua sendo a decisão vigente; se o contador vier, ele **pré-seleciona** e a ficha não muda. O texto de UI que ainda repete a premissa falsa é o [RV-162](#rv-162--a-ficha-justifica-o-map-manual-com-um-fato-que-deixou-de-ser-verdade).
 - **Armadilha F6 — promessa da UI.** Não rotule nada como "automático". O texto do botão precisa dizer que a escolha é sua, porque é.
 - **Decisão — crítico não dobra dano sozinho.** Acerto com sucesso crítico dobra o dano da arma. Este card **informa** ("Sucesso crítico — dano dobrado") e oferece a variante dobrada como botão rotulado; dobrar em silêncio esconde a regra de quem está aprendendo e vira discussão na mesa.
 - Acerto e dano são **duas rolagens separadas**, como já é no RV-092.
@@ -1101,7 +1102,18 @@ Cenário: Borda — semente estourando o teto
 
 ### RV-158 — Iniciativa por Percepção no combate de PF2e
 
-**Épico:** E15 · **Depende de:** RV-061, RV-155 · **Tamanho:** M · **Onda:** 3
+**Épico:** E15 · **Depende de:** RV-061, RV-155 · **Tamanho:** M · **Onda:** 3 · **Status:** ✅ Concluído (v0.9.0)
+
+> **Decisões de entrega (v0.9.0):** as cinco estão no bloco "Decisões registradas na execução" ao fim do card.
+> O que o card entregou além do enunciado: `rolagensPadrao` deixou de ser contrato órfão (é a última F2 do
+> épico), a Percepção **não foi recalculada** — a iniciativa lê a mesma lista de `defesas(ficha)` que a ficha
+> desenha, com teste comparando as duas expressões caractere por caractere —, e a iniciativa passou a existir
+> em Tormenta 20 e Ordem Paranormal por herança da definição genérica (decisão registrada no código: a
+> alternativa era deixar as duas sem iniciativa nenhuma; para Ordem Paranormal, cuja iniciativa é a perícia
+> Agilidade, é aproximação declarada até a ficha própria existir).
+> **Consequência aberta que este card criou:** com `expressao` opcional, a expressão informada vence a
+> derivação **para qualquer papel**, e o jogador pode escolher o próprio número por chamada direta à rota — é
+> [RV-066](06-combate.md#rv-066--iniciativa-informada-é-privilégio-do-mestre-hoje-o-jogador-escolhe-o-próprio-número).
 
 **História**
 > Como **mestre de PF2e**, quero **que "rolar iniciativa" use a Percepção da ficha (ou a perícia que a cena pedir)**, para **começar o combate sem perguntar o número de cada jogador**.
@@ -1118,7 +1130,13 @@ Cenário: Borda — semente estourando o teto
   quando um sistema declarar `rolagensPadrao` sem que nada as ofereça.
 - Depende de **Percepção rolável** (RV-155, cenário acrescentado na curadoria da v0.7.0): a iniciativa de
   PF2e é uma checagem de Percepção, e o bônus tem que sair da ficha, não de um número digitado.
-- **Armadilha — empate silencioso é bug de mesa.** Decisão a implementar e a escrever na UI: em empate, personagem de jogador vem antes de NPC; entre iguais, vale a ordem de entrada no combate. A ordem tem que ser **estável** entre recarregamentos, não depender de ordenação instável.
+- **Armadilha — empate silencioso é bug de mesa.** A ordem tem que ser **estável** entre
+  recarregamentos, não depender de ordenação instável. *(Corrigido na execução — F11: o enunciado
+  original pedia também "personagem de jogador vem antes de NPC", e esse desempate **não** foi
+  implementado. Ver "Decisões registradas na execução", abaixo: o desempate é do agregado `Combate`
+  (RV-060) e já existe pronto e testado; um segundo desempate aqui exigiria que o participante
+  soubesse se é peça de jogador, que é o vínculo peça↔ficha que o contrato do combate recusou de
+  propósito para não ter duas verdades.)*
 - NPC sem ficha PF2e existe e é comum. O mestre precisa poder digitar o valor na mão sem que o combate trave.
 
 **Escopo**
@@ -1145,9 +1163,9 @@ Cenário: Autorização
 
 Cenário: Borda — empate
   Dado dois participantes com o mesmo total
-  Então o personagem de jogador vem antes do NPC
-  E entre dois iguais vale a ordem de entrada
+  Então vale a ordem de entrada no combate
   E a ordem é idêntica depois de recarregar a página
+  E a regra do desempate está escrita na tela, com as mesmas palavras do servidor
 
 Cenário: Borda — participante sem ficha PF2e
   Dado um NPC sem ficha do sistema
@@ -1156,13 +1174,49 @@ Cenário: Borda — participante sem ficha PF2e
 ```
 
 **Testes obrigatórios**
-- Unitário puro da ordenação: empates entre jogador/NPC, empates entre iguais, estabilidade da ordem em duas execuções.
+- Unitário puro da ordenação: empates entre iguais e estabilidade da ordem em duas execuções — **já
+  entregues e verdes no RV-060** (`apps/api/src/dominio/jogo/combate.test.ts`, inclusive o caso de duas
+  reconstituições com as linhas do banco em ordens invertidas). Este card não os reescreve.
 - Use case com fakes: iniciativa derivada da ficha PF2e; mesa de outro sistema mantém o comportamento do RV-061.
 - Contrato: iniciar combate como jogador → 403.
 
 **DoD específico**
-- [ ] Zero `switch (sistema)` no caso de uso de combate.
-- [ ] A regra de desempate está escrita na UI, não só no código.
+- [x] Zero `switch (sistema)` no caso de uso de combate.
+- [x] A regra de desempate está escrita na UI, não só no código. *(Fechado pelo RV-063: a frase existe
+  uma vez só, em `REGRA_DESEMPATE_INICIATIVA` (`packages/shared/src/schemas/combate.ts`), e o
+  `PainelIniciativa` a **importa** em vez de redigir a própria — há teste comparando o texto na tela com
+  a constante, para que a interface não passe a anunciar um desempate que o servidor não aplica.)*
+
+**Decisões registradas na execução (RV-158)**
+
+1. **O desempate continua sendo o do agregado, e "jogador antes de NPC" não existe** (F11 — o cenário
+   do card foi corrigido acima). Três razões, na ordem do peso: (a) o `Combate` (RV-060) já ordena por
+   iniciativa decrescente com desempate por ordem de entrada, com comparador **total** e provado
+   estável entre duas reconstituições; (b) para saber que uma peça é "de jogador" o participante teria
+   de carregar o vínculo peça↔ficha, que `ParticipanteCombateDTO` recusa **por escrito** para não criar
+   uma segunda verdade sobre esse vínculo (F12); (c) na regra do PF2e o empate é resolvido pelo mestre,
+   não por precedência de jogador — a precedência é convenção de mesa. A frase que a interface deve
+   mostrar está escrita uma vez em `REGRA_DESEMPATE_INICIATIVA`, para a tela não descrever um
+   desempate que o servidor não aplica (F6).
+2. **A iniciativa é derivada no servidor, e `expressao` virou opcional** em `rolarIniciativaSchema`.
+   Era obrigatória com a justificativa "quem chama diz o que está rolando, porque quem responde é
+   `rolagensPadrao` no RV-158" — este card é o RV-158, então quem responde passou a ser consultado.
+   `expressao` informada continua mandando (é o NPC sem ficha e o valor que o mestre digita), e nada
+   do RV-061 quebrou. Efeito colateral desejado: a iniciativa do jogador deixou de ser um número que
+   o cliente escolhe.
+3. **A ficha genérica mantém a iniciativa por Destreza.** Ela não é "sistema sem regra": é a ficha do
+   d20 clássico, e já declara isso em `ESCALA_D20_CLASSICA` e `dadoDeTeste: '1d20'`. Tirá-la deixaria
+   Tormenta 20 e Ordem Paranormal — que reusam esta definição — sem iniciativa nenhuma na plataforma.
+4. **As alternativas por perícia são declaradas pelo sistema**, como entradas `iniciativa:<perícia>` de
+   `rolagensPadrao`, e não montadas genericamente a partir de `definicao.pericias`: "o mestre pode
+   pedir outra perícia" é regra de PF2e, e oferecê-la numa mesa de D&D 5e seria legislar sobre regra
+   alheia — do lado errado, porque em D&D a iniciativa é sempre Destreza. Há teste provando que a mesa
+   de D&D recusa `iniciativa:furtividade`.
+5. **A F2 de `rolagensPadrao` foi fechada por dois testes, e por dois porque um só não alcança.**
+   `packages/shared/src/sistemas/iniciativa.test.ts` exige que toda rolagem padrão declarada seja
+   oferecida como opção (vermelho nomeando sistema e chave); `apps/api/src/aplicacao/jogo/iniciativa-do-sistema.test.ts`
+   rola a iniciativa de **todo** sistema do registro sem informar expressão e compara com o que a
+   definição declara — é este que fica vermelho se o caso de uso parar de perguntar.
 
 ---
 
@@ -1493,3 +1547,71 @@ Cenário: Borda — CD fora da faixa
 - [ ] Um único componente de campo de CD no front, consumido pelas três seções.
 - [ ] Nenhuma CD gravada em `personagens.dados`.
 - [ ] Zero `switch (sistema)`: a presença do campo deriva de `avaliarRolagem !== null`.
+
+---
+
+### RV-162 — A ficha justifica o MAP manual com um fato que deixou de ser verdade
+
+**Épico:** E15 · **Depende de:** RV-156 (✅), RV-062 (✅) · **Tamanho:** P · **Onda:** 2
+
+**História**
+> Como **jogador de PF2e**, quero **que a ficha não me explique uma limitação com um motivo que a aba ao lado desmente**, para **confiar no que a plataforma diz sobre si mesma**.
+
+**Contexto técnico**
+- **Medido na verificação da v0.9.0.** O texto de ajuda da seção Ataques
+  ([ataques.ts](../../packages/shared/src/sistemas/pathfinder2e/ataques.ts):562-563) diz ao usuário que a
+  plataforma não conta os ataques dele **"porque ela ainda não sabe de quem é o turno"**. A segunda metade
+  ficou falsa nesta sprint: `Combate` (RV-060) e `PassarTurno` (RV-062) existem, e o servidor entrega
+  `CombateDTO.tokenIdDoTurno`.
+- **Três lugares repetem a premissa falsa**, e é por isso que ela contamina quem chega depois: o texto exibido,
+  o comentário no topo do mesmo arquivo (que diz que combate e turno "são da Sprint 4") e a mensagem da guarda
+  em `ataques.test.ts`. A justificativa do próprio [RV-156](#rv-156--ataques-com-penalidade-de-ataques-múltiplos)
+  também segue dizendo que "sem RV-060 e RV-062 o servidor não sabe de quem é o turno" — é a F11 da
+  [taxonomia](../agentes/taxonomia-de-falhas.md) esperando acontecer: o próximo agente lê que o combate não
+  existe.
+- **Nenhum teste fixa a cláusula falsa** (a guarda cobra "não conta os seus ataques", que continua verdadeiro),
+  então a correção do texto é de uma linha — **depois** de a decisão ser tomada.
+- **A decisão que este card precisa tomar:** agora que o turno existe, o contador de MAP deve ser automático?
+  O que foi medido na entrega do combate: (1) o contador por participante zerado a cada `proximoTurno` é
+  barato, porque o agregado já tem o gatilho; (2) a associação `turno → ficha` já existe pelo caminho
+  `tokenIdDoTurno → TokenDTO.personagemId`; (3) **a regra não é trivial** — em PF2e o MAP conta ações de
+  ataque, e Golpe Duplo, ataques de oportunidade e reações fora do próprio turno também contam, então um
+  contador ingênuo por turno erraria justamente nos casos em que o jogador mais precisaria de ajuda.
+- **Recomendação registrada:** manter os três botões como verdade única e, se houver contador, ele **pré-seleciona**
+  em vez de decidir — foi o que o RV-156 previu por escrito ("quando RV-062 existir, ele pode pré-selecionar o
+  botão"). E a ausência de contador continua sendo verificada por duas varreduras em disco: se este card criar
+  um, elas precisam ser reescritas no mesmo lote, não removidas.
+- **Armadilha — não deixe a ficha ler o combate para calcular ataque.** A ficha é do contexto de personagens e
+  o turno é do contexto de jogo; o vínculo é por id, e a ordem 1ª/2ª/3ª continua sendo escolha explícita de
+  quem clica. Uma ficha que dependa de haver combate ativo passa a mentir fora do combate.
+
+**Escopo**
+- `packages/shared/src/sistemas/pathfinder2e/ataques.ts` — o texto exibido e o comentário do topo
+- `packages/shared/src/sistemas/pathfinder2e/ataques.test.ts` — a mensagem da guarda
+- `docs/backlog/15-pathfinder2e.md` — a justificativa do RV-156, que descreve o combate como inexistente
+- Se a decisão for pré-selecionar: `apps/web/src/features/personagens/` + o contador no agregado `Combate`
+
+**Critérios de aceite**
+```gherkin
+Cenário: O texto diz a verdade
+  Quando eu abrir a seção de ataques de uma ficha de PF2e
+  Então a explicação sobre escolher a ordem do ataque não afirma que a plataforma desconhece o turno
+
+Cenário: Fora do combate a ficha não muda
+  Dado que não há combate ativo na mesa
+  Então os três botões de acerto continuam disponíveis, com o MAP de cada ordem
+
+Cenário: Borda — se houver pré-seleção
+  Dado um combate ativo com o turno na minha peça e um ataque já rolado nesta rodada
+  Então o botão sugerido é o do segundo ataque
+  E eu continuo podendo escolher outro, e o valor rolado é o do botão que eu cliquei
+```
+
+**Testes obrigatórios**
+- A guarda existente de "nenhum contador de MAP" continua verde, ou é reescrita com o experimento de vermelho
+  registrado.
+- Se houver contador: zerar a cada turno, e a reação fora do próprio turno **não** silenciar o botão manual.
+
+**DoD específico**
+- [ ] Nenhum texto de UI justifica uma limitação com um fato de estado do projeto — a justificativa é da regra
+      do sistema, ou não existe.

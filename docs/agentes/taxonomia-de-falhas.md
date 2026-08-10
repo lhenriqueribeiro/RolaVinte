@@ -10,6 +10,8 @@ Serve a três propósitos:
 
 Ao encontrar uma classe nova, **acrescente-a aqui** com o caso concreto. Este arquivo só tem valor se crescer.
 
+**O que este arquivo não é:** um painel de pendências. Cada caso está datado pela versão em que apareceu e serve para ensinar a *forma* do defeito; se um deles já foi corrigido, a classe continua valendo — foi ela que produziu o defeito uma vez e produzirá de novo. O que está aberto agora vive no [backlog](../backlog/README.md) e na [release note](../release-notes/) mais recente, que são revisados a cada entrega.
+
 ---
 
 ## F1 — Defesa que não defende
@@ -28,7 +30,7 @@ Duas pontas que deveriam casar, e nada verifica o casamento.
 
 **Causa raiz.** `eventos-ws.ts` se declarava "única fonte de verdade" e tinha **zero consumidores** — nenhum lado aplicava os genéricos.
 
-**Estado hoje (RV-115).** Genéricos aplicados nos dois lados + [cobertura-eventos-ws.test.ts](../../apps/web/src/features/jogo/cobertura-eventos-ws.test.ts). Criar evento novo exige 4 passos, descritos no card RV-115. O lado inverso — evento declarado que ninguém publica — ainda está aberto (RV-116).
+**O mecanismo que fechou.** Os genéricos do contrato passaram a ser aplicados nos dois lados, e as duas direções do órfão ganharam teste: [ouvinte no cliente](../../apps/web/src/features/jogo/cobertura-eventos-ws.test.ts) e [publicador no servidor](../../apps/api/src/testes/cobertura-publicador-ws.test.ts). Criar evento novo passou a exigir uma sequência de quatro passos, que é norma e está em [05-backend.md](../../.claude/rules/05-backend.md#criar-um-evento-novo--os-quatro-passos-na-ordem) — não a decore de memória, siga a lista.
 
 **Como caçar:** um contrato só é fonte de verdade se alguém **quebrar** quando ele for desrespeitado. Contrato sem consumidor é comentário.
 
@@ -38,7 +40,7 @@ O teste passa porque o dublê é mais generoso que o adapter real.
 
 **Caso real (v0.3.0).** `SupabaseMesaRepository.salvar()` só fazia *upsert* de `mesa_jogadores`: remover um participante do agregado não apagava a linha do banco, e ele voltava na leitura seguinte. O `FakeMesaRepository` regrava o agregado inteiro, então **jamais** exporia o bug.
 
-**Como caçar:** quando o comportamento depende de *como o adapter persiste* (sincronização, cascata, ordem de operações), o teste tem que estar no adapter. Hoje só `mesa-repository` tem cobertura assim; os outros seguem descobertos (RV-136).
+**Como caçar:** quando o comportamento depende de *como o adapter persiste* (sincronização, cascata, ordem de operações), o teste tem que estar no adapter — e o fake não conta como segunda opinião. A pergunta que pega: se eu apagar um filho do agregado e reler, o fake e o adapter concordam? Cobertura de adapter existe onde essa pergunta já foi feita; onde não foi, presuma descoberto e confira antes de confiar no verde.
 
 ## F4 — Autorização só na interface
 
@@ -52,7 +54,7 @@ Botão escondido tratado como controle de acesso.
 
 **Caso real (v0.3.0).** `Mesa` ganhou `autorizarEscritaDeParticipante`/`autorizarEscritaDoMestre`, que cobrem participação **e** mesa encerrada. Os seis casos de uso de jogo passaram a usá-las, mas `criar-personagem` e `atualizar-personagem` continuaram com `ehParticipante(...)` cru — resultado: com a mesa encerrada ainda dava para criar ficha e editar PV, **enquanto a UI prometia "somente leitura para todo mundo"**. Corrigido em v0.4.0 (RV-027).
 
-**Como caçar:** quando uma regra ganha um ponto único, procure **todos** os call sites antigos. Uma varredura, não memória.
+**Como caçar:** quando uma regra ganha um ponto único, procure **todos** os call sites antigos. Uma varredura, não memória. Para estas duas guardas em especial, a norma e o teste objetivo estão em [02-ddd.md](../../.claude/rules/02-ddd.md#guardas-do-agregado--reuse-nunca-reimplemente): consulta (`ehMestre`, `ehParticipante`) não é autorização.
 
 ## F6 — Promessa da UI que o backend não cumpre
 
@@ -66,9 +68,11 @@ Texto de interface é contrato com o usuário.
 
 Registro apagado do banco, arquivo esquecido no armazenamento.
 
-**Caso real (v0.4.0, aberto — RV-047).** `RemoverToken` apaga a linha e nunca chama `armazenamento.remover(...)`; nem recebe a port. `RemoverCena` limpa o mapa de fundo, mas as artes dos tokens que somem por cascata ficam para sempre no bucket.
+**Caso real (v0.4.0).** A remoção de token apagava a linha e nunca o arquivo — não recebia nem a port de armazenamento. A remoção de cena limpava o mapa de fundo, mas as artes dos tokens que somem por cascata ficavam para sempre no bucket.
 
-**Como caçar:** para todo `delete`, pergunte o que mais aquele registro possuía fora do banco. Cascata de FK não alcança Storage.
+**O mecanismo que fechou.** A limpeza é best-effort, escrita **uma vez só** e reusada por quem apaga: o caminho vem do que a entidade guardou (nunca reconstruído a partir da URL pública) e a falha do Storage não altera o `Result` — arquivo que sobrou é custo, não inconsistência de domínio. A norma está em [07-supabase.md](../../.claude/rules/07-supabase.md#storage).
+
+**Como caçar:** para todo `delete`, pergunte o que mais aquele registro possuía fora do banco, **inclusive o que sai por cascata**. Cascata de FK não alcança Storage.
 
 ## F8 — Pulo silencioso
 
@@ -82,7 +86,7 @@ Etapa que não roda e não avisa.
 
 Campo validado sozinho, ignorando o estado que ele invalida.
 
-**Caso real (v0.4.0, aberto — RV-036).** `Cena.atualizar` valida `larguraGrid`/`alturaGrid` na faixa 5..100, mas não olha os tokens já posicionados. Encolher de 100×100 para 5×5 deixa tokens fora do mapa, desenhados no vazio, **sem caminho na UI para trazê-los de volta**.
+**Caso real (v0.4.0).** A atualização da cena validava largura e altura do grid contra a faixa permitida, mas não olhava os tokens já posicionados. Encolher o mapa deixava tokens fora dele, desenhados no vazio, **sem caminho na UI para trazê-los de volta**. A correção deu à cena a régua "quem ficaria fora destas dimensões?", consultada apenas quando o pedido encolhe o grid.
 
 **Como caçar:** ao encolher qualquer limite, pergunte o que já existe do lado de fora do novo limite.
 

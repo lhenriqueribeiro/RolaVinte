@@ -43,6 +43,7 @@ const TOKEN: TokenDTO = {
   y: 1,
   personagemId: null,
   imagemUrl: null,
+  condicoes: [],
 };
 
 /** Câmera do estado inicial: o efeito de centralização roda na montagem. */

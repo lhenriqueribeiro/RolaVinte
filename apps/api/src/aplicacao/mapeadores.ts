@@ -54,5 +54,8 @@ export function tokenParaDTO(token: Token): TokenDTO {
     personagemId: token.personagemId,
     // Como na cena: o caminho no armazenamento fica no agregado, só a URL sai.
     imagemUrl: token.imagemUrl,
+    // Cópia: o DTO é serializado e não pode carregar a referência interna do
+    // agregado, senão quem receber consegue escrever nas condições da peça.
+    condicoes: [...token.condicoes],
   };
 }

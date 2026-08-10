@@ -8,6 +8,7 @@ import type {
 } from '@rolavinte/shared';
 import { useSessao } from '@/features/auth/store-sessao';
 import { obterSocket } from '@/lib/socket';
+import { aplicarCombate } from './api';
 import { useConexao } from './store-conexao';
 
 /**
@@ -25,13 +26,13 @@ import { useConexao } from './store-conexao';
  * - `['personagens']` — PV das fichas, que alimenta a barra de vida no token;
  * - `['mesa']` — participação: um `mesa:participante-removido` perdido deixaria
  *   na tela uma mesa da qual já não faço parte, que é exatamente o defeito
- *   original do RV-021.
- *
- * `['combate']` está no card e não entra aqui porque essa query ainda não
- * existe — a iniciativa é o RV-118. Quem a criar acrescenta a chave a esta
- * lista e ao teste de invalidações exatas.
+ *   original do RV-021;
+ * - `['combate']` — ordem de iniciativa, rodada e turno (RV-063). Sem esta chave
+ *   uma queda no meio da luta deixa o painel apontando o turno de quem já agiu:
+ *   os `combate:atualizado` do intervalo foram entregues a um socket que não
+ *   estava lá, e nada mais reescreve esse cache até o próximo evento.
  */
-const CACHES_RESSINCRONIZADOS = ['mensagens', 'cena', 'personagens', 'mesa'] as const;
+const CACHES_RESSINCRONIZADOS = ['mensagens', 'cena', 'personagens', 'mesa', 'combate'] as const;
 
 /**
  * Handler de um evento do servidor, com o payload vindo do contrato — nunca
@@ -175,6 +176,26 @@ export function useSocketMesa(mesaId: string) {
       void queryClient.invalidateQueries({ queryKey: ['mesas'] });
     };
 
+    /**
+     * RV-061 … RV-065: o combate mudou (começou, iniciativa rolada, turno passado,
+     * encerrado). O payload é o `CombateDTO` inteiro, então o cache é **reescrito**
+     * em vez de remendado: a ordem de iniciativa só faz sentido completa, e
+     * recalculá-la aqui seria uma segunda implementação da regra de desempate do
+     * servidor.
+     *
+     * Combate encerrado chega com `ativo: false` e é gravado como `null`, que é o
+     * que `GET /mesas/:id/combate` devolve fora da luta — o painel esvazia lendo o
+     * mesmo formato dos dois caminhos, sem um segundo estado para tratar.
+     *
+     * A tradução em si é de `aplicarCombate` (em `api.ts`), a mesma função que as
+     * mutações do painel usam: duas escritas do mesmo cache com duas regras
+     * próprias divergiriam no primeiro encerramento.
+     */
+    const combateAtualizado: EventoDoServidor<'combate:atualizado'> = (combate) => {
+      if (combate.mesaId !== mesaId) return;
+      aplicarCombate(queryClient, mesaId, combate);
+    };
+
     socket.on('connect', aoConectar);
     // `disconnect` é a queda propriamente dita; `connect_error` é cada tentativa
     // frustrada de voltar (e a primeira falha de handshake). Os dois desembocam
@@ -188,6 +209,7 @@ export function useSocketMesa(mesaId: string) {
     socket.on('cena:ativada', cenaAtivada);
     socket.on('personagem:atualizado', personagemAtualizado);
     socket.on('mesa:participante-removido', participanteRemovido);
+    socket.on('combate:atualizado', combateAtualizado);
 
     return () => {
       socket.emit('mesa:sair', mesaId);
@@ -201,6 +223,7 @@ export function useSocketMesa(mesaId: string) {
       socket.off('cena:ativada', cenaAtivada);
       socket.off('personagem:atualizado', personagemAtualizado);
       socket.off('mesa:participante-removido', participanteRemovido);
+      socket.off('combate:atualizado', combateAtualizado);
     };
   }, [mesaId, queryClient]);
 }

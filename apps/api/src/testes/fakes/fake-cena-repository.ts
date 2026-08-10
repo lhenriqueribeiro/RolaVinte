@@ -27,6 +27,8 @@ interface RegistroToken {
   personagemId: string | null;
   imagemUrl: string | null;
   imagemCaminho: string | null;
+  /** Espelha a coluna `tokens.condicoes` da migration `0011` (RV-064). */
+  condicoes: string[];
 }
 
 /** Fake em memória de `CenaRepository` — cenas e tokens da cena. */
@@ -103,6 +105,9 @@ export class FakeCenaRepository implements CenaRepository {
       personagemId: token.personagemId,
       imagemUrl: token.imagemUrl,
       imagemCaminho: token.imagemCaminho,
+      // Cópia, como o `tokenParaRow` do adapter: guardar a lista do agregado
+      // faria o fake "persistir" mutações que nunca foram salvas.
+      condicoes: [...token.condicoes],
     });
   }
 

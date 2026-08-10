@@ -258,6 +258,7 @@ describe('AtualizarCena — encolher o grid não abandona tokens (RV-036)', () =
           personagemId: null,
           imagemUrl: null,
           imagemCaminho: null,
+          condicoes: [],
         }),
       );
     }
@@ -407,6 +408,7 @@ describe('AtivarCena', () => {
         personagemId: null,
         imagemUrl: null,
         imagemCaminho: null,
+        condicoes: [],
       }),
     );
     await criar('Cripta');
@@ -479,6 +481,7 @@ describe('RemoverCena', () => {
           personagemId: null,
           imagemUrl: null,
           imagemCaminho: null,
+          condicoes: [],
         }),
       );
     }
@@ -494,6 +497,7 @@ describe('RemoverCena', () => {
         personagemId: null,
         imagemUrl: null,
         imagemCaminho: null,
+        condicoes: [],
       }),
     );
 
@@ -567,6 +571,7 @@ describe('RemoverCena — as artes dos tokens somem do Storage (RV-047)', () => 
         personagemId: null,
         imagemUrl: caminho ? `https://storage.teste.local/tokens/${caminho}` : null,
         imagemCaminho: caminho,
+        condicoes: [],
       }),
     );
     return caminho;

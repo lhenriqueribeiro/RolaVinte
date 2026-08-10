@@ -252,14 +252,24 @@ describe('ficha de PF2e — o atributo é o modificador, e tem uma casa só (RV-
   });
 
   it('toda rolagem padrão que existir usa a escala do sistema, não a do d20', () => {
-    // `rolagensPadrao` está vazio (a iniciativa do PF2e é por Percepção e chega no
-    // RV-158). A varredura é a rede que impede a iniciativa por Destreza da ficha
-    // genérica — `(valor - 10) / 2` — de entrar aqui por descuido: com Destreza
-    // +4, a expressão tem de trazer +4.
+    // `rolagensPadrao` passou a ter as dezessete opções de iniciativa no RV-158
+    // (Percepção + as perícias). A varredura continua sendo a rede que impede a
+    // fórmula do d20 clássico — `(valor - 10) / 2` — de entrar aqui por descuido:
+    // com **todos** os modificadores em +4 e a ficha destreinada, cada expressão tem
+    // de trazer +4; pela fórmula do d20 traria −3, que é um número plausível.
+    //
+    // Os seis atributos juntos, e não só a Destreza, porque a iniciativa deste
+    // sistema sai da Sabedoria (a Percepção) e as alternativas saem de outros seis
+    // atributos diferentes: fixar um só deixaria dezesseis das dezessete sem prova.
     const dados = fichaInicial();
+    const atributos = ATRIBUTOS.reduce(
+      (acc, atributo) => ({ ...acc, [atributo]: 4 }),
+      comModificador('destreza', 4),
+    );
+    expect(SISTEMA_PATHFINDER2E.rolagensPadrao.length).toBeGreaterThan(0);
     for (const rolagem of SISTEMA_PATHFINDER2E.rolagensPadrao) {
       expect(
-        rolagem.expressao({ nivel: 5, atributos: comModificador('destreza', 4), dados }),
+        rolagem.expressao({ nivel: 5, atributos, dados }),
         `a rolagem "${rolagem.chave}" não usa o modificador gravado: ela deriva o ` +
           `número por uma fórmula que não é deste sistema.`,
       ).toContain('+4');

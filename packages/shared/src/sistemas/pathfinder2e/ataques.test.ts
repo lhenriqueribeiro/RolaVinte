@@ -659,9 +659,10 @@ describe('guarda: o MAP não é estado do servidor (DoD do RV-156)', () => {
 
     expect(
       culpados,
-      'a api passou a conhecer o MAP. Ela não deve: sem o agregado de Combate (RV-060) e o ' +
-        'controle de turno (RV-062), o servidor não sabe de quem é o turno nem quando zerar o ' +
-        'contador — e um contador que mente é pior que nenhum. Arquivos:\n' +
+      'a api passou a conhecer o MAP. Ela não deve: saber de quem é o turno (RV-062, entregue) ' +
+        'não é saber quais ataques contam — reação fora do turno é isenta, Golpe Duplo gasta duas ' +
+        'entradas — e um contador que mente é pior que nenhum. O contador é o RV-162, com a regra ' +
+        'escrita antes do código. Arquivos:\n' +
         culpados.join('\n'),
     ).toEqual([]);
   });

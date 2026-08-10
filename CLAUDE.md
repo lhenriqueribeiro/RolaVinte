@@ -29,14 +29,15 @@ npm run dev -w @rolavinte/api
 npm run dev -w @rolavinte/web
 npm run lint                # eslint: estilo + fronteiras de arquitetura (zero aviso tolerado)
 npm run format              # prettier --write
-npm run check               # lint + typecheck de todos os workspaces — obrigatório antes de entregar
+npm run docs:verificar      # confere a documentação: caminho, comando e fato volátil
+npm run check               # lint + docs:verificar + typecheck dos workspaces — obrigatório antes de entregar
 npm run test                # vitest em todos os workspaces
 npm run build               # build de produção
 ```
 
 O lint é a versão executável dos guardrails abaixo: `eslint.config.js` codifica a regra de dependência com `no-restricted-imports` por diretório, e `apps/api/src/testes/fronteiras-arquitetura.test.ts` prova que cada fronteira dispara.
 
-Configuração: copie `.env.example` para `apps/api/.env`. Sem `RESEND_API_KEY` os emails caem no console; sem Supabase configurado a API não sobe (fail fast em `config/env.ts`). Migrations SQL em `apps/api/supabase/migrations/` (aplicar no SQL Editor do Supabase, em ordem).
+Configuração: copie `.env.example` para `apps/api/.env`. Sem `RESEND_API_KEY` os emails caem no console; sem Supabase configurado a API não sobe (fail fast em `config/env.ts`). As migrations SQL ficam em `apps/api/supabase/migrations/` e são aplicadas em ordem por `npm run supabase:migrar -w @rolavinte/api`; `npm run supabase:verificar -w @rolavinte/api` compara os arquivos em disco com o que o banco registra ter aplicado. "Está implementado" e "está aplicado" são estados diferentes.
 
 ## Arquitetura — regras inegociáveis
 
@@ -48,7 +49,7 @@ Os guardrails completos estão em `.claude/rules/` e **devem ser lidos antes de 
 4. [04-design-patterns.md](.claude/rules/04-design-patterns.md) — padrões canônicos e proibidos
 5. [05-backend.md](.claude/rules/05-backend.md) — estrutura da api, rotas, sockets, migrations
 6. [06-frontend.md](.claude/rules/06-frontend.md) — feature-sliced, Query vs Zustand, sockets
-7. [07-supabase.md](.claude/rules/07-supabase.md) — convenções de schema, mappers, RLS
+7. [07-supabase.md](.claude/rules/07-supabase.md) — convenções de schema, migrations derivadas, mappers, RLS, Storage
 8. [08-email.md](.claude/rules/08-email.md) — Resend atrás de port, envio por eventos
 9. [09-testes-e-qualidade.md](.claude/rules/09-testes-e-qualidade.md) — pirâmide de testes, DoD
 10. [10-verificabilidade.md](.claude/rules/10-verificabilidade.md) — **toda afirmação precisa de um consumidor que quebra**; documentação por volatilidade
@@ -56,9 +57,12 @@ Os guardrails completos estão em `.claude/rules/` e **devem ser lidos antes de 
 Resumo do que quebra o build de review:
 
 - Import de fastify/supabase/resend em `dominio/` ou `aplicacao/` (a regra de dependência aponta para dentro).
+- Nome de camada em inglês: os diretórios são `dominio/`, `aplicacao/`, `infra/`, `apresentacao/`.
+- Acesso externo novo sem port em `aplicacao/ports/` — inclusive arquivo, que passa por `ArmazenamentoArquivos` com caminho gerado pela aplicação.
+- Escrita autorizada à mão em vez das guardas do agregado `Mesa` (`autorizarEscritaDeParticipante` / `autorizarEscritaDoMestre`), que cobrem participação **e** mesa encerrada.
 - Lógica de negócio em rota, handler de socket ou componente React.
 - Falha esperada lançada como exceção em vez de `Result`.
-- Front redeclarando contrato que existe em `@rolavinte/shared`.
+- Front redeclarando contrato que existe em `@rolavinte/shared`, ou evento de socket sem ouvinte.
 - Texto de UI fora de PT-BR.
 - Contrato novo sem um consumidor que quebre quando ele for desrespeitado, ou teste protetor cuja falha ninguém viu ([10-verificabilidade.md](.claude/rules/10-verificabilidade.md)).
 
@@ -80,5 +84,5 @@ O roteiro do produto vive em [docs/backlog/](docs/backlog/README.md), organizado
 
 - **Auth**: registro/login → JWT no header `Authorization` (REST) e no handshake do socket.
 - **Mesa**: mestre cria mesa → convida por email (Resend, token de uso único) → convidado aceita e vira jogador.
-- **Jogo em tempo real**: cliente conecta socket → `entrarNaMesa(mesaId)` (autoriza participação) → sala `mesa:{id}` recebe `mensagem:nova`, `token:atualizado`, `cena:ativada`.
+- **Jogo em tempo real**: cliente conecta socket (JWT no handshake) → emite `mesa:entrar`, que só é aceito depois da verificação de participação → passa a receber, na sala `mesa:{id}`, os fatos declarados em [eventos-ws.ts](packages/shared/src/tipos/eventos-ws.ts). Comando vai por REST; o socket entrega fatos.
 - **Dados**: expressão (`4d6kh3+2`) validada pelo VO `ExpressaoDados` → `ServicoRolagemDados` (RNG injetável) → mensagem de rolagem persistida e broadcast.

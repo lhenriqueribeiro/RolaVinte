@@ -2,6 +2,8 @@
 
 Copie o bloco abaixo ao criar um card novo. Numere na faixa do épico (`RV-0X0` … `RV-0X9`) e registre-o no índice do [README](README.md).
 
+Quando a faixa do épico estiver esgotada — já aconteceu com o E15 (RV-160, RV-161, RV-162) e com o E13 (RV-142) —, continue no primeiro número livre **fora** da faixa, declare o épico na linha de metadados e ajuste a coluna "Cards" da tabela de épicos. Não reaproveite número de card e não crie épico só para caber a numeração: o que identifica o dono do card é o campo `**Épico:**`, não o número.
+
 ---
 
 ### RV-000 — Título curto no imperativo

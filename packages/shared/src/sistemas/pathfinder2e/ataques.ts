@@ -28,19 +28,20 @@ import { ORDENS_DE_ATAQUE, penalidadeAtaquesMultiplos, type OrdemDeAtaque } from
  * Em nenhum lugar — **não existe contador de MAP nesta plataforma**, nem no
  * servidor, nem no banco, nem em memória.
  *
- * A regra é "por turno e por personagem", e a plataforma **não tem turno**: o
- * agregado de Combate (RV-060) e o controle de turno (RV-062) são da Sprint 4.
- * Contar ataques sem saber de quem é o turno significaria inventar um estado que
- * ninguém sabe zerar: dois jogadores atacando na mesma sala, um F5 no meio do
- * turno, uma reação fora do turno (que a regra **isenta** do MAP) — cada um desses
- * deixaria o contador mentindo, e um contador que mente é pior que nenhum, porque
- * o jogador confia nele. Então a ordem é **escolha explícita do jogador**: três
- * botões rotulados, e a interface diz que a escolha é dele.
+ * A regra é "por turno e por personagem", e saber **de quem é o turno** não é
+ * suficiente para contar — foi o que a v0.9.0 mostrou. Desde que o controle de
+ * turno existe (RV-062), a plataforma sabe a vez; o que ela não sabe é **quais
+ * ataques contam**: reação fora do próprio turno é isenta do MAP, e um Golpe Duplo
+ * gasta duas entradas na conta com uma ação. Contar mal é pior que não contar,
+ * porque o jogador confia no número. Então a ordem continua sendo **escolha
+ * explícita do jogador**: três botões rotulados, e a interface diz que a escolha é
+ * dele.
  *
- * É feio e é honesto. Quando o RV-062 existir, ele pode **pré-selecionar** o botão
- * certo; nem esta tabela nem a ficha mudam — o que muda é quem aponta para a
- * ordem. É por isso que `penalidadeAtaquesMultiplos` recebe a ordem como
- * argumento em vez de lê-la de algum lugar.
+ * É feio e é honesto. O contador automático é card próprio (RV-162), com a regra
+ * escrita **antes** do código, e o desenho é **pré-selecionar** o botão sem
+ * substituir a escolha; nem esta tabela nem a ficha mudam. É por isso que
+ * `penalidadeAtaquesMultiplos` recebe a ordem como argumento em vez de lê-la de
+ * algum lugar.
  *
  * ## Duas rolagens, nunca uma
  *
@@ -559,8 +560,9 @@ export function montarAtaques(dados: DadosFicha, dadoDeTeste: string): readonly 
 export const ATAQUES_PF2E = (dadoDeTeste: string): ModeloDeAtaques => ({
   rotulo: 'Ataques',
   ajuda:
-    'Você escolhe qual golpe do turno está rolando: a plataforma não conta os seus ataques, ' +
-    'porque ela ainda não sabe de quem é o turno. A penalidade é a da arma deste ataque, e zera ' +
+    'Você escolhe qual golpe do turno está rolando: a plataforma não conta os seus ataques por ' +
+    'você, porque nem todo ataque entra na conta — reação fora do seu turno não conta. A ' +
+    'penalidade é a da arma deste ataque, e zera ' +
     'no fim do seu turno. Acertou com sucesso crítico? O dano dobra — use o botão de dano ' +
     'dobrado; nada é dobrado sem o seu clique.',
   rotuloNovo: 'Nome do ataque novo',

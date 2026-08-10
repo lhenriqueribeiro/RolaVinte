@@ -140,6 +140,45 @@ export class Mensagem extends Entidade {
     );
   }
 
+  /**
+   * Aviso da própria plataforma no chat (RV-062, RV-065): "Rodada 2", "Thorin
+   * sofreu 7 de dano (23/30)".
+   *
+   * `tipo: 'sistema'` existe em `TipoMensagem` desde a `0001` e **não tinha
+   * fábrica nem produtor** até este card — era um contrato que ninguém escrevia.
+   * É pública (não restrita, ver `RESTRICAO_POR_TIPO`) e é o que dá à mesa a
+   * memória do combate sem inventar um segundo histórico ao lado do chat.
+   *
+   * `autorId` é `null` de propósito, e é o que distingue este tipo de uma fala:
+   * quem passou o turno foi o mestre, mas o **fato** é da mesa, não dele — atribuir
+   * a autoria faria a linha aparecer como se ele tivesse digitado aquilo. A coluna
+   * já é nullable desde a `0001` (`on delete set null`), então nada no banco muda.
+   */
+  static criarSistema(dados: {
+    id: string;
+    mesaId: string;
+    conteudo: string;
+    agora: Date;
+  }): Result<Mensagem> {
+    const conteudo = Mensagem.validarConteudo(dados.conteudo);
+    if (!conteudo.ok) return falha(conteudo.erro);
+    return ok(
+      new Mensagem(dados.id, {
+        mesaId: dados.mesaId,
+        autorId: null,
+        autorNome: 'Sistema',
+        tipo: 'sistema',
+        conteudo: conteudo.valor,
+        rolagem: null,
+        motivo: null,
+        avaliacao: null,
+        destinatarioId: null,
+        destinatarioNome: null,
+        criadoEm: dados.agora,
+      }),
+    );
+  }
+
   static criarRolagem(dados: DadosRolagem): Mensagem {
     return Mensagem.montarRolagem(dados, 'rolagem');
   }

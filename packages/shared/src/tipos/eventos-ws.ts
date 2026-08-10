@@ -1,3 +1,4 @@
+import type { CombateDTO } from '../schemas/combate';
 import type { CenaDTO, MensagemDTO, PersonagemDTO, TokenDTO } from './dtos';
 
 /**
@@ -43,6 +44,20 @@ export interface EventosServidorParaCliente {
   'personagem:atualizado': (personagem: PersonagemDTO) => void;
   /** Removido pelo mestre ou saída voluntária (RV-021 / RV-022). */
   'mesa:participante-removido': (dados: { mesaId: string; usuarioId: string }) => void;
+  /**
+   * O combate mudou (RV-061 … RV-065): começou, alguém rolou iniciativa, o turno
+   * passou, o combate encerrou.
+   *
+   * Carrega o `CombateDTO` **inteiro**, e não um delta, pela mesma razão do
+   * `personagem:atualizado`: a ordem de iniciativa só faz sentido completa (mudar
+   * uma iniciativa reordena a lista), e um delta obrigaria o cliente a reordenar
+   * — uma segunda implementação da regra de desempate, livre para divergir da do
+   * servidor.
+   *
+   * Um único evento cobre também o encerramento, com `ativo: false`: o painel
+   * esvazia lendo esse campo, sem um segundo nome de evento para manter.
+   */
+  'combate:atualizado': (combate: CombateDTO) => void;
 }
 
 export type NomeEventoServidorParaCliente = keyof EventosServidorParaCliente;
@@ -74,6 +89,7 @@ const REGISTRO_SERVIDOR_PARA_CLIENTE: Record<NomeEventoServidorParaCliente, true
   'cena:ativada': true,
   'personagem:atualizado': true,
   'mesa:participante-removido': true,
+  'combate:atualizado': true,
 };
 
 /** Nomes dos eventos servidor→cliente, como valor. Ver o `Record` acima. */

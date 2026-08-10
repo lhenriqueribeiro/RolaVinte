@@ -9,7 +9,7 @@
     "supabase:sql": "node scripts/sql-de-instalacao.mjs",
     "supabase:verificar": "node --env-file-if-exists=.env scripts/verificar-supabase.mjs",
     "supabase:migrar": "node --env-file-if-exists=.env scripts/migrar-supabase.mjs",
-    "check": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc --noEmit"
   },

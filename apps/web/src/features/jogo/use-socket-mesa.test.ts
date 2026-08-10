@@ -4,6 +4,8 @@ import type { QueryClient } from '@tanstack/react-query';
 import type {
   CenaComTokensDTO,
   CenaDTO,
+  CombateAtivoDTO,
+  CombateDTO,
   MensagemDTO,
   PersonagemDTO,
   TokenDTO,
@@ -67,6 +69,7 @@ function token(id: string, x = 0, y = 0, cenaId = CENA_ID): TokenDTO {
     y,
     personagemId: null,
     imagemUrl: null,
+    condicoes: [],
   };
 }
 
@@ -174,6 +177,9 @@ describe('useSocketMesa — reconexão e ressincronização (RV-112)', () => {
     ['cena', MESA_ID],
     ['personagens', MESA_ID],
     ['mesa', MESA_ID],
+    // RV-063: sem esta chave, uma queda no meio da luta deixa o painel de
+    // iniciativa apontando o turno de quem já agiu até o próximo evento chegar.
+    ['combate', MESA_ID],
   ];
 
   it('reentra na sala e ressincroniza exatamente os caches do tempo real', () => {
@@ -604,5 +610,79 @@ describe('useSocketMesa — personagem atualizado (RV-042)', () => {
     contexto.socket.disparar('personagem:atualizado', personagem('p1', 12));
 
     expect(queryClient.getQueryData(['personagens', MESA_ID])).toBeUndefined();
+  });
+});
+
+describe('useSocketMesa — combate atualizado (RV-063)', () => {
+  function combate(campos: Partial<CombateDTO> = {}): CombateDTO {
+    return {
+      id: 'combate-1',
+      mesaId: MESA_ID,
+      cenaId: CENA_ID,
+      rodada: 1,
+      indiceTurno: 0,
+      ativo: true,
+      participantes: [
+        { tokenId: 't1', nome: 'Thorin', iniciativa: 18 },
+        { tokenId: 't2', nome: 'Gob1', iniciativa: 12 },
+      ],
+      tokenIdDoTurno: 't1',
+      ...campos,
+    };
+  }
+
+  it('reescreve o cache do painel no formato do GET, e não remenda a ordem', () => {
+    const queryClient = criarQueryClientDeTeste();
+    queryClient.setQueryData<CombateAtivoDTO>(['combate', MESA_ID], { combate: combate() });
+    montar(queryClient);
+
+    // Turno passado: o payload é o combate inteiro, então o cache é substituído.
+    // Remendar campo a campo obrigaria o cliente a reordenar quando uma
+    // iniciativa mudasse — uma segunda implementação da regra de desempate.
+    contexto.socket.disparar(
+      'combate:atualizado',
+      combate({ rodada: 2, indiceTurno: 1, tokenIdDoTurno: 't2' }),
+    );
+
+    const emCache = queryClient.getQueryData<CombateAtivoDTO>(['combate', MESA_ID]);
+    expect(emCache?.combate?.rodada).toBe(2);
+    expect(emCache?.combate?.tokenIdDoTurno).toBe('t2');
+  });
+
+  it('combate encerrado chega com ativo: false e o cache vira { combate: null }', () => {
+    const queryClient = criarQueryClientDeTeste();
+    queryClient.setQueryData<CombateAtivoDTO>(['combate', MESA_ID], { combate: combate() });
+    montar(queryClient);
+
+    contexto.socket.disparar('combate:atualizado', combate({ ativo: false }));
+
+    // O mesmo corpo que `GET /mesas/:id/combate` devolve fora da luta: o painel
+    // esvazia lendo um formato só, sem um segundo estado de "acabou agora".
+    expect(queryClient.getQueryData<CombateAtivoDTO>(['combate', MESA_ID])).toEqual({
+      combate: null,
+    });
+  });
+
+  it('grava o combate mesmo sem nada em cache — a luta pode começar com a aba fechada', () => {
+    const queryClient = criarQueryClientDeTeste();
+    montar(queryClient);
+
+    contexto.socket.disparar('combate:atualizado', combate());
+
+    expect(queryClient.getQueryData<CombateAtivoDTO>(['combate', MESA_ID])?.combate?.id).toBe(
+      'combate-1',
+    );
+  });
+
+  it('ignora combate anunciado para outra mesa', () => {
+    const queryClient = criarQueryClientDeTeste();
+    queryClient.setQueryData<CombateAtivoDTO>(['combate', MESA_ID], { combate: combate() });
+    montar(queryClient);
+
+    contexto.socket.disparar('combate:atualizado', combate({ mesaId: 'outra-mesa', rodada: 9 }));
+
+    expect(queryClient.getQueryData<CombateAtivoDTO>(['combate', MESA_ID])?.combate?.rodada).toBe(
+      1,
+    );
   });
 });

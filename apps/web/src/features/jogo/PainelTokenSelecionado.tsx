@@ -4,6 +4,7 @@ import { TIPOS_IMAGEM_TOKEN } from '@rolavinte/shared';
 import { Botao } from '@/components/ui/Botao';
 import { Erro } from '@/components/ui/Estado';
 import { useAtualizarToken, useDefinirImagemToken } from './api';
+import { SeletorCondicoes } from './SeletorCondicoes';
 
 interface Props {
   mesaId: string;
@@ -136,6 +137,8 @@ export function PainelTokenSelecionado({ mesaId, token, motivoBloqueio, aoFechar
         <p className="text-[10px] text-texto-2">PNG, JPEG ou WebP, até 8 MB.</p>
         {enviarArte.isError && <Erro erro={enviarArte.error} compacto />}
       </div>
+
+      <SeletorCondicoes mesaId={mesaId} token={token} motivoBloqueio={motivoBloqueio} />
 
       {motivoBloqueio && <p className="mt-2 text-[11px] text-texto-2">{motivoBloqueio}</p>}
     </aside>

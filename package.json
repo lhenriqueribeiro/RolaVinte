@@ -1,7 +1,7 @@
 {
   "name": "rolavinte",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "workspaces": [
     "packages/*",
@@ -15,7 +15,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "docs:verificar": "node scripts/verificar-docs.mjs",
-    "check": "npm run lint && npm run docs:verificar && npm run check --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "check": "npm run lint && npm run docs:verificar && npm run typecheck",
     "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {
