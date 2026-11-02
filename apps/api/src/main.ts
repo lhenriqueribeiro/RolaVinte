@@ -94,7 +94,11 @@ async function iniciar(): Promise<void> {
   const io: ServidorJogo = new SocketServer(app.server, {
     cors: { origin: env.ORIGEM_WEB },
   });
-  const publicador = new PublicadorSocket(io);
+  // Mesmo tratamento do gateway e do event bus: o tempo real não tem tradutor
+  // central de erro, então cada ponto que pode falhar sozinho recebe o log aqui.
+  const registrarErroWs = (erro: unknown, contexto: string) =>
+    app.log.error({ err: erro, evento: contexto }, 'falha em handler de socket');
+  const publicador = new PublicadorSocket(io, registrarErroWs);
 
   // ── Infraestrutura ────────────────────────────────────────────────
   const sb = criarClienteSupabase(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -286,13 +290,34 @@ async function iniciar(): Promise<void> {
 
   // ── Apresentação ──────────────────────────────────────────────────
   registrarRotas(app, { ...usos, servicoToken });
-  new GatewayJogo(io, servicoToken, usos.verificarParticipacao, (erro, evento) =>
-    app.log.error({ err: erro, evento }, 'falha em handler de socket'),
-  ).iniciar();
+  new GatewayJogo(io, servicoToken, usos.verificarParticipacao, registrarErroWs).iniciar();
 
   await app.listen({ port: env.PORTA, host: '0.0.0.0' });
   app.log.info(`🎲 RolaVinte API no ar em http://localhost:${env.PORTA}`);
 }
+
+/**
+ * Rede de contenção para a promessa que escapar mesmo assim.
+ *
+ * Não substitui tratar a rejeição onde ela nasce — cada handler de socket
+ * continua obrigado ao seu `catch`, e o lint de `apresentacao/ws/` recusa `void`
+ * como se fosse dono. Isto existe porque o preço do descuido é desproporcional:
+ * o padrão do Node ≥15 para uma rejeição sem dono é **encerrar o processo**, e
+ * `npm start` roda o `tsx` direto, sem supervisor que reinicie. Uma promessa
+ * esquecida num caminho qualquer derrubava todas as mesas e todos os jogadores
+ * conectados — foi assim que a API saiu do ar em 2026-11-01.
+ *
+ * Por isso a escolha é registrar e seguir vivo, em vez de morrer calado. O log
+ * é `fatal` de propósito: continuar servindo não torna o defeito aceitável, e
+ * uma linha dessas no log é bug para investigar, não ruído.
+ */
+function registrarRedeDeContencao(): void {
+  process.on('unhandledRejection', (motivo) => {
+    console.error('[rolavinte] promessa rejeitada sem dono — isto é bug:', motivo);
+  });
+}
+
+registrarRedeDeContencao();
 
 iniciar().catch((erro) => {
   console.error('Falha fatal ao iniciar a API:', erro);

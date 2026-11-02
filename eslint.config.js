@@ -205,6 +205,27 @@ export default tseslint.config(
     },
   },
 
+  // ── Tempo real: `void` não é um dono de promessa ────────────────────
+  // `no-floating-promises` aceita `void promessa` por padrão (`ignoreVoid`), e
+  // essa brecha é exatamente a que o projeto já pagou duas vezes: um listener de
+  // socket com rejeição solta derrubou a API inteira, e `void socket.leave(...)`
+  // no publicador repetia a classe um arquivo ao lado — passando por `npm run
+  // check` com zero aviso nas duas ocasiões.
+  //
+  // O HTTP não precisa disto: erro de rota tem tradutor central, e `void
+  // app.register(...)` é a forma documentada do Fastify (a falha aparece em
+  // `ready()`/`listen()`). O tempo real não tem nenhum dos dois — ninguém
+  // observa o que um handler de socket devolve. Por isso a regra é apertada
+  // **só aqui**, onde a ausência de dono é fatal.
+  {
+    name: 'rolavinte/ws-sem-promessa-orfa',
+    files: ['apps/api/src/apresentacao/ws/**/*.ts'],
+    ignores: ['apps/api/src/apresentacao/ws/**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: false }],
+    },
+  },
+
   // Fronteira: apresentacao/ fala com aplicacao; a infra só é montada no
   // composition root (main.ts), que fica fora deste diretório.
   {

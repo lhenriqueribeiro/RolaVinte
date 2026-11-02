@@ -86,7 +86,17 @@ function rolarDado(faces: number, rng: Rng): number {
   return Math.floor(rng() * faces) + 1;
 }
 
-export function rolarExpressao(expressao: string, rng: Rng = Math.random): SaidaRolagem {
+/**
+ * Avalia uma expressão de dados com o RNG que o chamador fornecer.
+ *
+ * `rng` é **obrigatório** de propósito. Enquanto tinha `= Math.random` como
+ * padrão, a regra "RNG entra por injeção" (guardrail 09) dependia de o próximo
+ * chamador lembrar dela: esquecer o argumento compilava, passava no lint e
+ * produzia um teste intermitente por construção, ou uma rolagem de produção
+ * fora do alcance do `ServicoRolagemDados`. Sem o padrão, quem esquece não
+ * compila — a defesa mais barata e a mais difícil de contornar por engano.
+ */
+export function rolarExpressao(expressao: string, rng: Rng): SaidaRolagem {
   const tokens = tokenizar(expressao);
   if (typeof tokens === 'string') return { ok: false, erro: tokens };
 

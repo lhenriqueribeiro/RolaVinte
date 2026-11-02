@@ -180,6 +180,12 @@ describe('useSocketMesa — reconexão e ressincronização (RV-112)', () => {
     // RV-063: sem esta chave, uma queda no meio da luta deixa o painel de
     // iniciativa apontando o turno de quem já agiu até o próximo evento chegar.
     ['combate', MESA_ID],
+    // Sem escopo de mesa porque a lista do painel é global. Entrou na revisão de
+    // 2026-11-01: `mesa:participante-removido` já invalidava `['mesas']` e a
+    // chave nunca tinha entrado aqui, então, com `staleTime` de 30s, voltar de
+    // uma queda e sair da mesa mostrava por meio minuto uma mesa da qual o
+    // jogador já havia sido removido.
+    ['mesas'],
   ];
 
   it('reentra na sala e ressincroniza exatamente os caches do tempo real', () => {
@@ -241,7 +247,7 @@ describe('useSocketMesa — reconexão e ressincronização (RV-112)', () => {
       contexto.socket.disparar('connect');
     }
 
-    // Dez voltas × quatro caches. As tentativas frustradas no meio do caminho
+    // Uma rodada de invalidações por volta. As tentativas frustradas no meio do caminho
     // não somam requisição nenhuma — o espaçamento entre elas é do backoff do
     // socket.io (`OPCOES_RECONEXAO`, em lib/socket.ts).
     expect(invalidar).toHaveBeenCalledTimes(10 * RESSINCRONIZACAO_ESPERADA.length);
@@ -254,8 +260,17 @@ describe('useSocketMesa — reconexão e ressincronização (RV-112)', () => {
 
     contexto.socket.disparar('connect');
 
-    const mesas = invalidar.mock.calls.map(([filtro]) => filtro?.queryKey?.[1]);
-    expect(new Set(mesas)).toEqual(new Set([MESA_ID]));
+    // Chave com escopo (`[recurso, mesaId]`) só pode apontar para esta mesa.
+    // `['mesas']` não tem escopo de propósito — é a lista global do painel — e
+    // por isso entra na contagem abaixo em vez de virar um `undefined` tolerado
+    // no conjunto, que aceitaria de quebra qualquer chave malformada.
+    const escopos = invalidar.mock.calls.map(([filtro]) => filtro?.queryKey).map((c) => c?.[1]);
+    const comEscopo = escopos.filter((escopo) => escopo !== undefined);
+
+    expect(new Set(comEscopo)).toEqual(new Set([MESA_ID]));
+    expect(escopos.length - comEscopo.length).toBe(
+      RESSINCRONIZACAO_ESPERADA.filter((chave) => chave.length === 1).length,
+    );
   });
 });
 

@@ -26,6 +26,8 @@ Não é teoria. Cada linha abaixo é um defeito que este projeto produziu, com a
 | "o ambiente está pronto" | verificador com **lista fixa** de tabelas | migration em disco e fora do banco derrubou **o chat inteiro** | verificador derivado dos arquivos × `migrations_aplicadas` |
 | "atributo é igual em todo sistema" | cada metade testada sozinha | ficha ignorava o que o jogador digitava, com a suíte verde | teste de ida e volta: grava informando, relê, compara |
 | "este projeto não é um repositório git" | nada ligava a frase ao fato | agentes liam instrução errada por oito versões | `docs:verificar` + pergunta na auditoria do verificador |
+| "a lista de ressincronização é exatamente a dos caches escritos pelos handlers" | **só o comentário que dizia isso** | `['mesas']` passou a ser escrito e nunca entrou na lista: por 30s depois de reconectar, o painel mostrava mesa da qual o jogador já tinha sido removido | teste que dispara todo evento do contrato e compara as chaves tocadas com a lista, nos dois sentidos |
+| "nenhuma promessa sai do tempo real sem dono" | `no-floating-promises` **aceita `void`** como se fosse dono | um handler sem `catch` derrubou a API inteira; a mesma forma estava repetida no publicador | `ignoreVoid: false` em `apresentacao/ws/`, e `leave` com um dono só em `salas.ts` |
 
 O padrão é sempre o mesmo, e é o que torna este guardrail necessário: **a afirmação era verdadeira quando escrita.** Nenhuma nasceu errada. Todas apodreceram porque o mundo mudou e nada estava preso a elas.
 

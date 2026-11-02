@@ -45,6 +45,8 @@ O que cada diretório de `apps/api/src/` responde — nomes de classe ficam de f
 - Um socket entra na sala `mesa:{id}` **somente** após autenticação no handshake e verificação de participação. A sala pessoal por mesa (destino de sussurro e rolagem oculta) entra no mesmo instante e sai junto — não existe caminho para receber mensagem privada de mesa da qual não se participa.
 - Payload que chega do cliente é `unknown` e **continua** passando por Zod. Os genéricos do Socket.IO descrevem o que um cliente bem-comportado envia, não o que chegou pelo fio. Tipo não substitui validação.
 - Entrega restrita nunca é filtrada no cliente: se o dado não pode ser visto, ele não sai do servidor ([02-ddd.md](02-ddd.md)).
+- **Nenhuma promessa sai de um handler de socket sem dono.** O Socket.IO não observa o que um listener devolve: uma rejeição que escape derruba o processo inteiro — todas as mesas, todos os jogadores (classe **F13** da [taxonomia](../../docs/agentes/taxonomia-de-falhas.md)). O HTTP sobrevive à mesma falha porque tem o tradutor central de erro; aqui o equivalente é a fachada. `void promessa` **não** é tratamento, e por isso o lint de `apresentacao/ws/` roda `no-floating-promises` com `ignoreVoid: false`.
+- Entrar e sair das salas de uma mesa passa por `apresentacao/ws/salas.ts`, nunca por um `join`/`leave` escrito à mão: quais são as salas de uma mesa é uma lista só, e a segunda cópia dela já nasceu incompleta.
 
 ### Criar um evento novo — os quatro passos, na ordem
 

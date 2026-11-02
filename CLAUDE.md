@@ -71,7 +71,7 @@ Resumo do que quebra o build de review:
 Este projeto é construído por agentes em fases. A especificação está em [docs/agentes/](docs/agentes/README.md):
 
 - [protocolo-comum.md](docs/agentes/protocolo-comum.md) — **leitura obrigatória de todo agente** antes de codar: regras de arquitetura, disciplina de concorrência sem isolamento (todos os agentes na mesma árvore de trabalho), e critério de encerramento.
-- [taxonomia-de-falhas.md](docs/agentes/taxonomia-de-falhas.md) — as 12 classes de defeito que este projeto já produziu de verdade. Não reincida.
+- [taxonomia-de-falhas.md](docs/agentes/taxonomia-de-falhas.md) — as classes de defeito que este projeto já produziu de verdade. Não reincida. (A contagem fica lá, e só lá: repetida aqui, ficaria errada na próxima classe — foi o que aconteceu com a décima terceira.)
 - Definições executáveis em [.claude/agents/](.claude/agents/): `implementador-backend`, `implementador-frontend`, `verificador`, `curador-backlog`, `redator-release`.
 
 Duas regras do processo que valem para qualquer contribuição, humana ou não: **quem implementa não verifica o próprio trabalho**, e **teste protetor precisa ter falhado ao menos uma vez** para valer alguma coisa.

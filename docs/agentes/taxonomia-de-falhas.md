@@ -124,3 +124,28 @@ Quem preenchia Força 18 via a perícia calcular como se fosse 0. **A suíte pas
 - Campo **exigido na criação e ausente da tela** é o sintoma mais visível.
 - O teste que pega é o de ida e volta: **grave informando, releia pela API, compare**. Testar cada metade não pega.
 - Desconfie de "isto é igual em todo sistema" — é a forma que a premissa errada costuma ter.
+
+## F13 — Promessa sem dono
+
+Uma promessa rejeita onde ninguém observa o resultado, e o processo inteiro morre.
+
+É a única classe deste catálogo cujo sintoma não é "a tela mente" ou "o dado está errado": é **o servidor sair do ar**. Rejeição não tratada encerra o processo no Node desde a v15, e o `npm start` deste projeto roda o `tsx` direto, sem supervisor que reinicie. Uma promessa esquecida num handler derruba todas as mesas e todos os jogadores conectados ao mesmo tempo.
+
+**Caso real (v0.9.0, 2026-11-01, achado dirigindo o app).** O listener de `mesa:entrar` era `async` e não tinha `catch`. O Socket.IO **não observa** o valor devolvido por um listener, então uma falha de repositório ao verificar participação virava rejeição órfã. Abrir uma mesa com o banco instável matava a API — não a sessão, não a sala: o processo.
+
+**Por que o HTTP não sofre do mesmo.** Lá existe o tradutor central de erro de `apresentacao/http`, e o Fastify observa o que a rota devolve. No tempo real não há nem um nem outro. A fachada `GatewayJogo` é o equivalente, e é por isso que ela existe.
+
+**O irmão que a mesma revisão encontrou.** `participanteRemovido`, no publicador, escrevia `void socket.leave(sala)`. `void` **não é um dono**: ele silencia o `no-floating-promises` e deixa a rejeição exatamente tão órfã quanto antes. Naquele ponto específico o `leave` era síncrono (`RemoteSocket.leave(room): void`) e portanto inofensivo — mas a forma estava lá, a uma mudança de assinatura de distância, e foi a mesma linha que escondeu um defeito de verdade: o removido saía só da sala da mesa e ficava na sala pessoal, que é o destino de sussurro e rolagem oculta.
+
+**O mecanismo que fechou.**
+
+- Sair de sala passou a ter **um dono só**, [`salas.ts`](../../apps/api/src/apresentacao/ws/salas.ts), que embrulha o `leave` em `Promise.resolve(...).catch(...)` e sabe quais são *todas* as salas de uma mesa. Entrada e saída leem a mesma lista.
+- O lint de `apps/api/src/apresentacao/ws/**` roda `no-floating-promises` com `ignoreVoid: false`: ali, `void promessa` é erro. O HTTP fica de fora de propósito — `void app.register(...)` é a forma documentada do Fastify.
+- `main.ts` registra `unhandledRejection` e **loga em vez de morrer**. É rede de contenção, não desculpa: continuar servindo não torna o defeito aceitável, e a linha no log é bug para investigar.
+
+**Como caçar:**
+
+- Todo `.on(...)` cujo handler é `async`, ou que chama algo assíncrono, precisa de `catch` **dentro** do handler. Quem chama não vai esperar por ele.
+- `void promessa` não conta como tratamento. Procure o `catch` de verdade.
+- Promessa criada dentro de um `.then()` e não devolvida está **fora** da cadeia: o `.catch()` lá embaixo não a cobre.
+- Pergunte, para cada promessa: *quem lê o erro disto?* Se a resposta for "ninguém", é esta classe.

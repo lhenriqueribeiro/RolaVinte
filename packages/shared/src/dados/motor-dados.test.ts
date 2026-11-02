@@ -7,6 +7,16 @@ function rngDe(...valores: number[]) {
   return () => valores[i++ % valores.length]!;
 }
 
+/**
+ * Para os casos de **gramática**, em que a expressão é recusada antes de
+ * qualquer dado ser rolado. Nomeado assim para dizer o que diz: aqui o sorteio
+ * não participa do que está sendo afirmado. Explodir se for chamado transforma
+ * em falha barulhenta o dia em que um desses casos passar a rolar de verdade.
+ */
+const RNG_IRRELEVANTE = () => {
+  throw new Error('expressão inválida não deveria chegar a rolar dado');
+};
+
 describe('motor de dados', () => {
   it('rola d20 simples (atalho sem quantidade)', () => {
     const saida = rolarExpressao('d20', rngDe(0.99));
@@ -45,27 +55,27 @@ describe('motor de dados', () => {
   });
 
   it('rejeita 0 dados', () => {
-    expect(rolarExpressao('0d6').ok).toBe(false);
+    expect(rolarExpressao('0d6', RNG_IRRELEVANTE).ok).toBe(false);
   });
 
   it('rejeita mais de 100 dados', () => {
-    expect(rolarExpressao('101d6').ok).toBe(false);
+    expect(rolarExpressao('101d6', RNG_IRRELEVANTE).ok).toBe(false);
   });
 
   it('rejeita faces fora do limite', () => {
-    expect(rolarExpressao('1d1').ok).toBe(false);
-    expect(rolarExpressao('1d1001').ok).toBe(false);
+    expect(rolarExpressao('1d1', RNG_IRRELEVANTE).ok).toBe(false);
+    expect(rolarExpressao('1d1001', RNG_IRRELEVANTE).ok).toBe(false);
   });
 
   it('rejeita kh maior que a quantidade', () => {
-    expect(rolarExpressao('2d6kh3').ok).toBe(false);
+    expect(rolarExpressao('2d6kh3', RNG_IRRELEVANTE).ok).toBe(false);
   });
 
   it('rejeita lixo', () => {
-    expect(rolarExpressao('abc').ok).toBe(false);
-    expect(rolarExpressao('1d6++2').ok).toBe(false);
-    expect(rolarExpressao('').ok).toBe(false);
-    expect(rolarExpressao('1d6+').ok).toBe(false);
+    expect(rolarExpressao('abc', RNG_IRRELEVANTE).ok).toBe(false);
+    expect(rolarExpressao('1d6++2', RNG_IRRELEVANTE).ok).toBe(false);
+    expect(rolarExpressao('', RNG_IRRELEVANTE).ok).toBe(false);
+    expect(rolarExpressao('1d6+', RNG_IRRELEVANTE).ok).toBe(false);
   });
 
   it('validarExpressao espelha o parser', () => {

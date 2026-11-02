@@ -17,22 +17,39 @@ import { useConexao } from './store-conexao';
  * que não estava lá (RV-112).
  *
  * `invalidateQueries` e não `setQueryData`: o cliente não tem como saber o que
- * perdeu, então a única resposta correta é reperguntar ao servidor. A lista é
- * exatamente a dos caches escritos pelos handlers abaixo — nem a mais (refetch
- * inútil a cada reconexão), nem a menos (tela mentindo até o F5):
+ * perdeu, então a única resposta correta é reperguntar ao servidor.
  *
- * - `['mensagens']` — falas e rolagens do intervalo;
- * - `['cena']` — cena ativa e tokens (criados, movidos, removidos);
- * - `['personagens']` — PV das fichas, que alimenta a barra de vida no token;
- * - `['mesa']` — participação: um `mesa:participante-removido` perdido deixaria
- *   na tela uma mesa da qual já não faço parte, que é exatamente o defeito
- *   original do RV-021;
- * - `['combate']` — ordem de iniciativa, rodada e turno (RV-063). Sem esta chave
- *   uma queda no meio da luta deixa o painel apontando o turno de quem já agiu:
- *   os `combate:atualizado` do intervalo foram entregues a um socket que não
- *   estava lá, e nada mais reescreve esse cache até o próximo evento.
+ * A lista tem de ser **exatamente** a dos caches escritos pelos handlers abaixo
+ * — nem a mais (refetch inútil a cada reconexão), nem a menos (tela mentindo até
+ * o F5). Isso era uma afirmação em prosa, sem ninguém para quebrar quando
+ * deixasse de valer, e apodreceu como toda afirmação nessa situação: `['mesas']`
+ * passou a ser escrito por `mesa:participante-removido` e nunca entrou aqui.
+ * Quem compara as duas coisas agora é `ressincronizacao-reconexao.test.ts`, nos
+ * dois sentidos.
+ *
+ * - `['mensagens', mesaId]` — falas e rolagens do intervalo;
+ * - `['cena', mesaId]` — cena ativa e tokens (criados, movidos, removidos);
+ * - `['personagens', mesaId]` — PV das fichas, que alimenta a barra de vida no token;
+ * - `['mesa', mesaId]` — participação: um `mesa:participante-removido` perdido
+ *   deixaria na tela uma mesa da qual já não faço parte, que é exatamente o
+ *   defeito original do RV-021;
+ * - `['combate', mesaId]` — ordem de iniciativa, rodada e turno (RV-063). Sem
+ *   esta chave uma queda no meio da luta deixa o painel apontando o turno de
+ *   quem já agiu;
+ * - `['mesas']` — a lista do painel, sem escopo de mesa porque é global. Com
+ *   `staleTime` de 30s, sair de `/mesas/:id` logo após reconectar mostrava por
+ *   até meio minuto uma mesa da qual o jogador já tinha sido removido.
  */
-const CACHES_RESSINCRONIZADOS = ['mensagens', 'cena', 'personagens', 'mesa', 'combate'] as const;
+export function cachesRessincronizados(mesaId: string): readonly (readonly string[])[] {
+  return [
+    ['mensagens', mesaId],
+    ['cena', mesaId],
+    ['personagens', mesaId],
+    ['mesa', mesaId],
+    ['combate', mesaId],
+    ['mesas'],
+  ];
+}
 
 /**
  * Handler de um evento do servidor, com o payload vindo do contrato — nunca
@@ -80,8 +97,8 @@ export function useSocketMesa(mesaId: string) {
     function aoConectar() {
       useConexao.getState().conectou();
       socket.emit('mesa:entrar', mesaId, () => {});
-      for (const cache of CACHES_RESSINCRONIZADOS) {
-        void queryClient.invalidateQueries({ queryKey: [cache, mesaId] });
+      for (const queryKey of cachesRessincronizados(mesaId)) {
+        void queryClient.invalidateQueries({ queryKey });
       }
     }
 

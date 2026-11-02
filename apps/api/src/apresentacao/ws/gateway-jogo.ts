@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { SALA_MESA, SALA_USUARIO_NA_MESA, type AckEntrarNaMesa } from '@rolavinte/shared';
+import type { AckEntrarNaMesa } from '@rolavinte/shared';
 import type { ServicoToken } from '../../aplicacao/ports/infraestrutura';
 import type { VerificarParticipacao } from '../../aplicacao/jogo/verificar-participacao';
+import { sairDasSalasDaMesa, salasDaMesa, type RegistrarErroWs } from './salas';
 import type { ServidorJogo, SocketJogo } from './servidor-socket';
 
 const mesaIdSchema = z.string().uuid();
@@ -30,7 +31,7 @@ export class GatewayJogo {
     private readonly io: ServidorJogo,
     private readonly servicoToken: ServicoToken,
     private readonly verificarParticipacao: VerificarParticipacao,
-    private readonly registrarErro: (erro: unknown, evento: string) => void,
+    private readonly registrarErro: RegistrarErroWs,
   ) {}
 
   iniciar(): void {
@@ -57,9 +58,15 @@ export class GatewayJogo {
       socket.on('mesa:sair', (mesaIdBruto: unknown) => {
         const mesaId = mesaIdSchema.safeParse(mesaIdBruto);
         if (!mesaId.success) return;
-        this.sairDaSala(socket, SALA_MESA(mesaId.data));
         // Sair da mesa é parar de receber tudo dela, inclusive o que era privado.
-        this.sairDaSala(socket, SALA_USUARIO_NA_MESA(mesaId.data, socket.data.usuarioId));
+        // Quais são "todas as salas" é decisão de `salas.ts`, não deste arquivo.
+        sairDasSalasDaMesa(
+          socket,
+          mesaId.data,
+          socket.data.usuarioId,
+          this.registrarErro,
+          'mesa:sair',
+        );
       });
     });
   }
@@ -81,13 +88,12 @@ export class GatewayJogo {
     // (RV-070/RV-071). Entra no mesmo instante da sala da mesa, depois da
     // mesma verificação de participação: não existe caminho para receber
     // mensagem privada de uma mesa da qual não se participa.
-    await socket.join([SALA_MESA(mesaId.data), SALA_USUARIO_NA_MESA(mesaId.data, usuarioId)]);
+    //
+    // A lista vem de `salasDaMesa` — a mesma que a saída consome. Enquanto
+    // entrada e saída mantinham cada uma a sua, nada obrigava as duas a
+    // concordarem, e elas não concordavam.
+    await socket.join([...salasDaMesa(mesaId.data, usuarioId)]);
     responder({ ok: true });
-  }
-
-  /** `leave` é assíncrono: sem este `catch` a rejeição ficaria sem dono. */
-  private sairDaSala(socket: SocketJogo, sala: string): void {
-    Promise.resolve(socket.leave(sala)).catch((erro) => this.registrarErro(erro, 'mesa:sair'));
   }
 
   /**

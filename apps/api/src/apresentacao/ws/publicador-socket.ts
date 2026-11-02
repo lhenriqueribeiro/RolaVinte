@@ -1,6 +1,10 @@
 import { SALA_MESA, SALA_USUARIO_NA_MESA, type PayloadEventoServidor } from '@rolavinte/shared';
 import type { PublicadorEventosMesa } from '../../aplicacao/ports/infraestrutura';
+import { sairDasSalasDaMesa, type RegistrarErroWs } from './salas';
 import type { ServidorJogo } from './servidor-socket';
+
+/** Sem ouvinte de erro, falha de broadcast some. O composition root injeta o log. */
+const SILENCIO: RegistrarErroWs = () => undefined;
 
 /**
  * Adapter Socket.IO da port PublicadorEventosMesa — broadcast por sala da mesa.
@@ -8,7 +12,15 @@ import type { ServidorJogo } from './servidor-socket';
  * formato diferente do que o cliente espera não compila (RV-115).
  */
 export class PublicadorSocket implements PublicadorEventosMesa {
-  constructor(private readonly io: ServidorJogo) {}
+  /**
+   * `registrarErro` tem padrão porque o adapter é montado em vários pontos de
+   * teste que não têm logger; em produção o composition root passa o do Fastify,
+   * como faz com o gateway.
+   */
+  constructor(
+    private readonly io: ServidorJogo,
+    private readonly registrarErro: RegistrarErroWs = SILENCIO,
+  ) {}
 
   mensagemNova(mesaId: string, mensagem: PayloadEventoServidor<'mensagem:nova'>): void {
     this.io.to(SALA_MESA(mesaId)).emit('mensagem:nova', mensagem);
@@ -59,23 +71,44 @@ export class PublicadorSocket implements PublicadorEventosMesa {
     this.io.to(SALA_MESA(mesaId)).emit('combate:atualizado', combate);
   }
 
+  /**
+   * Removido pelo mestre ou saída voluntária (RV-021/RV-022).
+   *
+   * O removido perde o acesso **na hora**, e isso significa sair de todas as
+   * salas daquela mesa — a pública e a pessoal, que é o destino de sussurro e
+   * rolagem oculta. Enquanto esta função tirava o socket só da sala da mesa, a
+   * invariante declarada em `eventos-ws.ts` ("entra junto, sai junto") era falsa
+   * por este caminho, e a promessa de acesso revogado dependia de o cliente
+   * emitir `mesa:sair` por conta própria. Privacidade que depende da cooperação
+   * do cliente não é privacidade (F4 da taxonomia).
+   */
   participanteRemovido(
     mesaId: string,
     dados: Omit<PayloadEventoServidor<'mesa:participante-removido'>, 'mesaId'>,
   ): void {
     const sala = SALA_MESA(mesaId);
     this.io.to(sala).emit('mesa:participante-removido', { mesaId, usuarioId: dados.usuarioId });
-    // O removido perde o acesso na hora: sai da sala sem esperar reconexão.
     this.io
       .in(sala)
       .fetchSockets()
       .then((sockets) => {
         for (const socket of sockets) {
-          if (socket.data.usuarioId === dados.usuarioId) void socket.leave(sala);
+          if (socket.data.usuarioId !== dados.usuarioId) continue;
+          sairDasSalasDaMesa(
+            socket,
+            mesaId,
+            dados.usuarioId,
+            this.registrarErro,
+            'mesa:participante-removido',
+          );
         }
       })
-      .catch(() => {
-        // Broadcast é best-effort: falhar aqui não pode derrubar a operação de negócio.
+      .catch((erro) => {
+        // Broadcast é best-effort: falhar aqui não pode derrubar a operação de
+        // negócio. Mas "best-effort" é entregar menos, não falhar calado — o
+        // acesso que deveria ter sido revogado continua de pé, e isso precisa
+        // aparecer no log.
+        this.registrarErro(erro, 'mesa:participante-removido');
       });
   }
 }
