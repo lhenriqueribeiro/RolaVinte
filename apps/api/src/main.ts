@@ -286,7 +286,9 @@ async function iniciar(): Promise<void> {
 
   // ── Apresentação ──────────────────────────────────────────────────
   registrarRotas(app, { ...usos, servicoToken });
-  new GatewayJogo(io, servicoToken, usos.verificarParticipacao).iniciar();
+  new GatewayJogo(io, servicoToken, usos.verificarParticipacao, (erro, evento) =>
+    app.log.error({ err: erro, evento }, 'falha em handler de socket'),
+  ).iniciar();
 
   await app.listen({ port: env.PORTA, host: '0.0.0.0' });
   app.log.info(`🎲 RolaVinte API no ar em http://localhost:${env.PORTA}`);
