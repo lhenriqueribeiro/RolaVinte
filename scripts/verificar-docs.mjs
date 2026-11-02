@@ -30,6 +30,7 @@ const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ALVOS = [
   '.claude/rules',
   '.claude/agents',
+  'docs/adr',
   'docs/agentes',
   'docs/backlog',
   'docs/release-notes',

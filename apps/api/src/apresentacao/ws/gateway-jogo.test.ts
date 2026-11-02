@@ -73,7 +73,13 @@ function montarGateway() {
   const buscarPorId = vi.spyOn(mesas, 'buscarPorId');
 
   const io = new IoFalso();
-  new GatewayJogo(io as unknown as ServidorJogo, servicoToken, verificarParticipacao).iniciar();
+  const errosRegistrados: { erro: unknown; evento: string }[] = [];
+  new GatewayJogo(
+    io as unknown as ServidorJogo,
+    servicoToken,
+    verificarParticipacao,
+    (erro, evento) => errosRegistrados.push({ erro, evento }),
+  ).iniciar();
 
   /** Conecta um socket já autenticado, como faz o middleware do handshake. */
   function conectar(usuarioId = USUARIO_ID): SocketFalso {
@@ -97,7 +103,7 @@ function montarGateway() {
     buscarPorId.mockClear();
   }
 
-  return { io, mesas, servicoToken, buscarPorId, conectar, semearMesaCom };
+  return { io, mesas, servicoToken, buscarPorId, errosRegistrados, conectar, semearMesaCom };
 }
 
 /** Coletor de ack: guarda o que o gateway respondeu ao cliente. */
@@ -219,6 +225,96 @@ describe('GatewayJogo — mesa:sair', () => {
     expect([...socket.salas].sort()).toEqual(
       [`mesa:${MESA_ID}`, `mesa:${MESA_ID}:usuario:${USUARIO_ID}`].sort(),
     );
+  });
+});
+
+/**
+ * Em 2026-11-01 este defeito foi encontrado rodando o app: abrir uma mesa com
+ * o banco intermitente matava o processo da API inteiro. O listener de
+ * `mesa:entrar` é `async`, o Socket.IO não observa a promessa devolvida, e a
+ * rejeição do repositório virava unhandled rejection. A mesma falha no caminho
+ * HTTP virava 500 e o servidor seguia de pé — a diferença era não haver
+ * fronteira de erro do lado do socket.
+ *
+ * Por isso a asserção aqui é sobre a promessa **resolver**, não só sobre a
+ * mensagem: é a rejeição que escapa que derruba o processo.
+ */
+describe('GatewayJogo — falha de infraestrutura não escapa do listener', () => {
+  const falhaDeInfra = new Error('[supabase] buscar mesa: TypeError: fetch failed');
+
+  it('responde erro em PT-BR e não deixa a rejeição escapar', async () => {
+    gateway.buscarPorId.mockRejectedValueOnce(falhaDeInfra);
+    const socket = gateway.conectar();
+    const { ack, respostas } = criarAck();
+
+    await expect(socket.receber('mesa:entrar', MESA_ID, ack)).resolves.toBeUndefined();
+
+    expect(respostas).toEqual([
+      { ok: false, erro: 'Não foi possível entrar na mesa agora. Tente de novo.' },
+    ]);
+    expect(socket.salas.size).toBe(0);
+  });
+
+  it('registra a falha com o evento, para a causa não sumir em silêncio', async () => {
+    gateway.buscarPorId.mockRejectedValueOnce(falhaDeInfra);
+    const socket = gateway.conectar();
+    const { ack } = criarAck();
+
+    await socket.receber('mesa:entrar', MESA_ID, ack);
+
+    expect(gateway.errosRegistrados).toEqual([{ erro: falhaDeInfra, evento: 'mesa:entrar' }]);
+  });
+
+  it('a mensagem ao cliente não revela a infraestrutura', async () => {
+    gateway.buscarPorId.mockRejectedValueOnce(falhaDeInfra);
+    const socket = gateway.conectar();
+    const { ack, respostas } = criarAck();
+
+    await socket.receber('mesa:entrar', MESA_ID, ack);
+
+    expect(respostas[0]?.erro).not.toMatch(/supabase|fetch|TypeError/i);
+  });
+
+  it('ack que lança é problema do cliente, não do processo', async () => {
+    await gateway.semearMesaCom(USUARIO_ID);
+    const socket = gateway.conectar();
+    const ackHostil: AckEntrarNaMesa = () => {
+      throw new Error('callback do cliente explodiu');
+    };
+
+    await expect(socket.receber('mesa:entrar', MESA_ID, ackHostil)).resolves.toBeUndefined();
+
+    expect(gateway.errosRegistrados).toHaveLength(1);
+    expect(gateway.errosRegistrados[0]?.evento).toBe('mesa:entrar/ack');
+  });
+
+  it('sobrevive à falha dupla: infra cai e o ack do cliente também lança', async () => {
+    // É esta a combinação que a guarda do ack existe para cobrir: o caminho de
+    // erro responde, e se essa resposta lançasse, a exceção sairia de dentro
+    // do próprio `catch` — de volta ao defeito que este arquivo fecha.
+    gateway.buscarPorId.mockRejectedValueOnce(falhaDeInfra);
+    const socket = gateway.conectar();
+    const ackHostil: AckEntrarNaMesa = () => {
+      throw new Error('callback do cliente explodiu');
+    };
+
+    await expect(socket.receber('mesa:entrar', MESA_ID, ackHostil)).resolves.toBeUndefined();
+
+    expect(gateway.errosRegistrados.map((e) => e.evento)).toEqual([
+      'mesa:entrar',
+      'mesa:entrar/ack',
+    ]);
+  });
+
+  it('responde uma vez só, mesmo quando a falha acontece depois do ack', async () => {
+    await gateway.semearMesaCom(USUARIO_ID);
+    const socket = gateway.conectar();
+    const { ack, respostas } = criarAck();
+    vi.spyOn(socket, 'join').mockRejectedValueOnce(falhaDeInfra);
+
+    await expect(socket.receber('mesa:entrar', MESA_ID, ack)).resolves.toBeUndefined();
+
+    expect(respostas).toHaveLength(1);
   });
 });
 
